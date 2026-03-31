@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  RefreshCw,
   ExternalLink,
   Loader2,
   BarChart3,
@@ -14,10 +13,11 @@ import {
   DollarSign,
   AlertCircle,
   CheckCircle2,
+  Square,
 } from "lucide-react";
 import { TAXONOMY } from "@/lib/taxonomy";
 import type { CategorisedArticle, CategoryStats } from "@/lib/types";
-import type { CategoriseRunResult } from "@/lib/categorise/engine";
+import type { BatchResult } from "@/lib/categorise/engine";
 
 const THEME_BAR_COLORS: Record<string, string> = {
   energy: "bg-status-info",
@@ -37,14 +37,26 @@ function getCategoryMeta(id: string) {
   return TAXONOMY.find((c) => c.id === id);
 }
 
+interface RunProgress {
+  batchesDone: number;
+  totalBatches: number;
+  articlesProcessed: number;
+  totalArticles: number;
+  errors: number;
+  totalCost: number;
+  totalDuration: number;
+}
+
 export function CategoriesTab() {
   const [stats, setStats] = useState<CategoryStats | null>(null);
   const [articles, setArticles] = useState<CategorisedArticle[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [lastRun, setLastRun] = useState<CategoriseRunResult | null>(null);
+  const [progress, setProgress] = useState<RunProgress | null>(null);
+  const [completedRun, setCompletedRun] = useState<RunProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const cancelRef = useRef(false);
 
   const fetchStats = useCallback(async () => {
     const res = await fetch("/api/phase2a/stats");
@@ -69,23 +81,74 @@ export function CategoriesTab() {
 
   async function runCategorisation() {
     setIsRunning(true);
-    setLastRun(null);
+    setCompletedRun(null);
     setError(null);
-    try {
-      const res = await fetch("/api/phase2a/run", { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json();
-        setError(body.error || "Categorisation failed");
-        return;
-      }
-      const result: CategoriseRunResult = await res.json();
-      setLastRun(result);
-      await Promise.all([fetchStats(), fetchArticles(selectedCategory ?? undefined)]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
-    } finally {
+    cancelRef.current = false;
+
+    // First, get the count of uncategorised to know total
+    const statsRes = await fetch("/api/phase2a/stats");
+    const currentStats: CategoryStats = await statsRes.json();
+    const totalToProcess = currentStats.uncategorised_count;
+
+    if (totalToProcess === 0) {
       setIsRunning(false);
+      setError("All articles are already categorised.");
+      return;
     }
+
+    const totalBatches = Math.ceil(totalToProcess / 20);
+    const prog: RunProgress = {
+      batchesDone: 0,
+      totalBatches,
+      articlesProcessed: 0,
+      totalArticles: totalToProcess,
+      errors: 0,
+      totalCost: 0,
+      totalDuration: 0,
+    };
+    setProgress({ ...prog });
+
+    // Loop: one batch per request
+    let done = false;
+    while (!done && !cancelRef.current) {
+      try {
+        const res = await fetch("/api/phase2a/run", { method: "POST" });
+        if (!res.ok) {
+          const body = await res.json();
+          setError(body.error || "Categorisation failed");
+          break;
+        }
+        const batch: BatchResult = await res.json();
+
+        prog.batchesDone++;
+        prog.articlesProcessed += batch.articles_processed;
+        prog.errors += batch.errors;
+        prog.totalCost += batch.estimated_cost_usd;
+        prog.totalDuration += batch.duration_ms;
+        // Update remaining estimate from server
+        prog.totalBatches = prog.batchesDone + batch.total_batches_remaining;
+        prog.totalArticles = prog.articlesProcessed + batch.total_remaining;
+
+        setProgress({ ...prog });
+        done = batch.done;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Network error");
+        break;
+      }
+    }
+
+    if (cancelRef.current) {
+      setError("Categorisation stopped by user.");
+    }
+
+    setCompletedRun({ ...prog });
+    setProgress(null);
+    setIsRunning(false);
+    await Promise.all([fetchStats(), fetchArticles(selectedCategory ?? undefined)]);
+  }
+
+  function stopCategorisation() {
+    cancelRef.current = true;
   }
 
   if (loading) {
@@ -100,29 +163,40 @@ export function CategoriesTab() {
     ? Math.max(...stats.distribution.map((d) => d.count))
     : 1;
 
-  // Build full category list with counts (including zero-count categories)
   const categoryList = TAXONOMY.map((cat) => {
     const dist = stats?.distribution.find((d) => d.category === cat.id);
     return { ...cat, count: dist?.count ?? 0 };
   }).sort((a, b) => b.count - a.count);
 
+  const progressPct = progress
+    ? Math.round((progress.articlesProcessed / Math.max(progress.totalArticles, 1)) * 100)
+    : 0;
+
   return (
     <div className="space-y-6 p-5">
       {/* ── Control bar ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3">
-        <Button
-          onClick={runCategorisation}
-          disabled={isRunning}
-          size="sm"
-          className="gap-2"
-        >
-          {isRunning ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
+        {isRunning ? (
+          <Button
+            onClick={stopCategorisation}
+            size="sm"
+            variant="destructive"
+            className="gap-2"
+          >
+            <Square className="h-3.5 w-3.5" />
+            Stop
+          </Button>
+        ) : (
+          <Button
+            onClick={runCategorisation}
+            disabled={isRunning}
+            size="sm"
+            className="gap-2"
+          >
             <Tag className="h-4 w-4" />
-          )}
-          {isRunning ? "Categorising..." : "Run Categorisation"}
-        </Button>
+            Run Categorisation
+          </Button>
+        )}
 
         <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
           {stats && (
@@ -146,8 +220,56 @@ export function CategoriesTab() {
         </div>
       </div>
 
-      {/* ── Run result banner ──────────────────────────────────────── */}
-      {lastRun && (
+      {/* ── Progress bar ───────────────────────────────────────────── */}
+      {progress && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="rounded-lg border border-border-accent bg-accent-emerald/5 px-4 py-3"
+        >
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-accent-emerald" />
+              <span>
+                Batch {progress.batchesDone}/{progress.totalBatches}
+                {" — "}
+                <span className="font-medium text-accent-emerald">
+                  {progress.articlesProcessed}
+                </span>
+                {" of "}
+                {progress.totalArticles} articles
+              </span>
+            </span>
+            <span className="font-mono text-muted-foreground">
+              {progressPct}%
+              {progress.errors > 0 && (
+                <span className="ml-2 text-status-error">
+                  {progress.errors} errors
+                </span>
+              )}
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+            <motion.div
+              className="h-full rounded-full bg-accent-emerald"
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPct}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
+          <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
+            <span>
+              {(progress.totalDuration / 1000).toFixed(1)}s elapsed
+            </span>
+            <span className="font-mono">
+              ${progress.totalCost.toFixed(4)} cost
+            </span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Completed run banner ───────────────────────────────────── */}
+      {completedRun && !progress && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
@@ -156,19 +278,20 @@ export function CategoriesTab() {
           <p className="text-sm">
             Categorised{" "}
             <span className="font-medium text-accent-emerald">
-              {lastRun.articles_processed} articles
+              {completedRun.articlesProcessed} articles
             </span>{" "}
-            in {lastRun.batches_sent} batch{lastRun.batches_sent !== 1 ? "es" : ""} —{" "}
+            in {completedRun.batchesDone} batch
+            {completedRun.batchesDone !== 1 ? "es" : ""} —{" "}
             <span className="font-mono">
-              {(lastRun.duration_ms / 1000).toFixed(1)}s
+              {(completedRun.totalDuration / 1000).toFixed(1)}s
             </span>
             {" — "}
             <span className="font-mono">
-              ${lastRun.estimated_cost_usd.toFixed(4)}
+              ${completedRun.totalCost.toFixed(4)}
             </span>
-            {lastRun.errors > 0 && (
+            {completedRun.errors > 0 && (
               <span className="text-status-error">
-                {" "}({lastRun.errors} errors)
+                {" "}({completedRun.errors} errors)
               </span>
             )}
           </p>
