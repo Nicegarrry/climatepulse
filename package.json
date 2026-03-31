@@ -6,14 +6,15 @@
     "dev": "next dev -p 3030",
     "db:start": "docker compose up -d",
     "db:stop": "docker compose down",
-    "db:migrate": "psql $DATABASE_URL -f scripts/migrate.sql",
-    "db:seed": "psql $DATABASE_URL -f scripts/seed-sources.sql",
+    "db:migrate": "docker exec -i climatepulse-db-1 psql -U climatepulse -d climatepulse < scripts/migrate.sql",
+    "db:seed": "docker exec -i climatepulse-db-1 psql -U climatepulse -d climatepulse < scripts/seed-sources.sql",
     "db:setup": "npm run db:migrate && npm run db:seed",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

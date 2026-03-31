@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { DiscoveryTab } from "@/components/discovery-tab";
+import { CategoriesTab } from "@/components/categories-tab";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
@@ -66,12 +67,12 @@ const tabConfig = [
       "Climate data source discovery and monitoring. Connect sources to begin tracking environmental signals.",
   },
   {
-    value: "processing",
-    label: "Processing",
+    value: "categories",
+    label: "Categories",
     icon: Cpu,
-    emptyTitle: "Processing",
+    emptyTitle: "Categories",
     emptyDesc:
-      "Data processing pipeline status. View ingestion, transformation, and enrichment workflows.",
+      "AI-powered article categorisation using Gemini Flash. Assign articles to the 20-category taxonomy.",
   },
   {
     value: "ai-briefing",
@@ -255,8 +256,11 @@ export default function DashboardPage() {
             <TabsContent value="discovery" className="m-0">
               <DiscoveryTab />
             </TabsContent>
+            <TabsContent value="categories" className="m-0">
+              <CategoriesTab />
+            </TabsContent>
             {tabConfig
-              .filter((tab) => tab.value !== "discovery")
+              .filter((tab) => tab.value !== "discovery" && tab.value !== "categories")
               .map((tab) => (
                 <TabsContent
                   key={tab.value}

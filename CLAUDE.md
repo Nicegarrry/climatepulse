@@ -14,7 +14,7 @@ The goal is to validate that we can: (1) ingest climate/energy news from RSS + s
 - **Frontend**: React + Vite (for local testing UI)
 - **Backend**: Node.js
 - **Database**: Supabase (PostgreSQL via Prisma)
-- **AI (Triage/Categorisation)**: Gemini 2.0 Flash via Google AI API — chosen for cost ($0.10/$0.40 per 1M tokens, ~8x cheaper than Haiku on input). NOTE: Gemini 2.0 Flash deprecated June 2026; migrate to Gemini 2.5 Flash or Flash-Lite when needed.
+- **AI (Triage/Categorisation)**: Gemini 2.5 Flash via Google AI API — chosen for cost. Migrated from 2.0 Flash (retired by Google March 2026).
 - **AI (Digest Generation)**: Claude Sonnet via Anthropic API
 - **Email**: Resend
 - **Hosting (future)**: Railway (backend), Vercel (frontend)

@@ -41,3 +41,26 @@ export interface DiscoveryRunResult {
   errors: number;
   duration_ms: number;
 }
+
+export interface CategorisedArticle {
+  id: string;
+  raw_article_id: string;
+  primary_category: string;
+  secondary_categories: string[];
+  categorised_at: string;
+  model_used: string;
+  // Joined fields from raw_articles
+  title: string;
+  snippet: string | null;
+  source_name: string;
+  article_url: string;
+  published_at: string | null;
+}
+
+export interface CategoryStats {
+  total_categorised: number;
+  uncategorised_count: number;
+  distribution: { category: string; count: number }[];
+  avg_secondaries: number;
+  estimated_cost_usd: number;
+}
