@@ -1,0 +1,349 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Globe,
+  RefreshCw,
+  ExternalLink,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import type { RawArticle, Source, DiscoveryStats, DiscoveryRunResult } from "@/lib/types";
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Helpers
+   ────────────────────────────────────────────────────────────────────────── */
+
+function relativeTime(dateStr: string | null): string {
+  if (!dateStr) return "never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function sourceStatus(source: Source & { articles_today?: number }) {
+  if (source.consecutive_failures > 3)
+    return { color: "bg-status-error", label: "Failed" };
+  if (source.consecutive_failures > 0)
+    return { color: "bg-status-warning", label: "Degraded" };
+  return { color: "bg-status-success", label: "Healthy" };
+}
+
+function tierBadgeClass(tier: number) {
+  if (tier === 1) return "bg-status-info/15 text-status-info border-status-info/30";
+  if (tier === 2) return "bg-accent-emerald/15 text-accent-emerald border-accent-emerald/30";
+  return "bg-accent-amber/15 text-accent-amber border-accent-amber/30";
+}
+
+function tierLabel(tier: number) {
+  if (tier === 1) return "Tier 1";
+  if (tier === 2) return "Tier 2";
+  return "Scrape";
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Component
+   ────────────────────────────────────────────────────────────────────────── */
+
+export function DiscoveryTab() {
+  const [articles, setArticles] = useState<RawArticle[]>([]);
+  const [sources, setSources] = useState<(Source & { articles_today?: number })[]>([]);
+  const [stats, setStats] = useState<DiscoveryStats | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [lastRun, setLastRun] = useState<DiscoveryRunResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [hoursFilter, setHoursFilter] = useState("24");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set());
+
+  const fetchData = useCallback(async () => {
+    const params = new URLSearchParams({ hours: hoursFilter, limit: "200" });
+    if (sourceFilter !== "all") params.set("source", sourceFilter);
+
+    const [articlesRes, sourcesRes, statsRes] = await Promise.all([
+      fetch(`/api/discovery/articles?${params}`),
+      fetch("/api/discovery/sources"),
+      fetch("/api/discovery/stats"),
+    ]);
+
+    setArticles(await articlesRes.json());
+    setSources(await sourcesRes.json());
+    setStats(await statsRes.json());
+    setLoading(false);
+  }, [hoursFilter, sourceFilter]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  async function runDiscovery() {
+    setIsRunning(true);
+    setLastRun(null);
+    try {
+      const res = await fetch("/api/discovery/run", { method: "POST" });
+      const result: DiscoveryRunResult = await res.json();
+      setLastRun(result);
+      await fetchData();
+    } finally {
+      setIsRunning(false);
+    }
+  }
+
+  function toggleExpanded(id: string) {
+    setExpandedArticles((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const healthySources = sources.filter((s) => s.consecutive_failures <= 3 && s.is_active).length;
+  const failedSources = sources.filter((s) => s.consecutive_failures > 3).length;
+
+  return (
+    <div className="space-y-6 p-5">
+      {/* ── Control bar ─────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          onClick={runDiscovery}
+          disabled={isRunning}
+          size="sm"
+          className="gap-2"
+        >
+          {isRunning ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          {isRunning ? "Running..." : "Run Discovery"}
+        </Button>
+
+        <Select value={hoursFilter} onValueChange={setHoursFilter}>
+          <SelectTrigger className="w-[140px] h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="24">Last 24h</SelectItem>
+            <SelectItem value="48">Last 48h</SelectItem>
+            <SelectItem value="168">Last 7 days</SelectItem>
+            <SelectItem value="0">All time</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="w-[180px] h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sources</SelectItem>
+            {sources.map((s) => (
+              <SelectItem key={s.name} value={s.name}>
+                {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="font-mono">{stats?.total_articles ?? 0} total</span>
+          <span className="font-mono">{stats?.articles_last_24h ?? 0} today</span>
+          <span className="flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3 text-status-success" />
+            {healthySources} active
+          </span>
+          {failedSources > 0 && (
+            <span className="flex items-center gap-1">
+              <AlertCircle className="h-3 w-3 text-status-error" />
+              {failedSources} failed
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Last run result ─────────────────────────────────────────── */}
+      {lastRun && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="rounded-lg border border-border-accent bg-accent-emerald/5 px-4 py-3"
+        >
+          <p className="text-sm">
+            Discovery complete in{" "}
+            <span className="font-mono font-medium">
+              {(lastRun.duration_ms / 1000).toFixed(1)}s
+            </span>
+            {" — "}
+            <span className="font-medium text-accent-emerald">
+              {lastRun.new_articles} new
+            </span>
+            {", "}
+            {lastRun.duplicates_skipped} duplicates
+            {lastRun.errors > 0 && (
+              <span className="text-status-error">
+                , {lastRun.errors} errors
+              </span>
+            )}
+          </p>
+        </motion.div>
+      )}
+
+      {/* ── Source health grid ──────────────────────────────────────── */}
+      <div>
+        <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+          Source Health
+        </h3>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {sources.map((source) => {
+            const status = sourceStatus(source);
+            return (
+              <Card
+                key={source.id}
+                className="border-border/40 transition-colors hover:border-border"
+              >
+                <CardContent className="flex items-start gap-3 p-3">
+                  <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${status.color}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {source.name}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 text-[10px] ${tierBadgeClass(source.tier)}`}
+                      >
+                        {tierLabel(source.tier)}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {relativeTime(source.last_polled)}
+                      </span>
+                      <span className="font-mono">
+                        {source.articles_today ?? 0} today
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Article feed ────────────────────────────────────────────── */}
+      <div>
+        <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+          Articles ({articles.length})
+        </h3>
+        {articles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Globe className="mb-3 h-10 w-10 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">
+              No articles yet. Click &quot;Run Discovery&quot; to fetch from sources.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {articles.map((article) => {
+              const isExpanded = expandedArticles.has(article.id);
+              const source = sources.find((s) => s.name === article.source_name);
+              const tier = source?.tier ?? 1;
+
+              return (
+                <Card
+                  key={article.id}
+                  className="border-border/40 transition-colors hover:border-border"
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <a
+                            href={article.article_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium leading-snug hover:text-primary hover:underline"
+                          >
+                            {article.title}
+                            <ExternalLink className="ml-1 inline h-3 w-3 opacity-40" />
+                          </a>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${tierBadgeClass(tier)}`}
+                          >
+                            {article.source_name}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {relativeTime(article.published_at || article.fetched_at)}
+                          </span>
+                        </div>
+                        {article.snippet && (
+                          <div className="mt-2">
+                            <p className="text-xs leading-relaxed text-muted-foreground">
+                              {isExpanded
+                                ? article.snippet
+                                : article.snippet.slice(0, 150) +
+                                  (article.snippet.length > 150 ? "..." : "")}
+                            </p>
+                            {article.snippet.length > 150 && (
+                              <button
+                                onClick={() => toggleExpanded(article.id)}
+                                className="mt-1 flex items-center gap-0.5 text-xs text-primary hover:underline"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    Less <ChevronUp className="h-3 w-3" />
+                                  </>
+                                ) : (
+                                  <>
+                                    More <ChevronDown className="h-3 w-3" />
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
