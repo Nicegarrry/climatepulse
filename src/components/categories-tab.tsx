@@ -6,6 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ExternalLink,
   Loader2,
   BarChart3,
@@ -14,10 +21,27 @@ import {
   AlertCircle,
   CheckCircle2,
   Square,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { TAXONOMY } from "@/lib/taxonomy";
 import type { CategorisedArticle, CategoryStats } from "@/lib/types";
 import type { BatchResult } from "@/lib/categorise/engine";
+
+interface SourceOption {
+  source_name: string;
+  count: number;
+}
+
+interface PaginatedResponse {
+  articles: CategorisedArticle[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+  };
+}
 
 const THEME_BAR_COLORS: Record<string, string> = {
   energy: "bg-status-info",
@@ -51,6 +75,12 @@ export function CategoriesTab() {
   const [stats, setStats] = useState<CategoryStats | null>(null);
   const [articles, setArticles] = useState<CategorisedArticle[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedSource, setSelectedSource] = useState<string>("__all__");
+  const [sources, setSources] = useState<SourceOption[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalArticles, setTotalArticles] = useState(0);
+  const [expandedFullText, setExpandedFullText] = useState<Set<string>>(new Set());
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [completedRun, setCompletedRun] = useState<RunProgress | null>(null);
@@ -63,20 +93,76 @@ export function CategoriesTab() {
     setStats(await res.json());
   }, []);
 
-  const fetchArticles = useCallback(async (category?: string) => {
-    const params = new URLSearchParams();
-    if (category) params.set("category", category);
-    const res = await fetch(`/api/phase2a/results?${params}`);
-    setArticles(await res.json());
+  const fetchSources = useCallback(async () => {
+    try {
+      const res = await fetch("/api/phase2a/sources");
+      const data: SourceOption[] = await res.json();
+      setSources(data);
+    } catch {
+      // Sources filter is non-critical
+    }
   }, []);
 
+  const fetchArticles = useCallback(
+    async (category?: string, source?: string, pageNum: number = 1) => {
+      const params = new URLSearchParams();
+      if (category) params.set("category", category);
+      if (source && source !== "__all__") params.set("source", source);
+      params.set("page", String(pageNum));
+      params.set("limit", "50");
+      const res = await fetch(`/api/phase2a/results?${params}`);
+      const data: PaginatedResponse = await res.json();
+      setArticles(data.articles);
+      setTotalPages(data.pagination.total_pages);
+      setTotalArticles(data.pagination.total);
+      setPage(data.pagination.page);
+    },
+    []
+  );
+
   useEffect(() => {
-    Promise.all([fetchStats(), fetchArticles()]).then(() => setLoading(false));
-  }, [fetchStats, fetchArticles]);
+    Promise.all([fetchStats(), fetchArticles(), fetchSources()]).then(() =>
+      setLoading(false)
+    );
+  }, [fetchStats, fetchArticles, fetchSources]);
 
   async function selectCategory(id: string | null) {
     setSelectedCategory(id);
-    await fetchArticles(id ?? undefined);
+    setPage(1);
+    setExpandedFullText(new Set());
+    await fetchArticles(id ?? undefined, selectedSource, 1);
+  }
+
+  async function handleSourceChange(value: string) {
+    setSelectedSource(value);
+    setPage(1);
+    setExpandedFullText(new Set());
+    await fetchArticles(
+      selectedCategory ?? undefined,
+      value,
+      1
+    );
+  }
+
+  async function handlePageChange(newPage: number) {
+    setExpandedFullText(new Set());
+    await fetchArticles(
+      selectedCategory ?? undefined,
+      selectedSource,
+      newPage
+    );
+  }
+
+  function toggleFullText(articleId: string) {
+    setExpandedFullText((prev) => {
+      const next = new Set(prev);
+      if (next.has(articleId)) {
+        next.delete(articleId);
+      } else {
+        next.add(articleId);
+      }
+      return next;
+    });
   }
 
   async function runCategorisation() {
@@ -144,7 +230,7 @@ export function CategoriesTab() {
     setCompletedRun({ ...prog });
     setProgress(null);
     setIsRunning(false);
-    await Promise.all([fetchStats(), fetchArticles(selectedCategory ?? undefined)]);
+    await Promise.all([fetchStats(), fetchArticles(selectedCategory ?? undefined, selectedSource, 1)]);
   }
 
   function stopCategorisation() {
@@ -197,6 +283,20 @@ export function CategoriesTab() {
             Run Categorisation
           </Button>
         )}
+
+        <Select value={selectedSource} onValueChange={handleSourceChange}>
+          <SelectTrigger className="h-8 w-[180px] text-xs">
+            <SelectValue placeholder="All Sources" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Sources</SelectItem>
+            {sources.map((s) => (
+              <SelectItem key={s.source_name} value={s.source_name}>
+                {s.source_name} ({s.count})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
           {stats && (
@@ -359,8 +459,8 @@ export function CategoriesTab() {
       <div>
         <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
           {selectedCategory
-            ? `${getCategoryMeta(selectedCategory)?.name ?? selectedCategory} (${articles.length})`
-            : `All Categorised Articles (${articles.length})`}
+            ? `${getCategoryMeta(selectedCategory)?.name ?? selectedCategory} (${totalArticles})`
+            : `All Categorised Articles (${totalArticles})`}
         </h3>
 
         {selectedCategory && (
@@ -463,6 +563,23 @@ export function CategoriesTab() {
                                 </Badge>
                               );
                             })}
+                            {article.full_text ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-status-success/15 text-status-success border-status-success/30"
+                              >
+                                Full text
+                                {article.full_text_word_count != null &&
+                                  ` (${article.full_text_word_count.toLocaleString()} words)`}
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-muted text-muted-foreground border-border"
+                              >
+                                No full text
+                              </Badge>
+                            )}
                             <span className="text-[10px] text-muted-foreground">
                               · {article.source_name}
                             </span>
@@ -472,12 +589,64 @@ export function CategoriesTab() {
                               {article.snippet}
                             </p>
                           )}
+                          {article.full_text && (
+                            <div className="mt-2">
+                              <button
+                                onClick={() => toggleFullText(article.id)}
+                                className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                {expandedFullText.has(article.id) ? (
+                                  <>
+                                    <ChevronUp className="h-3 w-3" />
+                                    Hide full text
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="h-3 w-3" />
+                                    Show full text
+                                  </>
+                                )}
+                              </button>
+                              {expandedFullText.has(article.id) && (
+                                <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-border/40 bg-surface-2/50 p-3 text-xs whitespace-pre-wrap leading-relaxed text-muted-foreground">
+                                  {article.full_text}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </CardContent>
                   </Card>
                 );
               })
+            )}
+
+            {/* Pagination controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => handlePageChange(page - 1)}
+                  className="text-xs"
+                >
+                  Previous
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => handlePageChange(page + 1)}
+                  className="text-xs"
+                >
+                  Next
+                </Button>
+              </div>
             )}
           </div>
         </div>

@@ -55,6 +55,8 @@ export interface CategorisedArticle {
   source_name: string;
   article_url: string;
   published_at: string | null;
+  full_text: string | null;
+  full_text_word_count: number | null;
 }
 
 export interface CategoryStats {
@@ -63,4 +65,19 @@ export interface CategoryStats {
   distribution: { category: string; count: number }[];
   avg_secondaries: number;
   estimated_cost_usd: number;
+}
+
+export interface FulltextTestResult {
+  source_name: string;
+  success: boolean;
+  article_title: string | null;
+  article_url: string | null;
+  word_count: number;
+  error: string | null;
+}
+
+export interface FulltextStatus {
+  name: string;
+  fulltext_supported: boolean | null;
+  fulltext_tested_at: string | null;
 }

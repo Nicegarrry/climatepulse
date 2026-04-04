@@ -47,3 +47,19 @@ CREATE TABLE IF NOT EXISTS categorised_articles (
 
 CREATE INDEX IF NOT EXISTS idx_cat_primary ON categorised_articles(primary_category);
 CREATE INDEX IF NOT EXISTS idx_cat_article ON categorised_articles(raw_article_id);
+
+-- Full text extraction
+
+CREATE TABLE IF NOT EXISTS full_text_articles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  raw_article_id UUID NOT NULL REFERENCES raw_articles(id),
+  content TEXT NOT NULL,
+  word_count INTEGER NOT NULL DEFAULT 0,
+  extracted_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(raw_article_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fulltext_article ON full_text_articles(raw_article_id);
+
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS fulltext_supported BOOLEAN DEFAULT NULL;
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS fulltext_tested_at TIMESTAMPTZ DEFAULT NULL;

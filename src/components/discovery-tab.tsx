@@ -22,8 +22,9 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  FileText,
 } from "lucide-react";
-import type { RawArticle, Source, DiscoveryStats, DiscoveryRunResult } from "@/lib/types";
+import type { RawArticle, Source, DiscoveryStats, DiscoveryRunResult, FulltextTestResult, FulltextStatus } from "@/lib/types";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Helpers
@@ -75,20 +76,27 @@ export function DiscoveryTab() {
   const [hoursFilter, setHoursFilter] = useState("24");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set());
+  const [fulltextStatus, setFulltextStatus] = useState<FulltextStatus[]>([]);
+  const [isTestingFulltext, setIsTestingFulltext] = useState(false);
+  const [fulltextResult, setFulltextResult] = useState<{ succeeded: number; failed: number } | null>(null);
 
   const fetchData = useCallback(async () => {
     const params = new URLSearchParams({ hours: hoursFilter, limit: "200" });
     if (sourceFilter !== "all") params.set("source", sourceFilter);
 
-    const [articlesRes, sourcesRes, statsRes] = await Promise.all([
+    const [articlesRes, sourcesRes, statsRes, fulltextRes] = await Promise.all([
       fetch(`/api/discovery/articles?${params}`),
       fetch("/api/discovery/sources"),
       fetch("/api/discovery/stats"),
+      fetch("/api/discovery/fulltext-status"),
     ]);
 
     setArticles(await articlesRes.json());
     setSources(await sourcesRes.json());
     setStats(await statsRes.json());
+    if (fulltextRes.ok) {
+      setFulltextStatus(await fulltextRes.json());
+    }
     setLoading(false);
   }, [hoursFilter, sourceFilter]);
 
@@ -106,6 +114,21 @@ export function DiscoveryTab() {
       await fetchData();
     } finally {
       setIsRunning(false);
+    }
+  }
+
+  async function runFulltextTest() {
+    setIsTestingFulltext(true);
+    setFulltextResult(null);
+    try {
+      const res = await fetch("/api/discovery/test-fulltext", { method: "POST" });
+      const results: FulltextTestResult[] = await res.json();
+      const succeeded = results.filter((r) => r.success).length;
+      const failed = results.filter((r) => !r.success).length;
+      setFulltextResult({ succeeded, failed });
+      await fetchData();
+    } finally {
+      setIsTestingFulltext(false);
     }
   }
 
@@ -145,6 +168,21 @@ export function DiscoveryTab() {
             <RefreshCw className="h-4 w-4" />
           )}
           {isRunning ? "Running..." : "Run Discovery"}
+        </Button>
+
+        <Button
+          onClick={runFulltextTest}
+          disabled={isTestingFulltext}
+          size="sm"
+          variant="outline"
+          className="gap-2"
+        >
+          {isTestingFulltext ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileText className="h-4 w-4" />
+          )}
+          {isTestingFulltext ? "Testing..." : "Test Full Text"}
         </Button>
 
         <Select value={hoursFilter} onValueChange={setHoursFilter}>
@@ -216,6 +254,27 @@ export function DiscoveryTab() {
         </motion.div>
       )}
 
+      {/* ── Full text test result ────────────────────────────────────── */}
+      {fulltextResult && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="rounded-lg border border-border-accent bg-status-info/5 px-4 py-3"
+        >
+          <p className="text-sm">
+            Full text test complete{" — "}
+            <span className="font-medium text-accent-emerald">
+              {fulltextResult.succeeded} succeeded
+            </span>
+            {fulltextResult.failed > 0 && (
+              <span className="text-status-error">
+                , {fulltextResult.failed} failed
+              </span>
+            )}
+          </p>
+        </motion.div>
+      )}
+
       {/* ── Source health grid ──────────────────────────────────────── */}
       <div>
         <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
@@ -224,6 +283,8 @@ export function DiscoveryTab() {
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sources.map((source) => {
             const status = sourceStatus(source);
+            const ftStatus = fulltextStatus.find((fs) => fs.name === source.name);
+            const ftSupported = ftStatus?.fulltext_supported;
             return (
               <Card
                 key={source.id}
@@ -251,6 +312,24 @@ export function DiscoveryTab() {
                       <span className="font-mono">
                         {source.articles_today ?? 0} today
                       </span>
+                      {ftSupported === true && (
+                        <Badge variant="outline" className="shrink-0 gap-1 text-[10px] bg-accent-emerald/10 text-accent-emerald border-accent-emerald/30">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-emerald" />
+                          Full text ✓
+                        </Badge>
+                      )}
+                      {ftSupported === false && (
+                        <Badge variant="outline" className="shrink-0 gap-1 text-[10px] bg-status-error/10 text-status-error border-status-error/30">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-status-error" />
+                          No full text
+                        </Badge>
+                      )}
+                      {ftSupported === null && (
+                        <Badge variant="outline" className="shrink-0 gap-1 text-[10px] bg-muted text-muted-foreground border-border">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                          Untested
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </CardContent>
