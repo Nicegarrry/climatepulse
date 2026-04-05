@@ -23,8 +23,9 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
+  Newspaper,
 } from "lucide-react";
-import type { RawArticle, Source, DiscoveryStats, DiscoveryRunResult, FulltextTestResult, FulltextStatus } from "@/lib/types";
+import type { RawArticle, Source, DiscoveryStats, DiscoveryRunResult, FulltextTestResult, FulltextStatus, NewsApiRunResult } from "@/lib/types";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Helpers
@@ -56,7 +57,13 @@ function tierBadgeClass(tier: number) {
   return "bg-accent-amber/15 text-accent-amber border-accent-amber/30";
 }
 
-function tierLabel(tier: number) {
+function tierBadgeClassByType(source: Source) {
+  if (source.source_type === "api") return "bg-chart-3/15 text-chart-3 border-chart-3/30";
+  return tierBadgeClass(source.tier);
+}
+
+function tierLabel(tier: number, sourceType?: string) {
+  if (sourceType === "api") return "API";
   if (tier === 1) return "Tier 1";
   if (tier === 2) return "Tier 2";
   return "Scrape";
@@ -79,6 +86,10 @@ export function DiscoveryTab() {
   const [fulltextStatus, setFulltextStatus] = useState<FulltextStatus[]>([]);
   const [isTestingFulltext, setIsTestingFulltext] = useState(false);
   const [fulltextResult, setFulltextResult] = useState<{ succeeded: number; failed: number } | null>(null);
+  const [isRunningNewsApiAi, setIsRunningNewsApiAi] = useState(false);
+  const [newsApiAiResult, setNewsApiAiResult] = useState<NewsApiRunResult | null>(null);
+  const [isRunningNewsApiOrg, setIsRunningNewsApiOrg] = useState(false);
+  const [newsApiOrgResult, setNewsApiOrgResult] = useState<NewsApiRunResult | null>(null);
 
   const fetchData = useCallback(async () => {
     const params = new URLSearchParams({ hours: hoursFilter, limit: "200" });
@@ -129,6 +140,32 @@ export function DiscoveryTab() {
       await fetchData();
     } finally {
       setIsTestingFulltext(false);
+    }
+  }
+
+  async function runNewsApiAi() {
+    setIsRunningNewsApiAi(true);
+    setNewsApiAiResult(null);
+    try {
+      const res = await fetch("/api/discovery/run-newsapi-ai", { method: "POST" });
+      const result: NewsApiRunResult = await res.json();
+      setNewsApiAiResult(result);
+      await fetchData();
+    } finally {
+      setIsRunningNewsApiAi(false);
+    }
+  }
+
+  async function runNewsApiOrg() {
+    setIsRunningNewsApiOrg(true);
+    setNewsApiOrgResult(null);
+    try {
+      const res = await fetch("/api/discovery/run-newsapi-org", { method: "POST" });
+      const result: NewsApiRunResult = await res.json();
+      setNewsApiOrgResult(result);
+      await fetchData();
+    } finally {
+      setIsRunningNewsApiOrg(false);
     }
   }
 
@@ -183,6 +220,36 @@ export function DiscoveryTab() {
             <FileText className="h-4 w-4" />
           )}
           {isTestingFulltext ? "Testing..." : "Test Full Text"}
+        </Button>
+
+        <Button
+          onClick={runNewsApiAi}
+          disabled={isRunningNewsApiAi}
+          size="sm"
+          variant="outline"
+          className="gap-2"
+        >
+          {isRunningNewsApiAi ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Newspaper className="h-4 w-4" />
+          )}
+          {isRunningNewsApiAi ? "Running..." : "NewsAPI.ai"}
+        </Button>
+
+        <Button
+          onClick={runNewsApiOrg}
+          disabled={isRunningNewsApiOrg}
+          size="sm"
+          variant="outline"
+          className="gap-2"
+        >
+          {isRunningNewsApiOrg ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Newspaper className="h-4 w-4" />
+          )}
+          {isRunningNewsApiOrg ? "Running..." : "NewsAPI.org"}
         </Button>
 
         <Select value={hoursFilter} onValueChange={setHoursFilter}>
@@ -275,6 +342,71 @@ export function DiscoveryTab() {
         </motion.div>
       )}
 
+      {/* ── NewsAPI.ai result ──────────────────────────────────────── */}
+      {newsApiAiResult && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="rounded-lg border border-chart-3/30 bg-chart-3/5 px-4 py-3"
+        >
+          <p className="text-sm">
+            <span className="font-medium">NewsAPI.ai</span> complete in{" "}
+            <span className="font-mono font-medium">
+              {(newsApiAiResult.duration_ms / 1000).toFixed(1)}s
+            </span>
+            {" — "}
+            <span className="font-medium text-accent-emerald">
+              {newsApiAiResult.new_articles} new
+            </span>
+            {", "}
+            {newsApiAiResult.duplicates_skipped} duplicates
+            {newsApiAiResult.full_text_stored > 0 && (
+              <span className="text-status-info">
+                , {newsApiAiResult.full_text_stored} with full text
+              </span>
+            )}
+            {newsApiAiResult.errors > 0 && (
+              <span className="text-status-error">
+                , {newsApiAiResult.errors} errors
+                {newsApiAiResult.error_details.length > 0 && (
+                  <span className="text-xs"> — {newsApiAiResult.error_details[0].error}</span>
+                )}
+              </span>
+            )}
+          </p>
+        </motion.div>
+      )}
+
+      {/* ── NewsAPI.org result ──────────────────────────────────────── */}
+      {newsApiOrgResult && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="rounded-lg border border-status-info/30 bg-status-info/5 px-4 py-3"
+        >
+          <p className="text-sm">
+            <span className="font-medium">NewsAPI.org</span> complete in{" "}
+            <span className="font-mono font-medium">
+              {(newsApiOrgResult.duration_ms / 1000).toFixed(1)}s
+            </span>
+            {" — "}
+            <span className="font-medium text-accent-emerald">
+              {newsApiOrgResult.new_articles} new
+            </span>
+            {", "}
+            {newsApiOrgResult.duplicates_skipped} duplicates
+            {newsApiOrgResult.errors > 0 && (
+              <span className="text-status-error">
+                , {newsApiOrgResult.errors} errors
+                {newsApiOrgResult.error_details.length > 0 && (
+                  <span className="text-xs"> — {newsApiOrgResult.error_details[0].error}</span>
+                )}
+              </span>
+            )}
+          </p>
+        </motion.div>
+      )}
+
       {/* ── Source health grid ──────────────────────────────────────── */}
       <div>
         <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
@@ -299,9 +431,9 @@ export function DiscoveryTab() {
                       </span>
                       <Badge
                         variant="outline"
-                        className={`shrink-0 text-[10px] ${tierBadgeClass(source.tier)}`}
+                        className={`shrink-0 text-[10px] ${tierBadgeClassByType(source)}`}
                       >
-                        {tierLabel(source.tier)}
+                        {tierLabel(source.tier, source.source_type)}
                       </Badge>
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">

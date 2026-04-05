@@ -14,7 +14,7 @@ export interface Source {
   id: string;
   name: string;
   feed_url: string;
-  source_type: "rss" | "scrape";
+  source_type: "rss" | "scrape" | "api";
   tier: number;
   last_polled: string | null;
   last_successful_poll: string | null;
@@ -65,6 +65,16 @@ export interface CategoryStats {
   distribution: { category: string; count: number }[];
   avg_secondaries: number;
   estimated_cost_usd: number;
+}
+
+export interface NewsApiRunResult {
+  source: string;
+  new_articles: number;
+  duplicates_skipped: number;
+  full_text_stored: number;
+  errors: number;
+  duration_ms: number;
+  error_details: Array<{ query: string; error: string }>;
 }
 
 export interface FulltextTestResult {

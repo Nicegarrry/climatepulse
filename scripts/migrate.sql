@@ -63,3 +63,14 @@ CREATE INDEX IF NOT EXISTS idx_fulltext_article ON full_text_articles(raw_articl
 
 ALTER TABLE sources ADD COLUMN IF NOT EXISTS fulltext_supported BOOLEAN DEFAULT NULL;
 ALTER TABLE sources ADD COLUMN IF NOT EXISTS fulltext_tested_at TIMESTAMPTZ DEFAULT NULL;
+
+-- NewsAPI sources
+
+ALTER TABLE sources DROP CONSTRAINT IF EXISTS sources_source_type_check;
+ALTER TABLE sources ADD CONSTRAINT sources_source_type_check
+  CHECK (source_type IN ('rss', 'scrape', 'api'));
+
+INSERT INTO sources (name, feed_url, source_type, tier) VALUES
+  ('NewsAPI.ai', 'https://eventregistry.org', 'api', 3),
+  ('NewsAPI.org', 'https://newsapi.org', 'api', 3)
+ON CONFLICT (name) DO NOTHING;
