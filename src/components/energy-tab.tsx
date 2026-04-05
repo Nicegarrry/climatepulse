@@ -526,6 +526,107 @@ function IntradayChart({
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Intraday section — self-contained with region selector
+   ────────────────────────────────────────────────────────────────────────── */
+
+interface IntradayData {
+  timestamps: string[];
+  generation: Record<string, number[]>;
+  price: number[];
+  fueltechs: { key: string; label: string; color: string }[];
+}
+
+const REGIONS = [
+  { value: "__all__", label: "All NEM" },
+  { value: "NSW1", label: "NSW" },
+  { value: "QLD1", label: "QLD" },
+  { value: "VIC1", label: "VIC" },
+  { value: "SA1", label: "SA" },
+  { value: "TAS1", label: "TAS" },
+];
+
+function IntradaySection() {
+  const [region, setRegion] = useState("__all__");
+  const [data, setData] = useState<IntradayData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchIntraday = useCallback(async (r: string) => {
+    setLoading(true);
+    try {
+      const params = r !== "__all__" ? `?region=${r}` : "";
+      const res = await fetch(`/api/energy/intraday${params}`);
+      if (res.ok) setData(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchIntraday(region);
+  }, [region, fetchIntraday]);
+
+  const activeRegionLabel = REGIONS.find((r) => r.value === region)?.label ?? "NEM";
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
+      <div className="mb-3 flex items-center gap-3">
+        <h3 className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+          Generation &amp; Price — Last 24h · {activeRegionLabel}
+        </h3>
+        <div className="flex gap-1">
+          {REGIONS.map((r) => (
+            <button
+              key={r.value}
+              onClick={() => setRegion(r.value)}
+              className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                region === r.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-surface-2 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Card className="border-border/40">
+        <CardContent className="p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : data && data.timestamps.length > 2 ? (
+            <>
+              <IntradayChart
+                timestamps={data.timestamps}
+                generation={data.generation}
+                price={data.price}
+                fueltechs={data.fueltechs}
+              />
+              {/* Legend — grid layout for readability */}
+              <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-1.5 border-t border-border/40 pt-3 sm:grid-cols-4 md:grid-cols-6">
+                {data.fueltechs.map((ft) => (
+                  <div key={ft.key} className="flex items-center gap-1.5 text-xs">
+                    <div className="h-3 w-3 shrink-0 rounded" style={{ backgroundColor: ft.color }} />
+                    <span className="text-muted-foreground">{ft.label}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-1.5 text-xs">
+                  <div className="h-0.5 w-4 shrink-0 rounded bg-foreground" />
+                  <span className="text-muted-foreground">Price</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="py-12 text-center text-sm text-muted-foreground">No intraday data available.</p>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
    Main component
    ────────────────────────────────────────────────────────────────────────── */
 
@@ -699,36 +800,7 @@ export function EnergyTab() {
       )}
 
       {/* ── Intraday generation + price ───────────────────────────── */}
-      {data.intraday.timestamps.length > 2 && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
-          <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-            Generation &amp; Price — Last 24 Hours
-          </h3>
-          <Card className="border-border/40">
-            <CardContent className="p-4">
-              <IntradayChart
-                timestamps={data.intraday.timestamps}
-                generation={data.intraday.generation}
-                price={data.intraday.price}
-                fueltechs={data.intraday.fueltechs}
-              />
-              {/* Legend */}
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/40 pt-3">
-                {data.intraday.fueltechs.map((ft) => (
-                  <div key={ft.key} className="flex items-center gap-1 text-[10px]">
-                    <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: ft.color }} />
-                    <span className="text-muted-foreground">{ft.label}</span>
-                  </div>
-                ))}
-                <div className="flex items-center gap-1 text-[10px]">
-                  <div className="h-0.5 w-4 rounded bg-foreground" />
-                  <span className="text-muted-foreground">Price ($/MWh)</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+      <IntradaySection />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* ── State-by-state renewables ──────────────────────────────── */}

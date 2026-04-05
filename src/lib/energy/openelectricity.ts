@@ -31,33 +31,31 @@ const FOSSIL_SERIES = new Set([
   "energy_coal", "energy_gas", "energy_distillate",
 ]);
 
-const FUELTECH_DISPLAY: Record<string, string> = {
-  energy_solar: "Solar",
-  energy_wind: "Wind",
-  energy_hydro: "Hydro",
-  energy_coal: "Coal",
-  energy_gas: "Gas",
-  energy_bioenergy: "Bioenergy",
-  energy_distillate: "Distillate",
-  energy_battery_discharging: "Battery",
-  energy_battery_charging: "Battery (Charge)",
-  energy_battery: "Battery (Net)",
-  energy_pumps: "Pumped Hydro",
-};
+// Labels and colours work for both energy_ and power_ prefixed series
+function ftLabel(name: string): string {
+  const base = name.replace(/^(energy|power)_/, "");
+  const labels: Record<string, string> = {
+    solar: "Solar", wind: "Wind", hydro: "Hydro", coal: "Coal", gas: "Gas",
+    bioenergy: "Bioenergy", distillate: "Distillate",
+    battery_discharging: "Battery", battery_charging: "Battery (Charge)",
+    battery: "Battery (Net)", pumps: "Pumped Hydro",
+  };
+  return labels[base] ?? base.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
-const FUELTECH_COLORS: Record<string, string> = {
-  energy_solar: "#F59E0B",
-  energy_wind: "#3B82F6",
-  energy_hydro: "#06B6D4",
-  energy_coal: "#57534E",
-  energy_gas: "#EF4444",
-  energy_bioenergy: "#22C55E",
-  energy_distillate: "#A3A3A3",
-  energy_battery_discharging: "#8B5CF6",
-  energy_battery_charging: "#C4B5FD",
-  energy_battery: "#8B5CF6",
-  energy_pumps: "#7C3AED",
-};
+function ftColor(name: string): string {
+  const base = name.replace(/^(energy|power)_/, "");
+  const colors: Record<string, string> = {
+    solar: "#F59E0B", wind: "#3B82F6", hydro: "#06B6D4", coal: "#57534E",
+    gas: "#EF4444", bioenergy: "#22C55E", distillate: "#A3A3A3",
+    battery_discharging: "#8B5CF6", battery_charging: "#C4B5FD",
+    battery: "#8B5CF6", pumps: "#7C3AED",
+  };
+  return colors[base] ?? "#9CA3AF";
+}
+
+// Skip these from generation totals (net/charging/pumping are not generation)
+const SKIP_SERIES = new Set(["battery", "battery_charging", "pumps"]);
 
 // ── Exported types ───────────────────────────────────────────────────────
 
@@ -145,7 +143,7 @@ export async function fetchEnergyDashboard(): Promise<EnergyDashboardData> {
     const genResults = gen7d.response.data?.[0]?.results ?? [];
     // Exclude negative-net and charging series from totals
     const genForMix = genResults.filter(
-      (r) => r.name !== "energy_battery" && r.name !== "energy_battery_charging" && r.name !== "energy_pumps"
+      (r) => !SKIP_SERIES.has(r.name.replace(/^(energy|power)_/, ""))
     );
 
     const totalEnergy = genForMix.reduce(
@@ -167,8 +165,8 @@ export async function fetchEnergyDashboard(): Promise<EnergyDashboardData> {
       if (energy <= 0) continue;
       result.generation_mix.push({
         fueltech: r.name,
-        label: FUELTECH_DISPLAY[r.name] ?? r.name.replace("energy_", ""),
-        color: FUELTECH_COLORS[r.name] ?? "#9CA3AF",
+        label: ftLabel(r.name),
+        color: ftColor(r.name),
         energy_gwh: Math.round(energy / 1000 * 10) / 10,
         share_pct: totalEnergy > 0 ? Math.round((energy / totalEnergy) * 1000) / 10 : 0,
         type: RENEWABLE_SERIES.has(r.name)
@@ -335,7 +333,7 @@ export async function fetchEnergyDashboard(): Promise<EnergyDashboardData> {
       // Sort fueltechs by total power descending
       const ftTotals = new Map<string, number>();
       for (const r of genSeries) {
-        if (r.name === "energy_battery" || r.name === "energy_battery_charging" || r.name === "energy_pumps") continue;
+        if (SKIP_SERIES.has(r.name.replace(/^(energy|power)_/, ""))) continue;
         const total = r.data.reduce((s, [, v]) => s + Math.max(v ?? 0, 0), 0);
         ftTotals.set(r.name, total);
       }
@@ -350,8 +348,8 @@ export async function fetchEnergyDashboard(): Promise<EnergyDashboardData> {
 
         ftOrder.push({
           key: ftName,
-          label: FUELTECH_DISPLAY[ftName] ?? ftName.replace("energy_", ""),
-          color: FUELTECH_COLORS[ftName] ?? "#9CA3AF",
+          label: ftLabel(ftName),
+          color: ftColor(ftName),
         });
       }
 
