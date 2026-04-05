@@ -1,23 +1,26 @@
 /**
  * Climate/energy search queries tuned for each API's capabilities and rate limits.
  *
- * NewsAPI.ai: 4 targeted queries × 15 articles = ~60 articles per run.
+ * NewsAPI.ai: 4 targeted queries using QueryItems.OR() with keyword arrays.
  * Uses 2,000 free tokens/month — each query costs ~1 token.
  *
- * NewsAPI.org: 2 broader queries × 50 articles = ~100 articles per run.
+ * NewsAPI.org: 2 broader queries as URL-encoded keyword strings.
  * Limited to 100 requests/day on free tier.
  */
 
-export const NEWSAPI_AI_QUERIES = [
-  '"renewable energy" OR "solar power" OR "wind energy" OR "energy storage" OR "battery technology"',
-  '"climate change" OR "climate policy" OR "carbon emissions" OR "net zero" OR "global warming"',
-  '"electric vehicle" OR "green hydrogen" OR "carbon market" OR "clean energy transition"',
-  '"critical minerals" OR "nuclear energy" OR "fossil fuel" OR "energy efficiency"',
+// NewsAPI.ai: arrays of keywords combined via QueryItems.OR()
+export const NEWSAPI_AI_QUERIES: string[][] = [
+  ["renewable energy", "solar power", "wind energy", "energy storage", "battery technology"],
+  ["climate change", "climate policy", "carbon emissions", "net zero", "global warming"],
+  ["electric vehicle", "green hydrogen", "carbon market", "clean energy"],
+  ["critical minerals", "nuclear energy", "fossil fuel phase-out", "energy efficiency"],
 ];
 
-export const NEWSAPI_ORG_QUERIES = [
-  '("climate change" OR "renewable energy" OR "clean energy" OR "net zero")',
-  '("electric vehicle" OR "carbon emissions" OR "energy storage" OR "green hydrogen")',
+// NewsAPI.org: keyword strings for the q= parameter
+// More specific phrases to improve relevance (free tier returns a lot of noise)
+export const NEWSAPI_ORG_QUERIES: string[] = [
+  '"climate change" OR "renewable energy" OR "clean energy transition" OR "net zero emissions"',
+  '"electric vehicle" OR "carbon capture" OR "energy storage" OR "green hydrogen" OR "offshore wind"',
 ];
 
 export const NEWSAPI_AI_MAX_PER_QUERY = 15;

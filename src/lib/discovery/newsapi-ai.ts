@@ -1,4 +1,4 @@
-import { EventRegistry, QueryArticlesIter, ArticleInfoFlags, ReturnInfo } from "eventregistry";
+import { EventRegistry, QueryArticlesIter, ArticleInfoFlags, ReturnInfo, QueryItems } from "eventregistry";
 import pool from "@/lib/db";
 import { NEWSAPI_AI_QUERIES, NEWSAPI_AI_MAX_PER_QUERY } from "./news-queries";
 import type { NewsApiRunResult } from "@/lib/types";
@@ -50,10 +50,10 @@ export async function fetchNewsApiAi(): Promise<NewsApiRunResult> {
   });
   const returnInfo = new ReturnInfo({ articleInfo });
 
-  for (const queryStr of NEWSAPI_AI_QUERIES) {
+  for (const queryKeywords of NEWSAPI_AI_QUERIES) {
     try {
       const query = new QueryArticlesIter(er, {
-        keywords: queryStr,
+        keywords: QueryItems.OR(queryKeywords),
         dateStart: sevenDaysAgo,
         lang: ["eng"],
         sortBy: "date",
@@ -63,14 +63,15 @@ export async function fetchNewsApiAi(): Promise<NewsApiRunResult> {
 
       const articles: ERArticle[] = [];
       await new Promise<void>((resolve) => {
+        let resolved = false;
         query.execQuery(
           (article) => {
             articles.push(article as unknown as ERArticle);
           },
-          () => resolve(),
+          () => { if (!resolved) { resolved = true; resolve(); } },
         );
         // Timeout safety
-        setTimeout(() => resolve(), 30_000);
+        setTimeout(() => { if (!resolved) { resolved = true; resolve(); } }, 30_000);
       });
 
       for (const article of articles) {
@@ -118,7 +119,7 @@ export async function fetchNewsApiAi(): Promise<NewsApiRunResult> {
     } catch (err) {
       totalErrors++;
       errorDetails.push({
-        query: queryStr.slice(0, 60) + "...",
+        query: queryKeywords.join(", ").slice(0, 60) + "...",
         error: err instanceof Error ? err.message : String(err),
       });
     }

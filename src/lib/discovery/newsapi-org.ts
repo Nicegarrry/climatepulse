@@ -51,6 +51,7 @@ export async function fetchNewsApiOrg(): Promise<NewsApiRunResult> {
     try {
       const params = new URLSearchParams({
         q: queryStr,
+        searchIn: "title",
         language: "en",
         sortBy: "publishedAt",
         pageSize: String(NEWSAPI_ORG_PAGE_SIZE),
