@@ -1,27 +1,30 @@
 /**
  * Climate/energy search queries tuned for each API's capabilities and rate limits.
  *
- * NewsAPI.ai: 4 targeted queries using QueryItems.OR() with keyword arrays.
+ * NewsAPI.ai: 3 targeted queries using QueryItems.OR() with specific multi-word phrases.
  * Uses 2,000 free tokens/month — each query costs ~1 token.
+ * Keep terms specific to avoid pulling in general politics/economics noise.
  *
- * NewsAPI.org: 2 broader queries as URL-encoded keyword strings.
- * Limited to 100 requests/day on free tier.
+ * NewsAPI.org: 2 queries for the q= parameter. Free tier: 100 req/day, no full text.
+ * searchIn=title keeps results focused.
  */
 
 // NewsAPI.ai: arrays of keywords combined via QueryItems.OR()
+// Fewer, more precise terms = higher signal-to-noise
 export const NEWSAPI_AI_QUERIES: string[][] = [
-  ["renewable energy", "solar power", "wind energy", "energy storage", "battery technology"],
-  ["climate change", "climate policy", "carbon emissions", "net zero", "global warming"],
-  ["electric vehicle", "green hydrogen", "carbon market", "clean energy"],
-  ["critical minerals", "nuclear energy", "fossil fuel phase-out", "energy efficiency"],
+  // Renewables & grid
+  ["solar farm", "wind farm", "offshore wind", "battery storage", "grid-scale storage", "energy transition"],
+  // Decarbonisation & transport
+  ["electric vehicle sales", "EV charging", "green hydrogen", "carbon capture", "heat pump"],
+  // Policy & markets
+  ["carbon price", "emissions trading", "renewable energy target", "climate legislation", "net zero target"],
 ];
 
 // NewsAPI.org: keyword strings for the q= parameter
-// More specific phrases to improve relevance (free tier returns a lot of noise)
 export const NEWSAPI_ORG_QUERIES: string[] = [
-  '"climate change" OR "renewable energy" OR "clean energy transition" OR "net zero emissions"',
-  '"electric vehicle" OR "carbon capture" OR "energy storage" OR "green hydrogen" OR "offshore wind"',
+  '"solar farm" OR "wind farm" OR "battery storage" OR "energy transition" OR "offshore wind"',
+  '"electric vehicle" OR "carbon capture" OR "green hydrogen" OR "net zero" OR "climate policy"',
 ];
 
-export const NEWSAPI_AI_MAX_PER_QUERY = 15;
+export const NEWSAPI_AI_MAX_PER_QUERY = 10;
 export const NEWSAPI_ORG_PAGE_SIZE = 50;
