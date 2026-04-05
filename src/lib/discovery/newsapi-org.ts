@@ -38,8 +38,8 @@ export async function fetchNewsApiOrg(): Promise<NewsApiRunResult> {
   }
 
   const now = new Date().toISOString();
-  // Free tier has 24h delay; search from 7 days ago to yesterday
-  const from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  // Past 24 hours only (free tier has 24h delay, so yesterday)
+  const from = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().split("T")[0];
   const to = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   let totalNew = 0;

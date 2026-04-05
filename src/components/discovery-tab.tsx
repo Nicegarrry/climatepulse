@@ -222,6 +222,7 @@ export function DiscoveryTab() {
           {isTestingFulltext ? "Testing..." : "Test Full Text"}
         </Button>
 
+        {/* NewsAPI.ai paused — uncomment to re-enable
         <Button
           onClick={runNewsApiAi}
           disabled={isRunningNewsApiAi}
@@ -236,6 +237,7 @@ export function DiscoveryTab() {
           )}
           {isRunningNewsApiAi ? "Running..." : "NewsAPI.ai"}
         </Button>
+        */}
 
         <Button
           onClick={runNewsApiOrg}
