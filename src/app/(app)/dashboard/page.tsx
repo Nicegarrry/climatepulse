@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { DiscoveryTab } from "@/components/discovery-tab";
 import { CategoriesTab } from "@/components/categories-tab";
+import { EnergyTab } from "@/components/energy-tab";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
@@ -75,12 +76,12 @@ const tabConfig = [
       "AI-powered article categorisation using Gemini Flash. Assign articles to the 20-category taxonomy.",
   },
   {
-    value: "ai-briefing",
-    label: "AI Briefing",
-    icon: BrainCircuit,
-    emptyTitle: "AI Briefing",
+    value: "energy",
+    label: "Energy",
+    icon: Zap,
+    emptyTitle: "Energy Data",
     emptyDesc:
-      "AI-generated climate intelligence briefings. Automated analysis and trend detection.",
+      "Live Australian NEM data from OpenElectricity — generation mix, renewables, emissions, prices.",
   },
   {
     value: "events",
@@ -259,8 +260,11 @@ export default function DashboardPage() {
             <TabsContent value="categories" className="m-0">
               <CategoriesTab />
             </TabsContent>
+            <TabsContent value="energy" className="m-0">
+              <EnergyTab />
+            </TabsContent>
             {tabConfig
-              .filter((tab) => tab.value !== "discovery" && tab.value !== "categories")
+              .filter((tab) => tab.value !== "discovery" && tab.value !== "categories" && tab.value !== "energy")
               .map((tab) => (
                 <TabsContent
                   key={tab.value}
