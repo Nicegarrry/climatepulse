@@ -291,6 +291,241 @@ function DailyGenerationChart({
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Intraday generation + price chart (SVG)
+   ────────────────────────────────────────────────────────────────────────── */
+
+function IntradayChart({
+  timestamps,
+  generation,
+  price,
+  fueltechs,
+}: {
+  timestamps: string[];
+  generation: Record<string, number[]>;
+  price: number[];
+  fueltechs: { key: string; label: string; color: string }[];
+}) {
+  if (timestamps.length < 2) return null;
+
+  const W = 800;
+  const H = 280;
+  const PAD = { top: 20, right: 55, bottom: 40, left: 50 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+  const barCount = timestamps.length;
+  const barW = chartW / barCount;
+
+  // Stack generation values (bottom to top)
+  const stacks: { key: string; color: string; values: number[] }[] = [];
+  // Reverse so largest is at the bottom
+  const ftReversed = [...fueltechs].reverse();
+  for (const ft of ftReversed) {
+    stacks.push({
+      key: ft.key,
+      color: ft.color,
+      values: generation[ft.key] ?? timestamps.map(() => 0),
+    });
+  }
+
+  // Compute cumulative stack heights
+  const stackedTotals = timestamps.map((_, i) =>
+    stacks.reduce((sum, s) => sum + s.values[i], 0)
+  );
+  const maxGen = Math.max(...stackedTotals, 1);
+
+  // Price range
+  const validPrices = price.filter((p) => p !== null && isFinite(p));
+  const minPrice = Math.min(...validPrices, 0);
+  const maxPrice = Math.max(...validPrices, 100);
+  const priceRange = maxPrice - minPrice || 1;
+
+  // Y scale helpers
+  const genY = (val: number) => PAD.top + chartH - (val / maxGen) * chartH;
+  const priceY = (val: number) => PAD.top + chartH - ((val - minPrice) / priceRange) * chartH;
+
+  // Price line path
+  const pricePath = price
+    .map((p, i) => {
+      const x = PAD.left + i * barW + barW / 2;
+      const y = priceY(p);
+      return `${i === 0 ? "M" : "L"}${x},${y}`;
+    })
+    .join(" ");
+
+  // X-axis labels (every 3 hours)
+  const xLabels: { x: number; label: string }[] = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const date = new Date(timestamps[i]);
+    const hour = date.getHours();
+    if (hour % 3 === 0) {
+      xLabels.push({
+        x: PAD.left + i * barW + barW / 2,
+        label: `${hour.toString().padStart(2, "0")}:00`,
+      });
+    }
+  }
+
+  // Y-axis labels for generation (left)
+  const genTicks = [0, Math.round(maxGen / 3000) * 1000, Math.round((maxGen * 2) / 3000) * 1000, Math.round(maxGen / 1000) * 1000];
+
+  // Y-axis labels for price (right)
+  const priceTicks = [
+    Math.round(minPrice),
+    Math.round(minPrice + priceRange / 3),
+    Math.round(minPrice + (priceRange * 2) / 3),
+    Math.round(maxPrice),
+  ];
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: "auto", maxHeight: 320 }}>
+      {/* Grid lines */}
+      {genTicks.map((tick) => (
+        <line
+          key={`grid-${tick}`}
+          x1={PAD.left}
+          y1={genY(tick)}
+          x2={W - PAD.right}
+          y2={genY(tick)}
+          stroke="var(--border)"
+          strokeWidth="0.5"
+          strokeDasharray="2,4"
+        />
+      ))}
+
+      {/* Zero line for price */}
+      {minPrice < 0 && (
+        <line
+          x1={PAD.left}
+          y1={priceY(0)}
+          x2={W - PAD.right}
+          y2={priceY(0)}
+          stroke="var(--muted-foreground)"
+          strokeWidth="0.5"
+          strokeDasharray="4,4"
+          opacity={0.5}
+        />
+      )}
+
+      {/* Stacked bars */}
+      {timestamps.map((_, i) => {
+        let cumulative = 0;
+        return (
+          <g key={i}>
+            {stacks.map((stack) => {
+              const val = stack.values[i];
+              const barH = (val / maxGen) * chartH;
+              const y = genY(cumulative + val);
+              cumulative += val;
+              if (barH < 0.5) return null;
+              return (
+                <rect
+                  key={stack.key}
+                  x={PAD.left + i * barW + 0.5}
+                  y={y}
+                  width={Math.max(barW - 1, 1)}
+                  height={barH}
+                  fill={stack.color}
+                  opacity={0.85}
+                />
+              );
+            })}
+          </g>
+        );
+      })}
+
+      {/* Price line */}
+      <path
+        d={pricePath}
+        fill="none"
+        stroke="var(--foreground)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.8}
+      />
+
+      {/* Price dots at notable points */}
+      {price.map((p, i) => {
+        if (p < 0 || p > maxPrice * 0.9) {
+          return (
+            <circle
+              key={i}
+              cx={PAD.left + i * barW + barW / 2}
+              cy={priceY(p)}
+              r={2.5}
+              fill={p < 0 ? "var(--status-success)" : "var(--status-error)"}
+            />
+          );
+        }
+        return null;
+      })}
+
+      {/* Left Y axis — Generation (MW) */}
+      {genTicks.map((tick) => (
+        <text
+          key={`gen-${tick}`}
+          x={PAD.left - 6}
+          y={genY(tick) + 3}
+          textAnchor="end"
+          fontSize="9"
+          fill="var(--muted-foreground)"
+        >
+          {tick >= 1000 ? `${Math.round(tick / 1000)}k` : tick}
+        </text>
+      ))}
+      <text
+        x={12}
+        y={PAD.top + chartH / 2}
+        textAnchor="middle"
+        fontSize="9"
+        fill="var(--muted-foreground)"
+        transform={`rotate(-90, 12, ${PAD.top + chartH / 2})`}
+      >
+        MW
+      </text>
+
+      {/* Right Y axis — Price ($/MWh) */}
+      {priceTicks.map((tick) => (
+        <text
+          key={`price-${tick}`}
+          x={W - PAD.right + 6}
+          y={priceY(tick) + 3}
+          textAnchor="start"
+          fontSize="9"
+          fill="var(--muted-foreground)"
+        >
+          ${tick}
+        </text>
+      ))}
+      <text
+        x={W - 10}
+        y={PAD.top + chartH / 2}
+        textAnchor="middle"
+        fontSize="9"
+        fill="var(--muted-foreground)"
+        transform={`rotate(90, ${W - 10}, ${PAD.top + chartH / 2})`}
+      >
+        $/MWh
+      </text>
+
+      {/* X axis labels */}
+      {xLabels.map(({ x, label }) => (
+        <text
+          key={label}
+          x={x}
+          y={H - PAD.bottom + 16}
+          textAnchor="middle"
+          fontSize="9"
+          fill="var(--muted-foreground)"
+        >
+          {label}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
    Main component
    ────────────────────────────────────────────────────────────────────────── */
 
@@ -458,6 +693,38 @@ export function EnergyTab() {
           <Card className="border-border/40">
             <CardContent className="p-4">
               <StackedBar segments={mixSegments} />
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* ── Intraday generation + price ───────────────────────────── */}
+      {data.intraday.timestamps.length > 2 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
+          <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+            Generation &amp; Price — Last 24 Hours
+          </h3>
+          <Card className="border-border/40">
+            <CardContent className="p-4">
+              <IntradayChart
+                timestamps={data.intraday.timestamps}
+                generation={data.intraday.generation}
+                price={data.intraday.price}
+                fueltechs={data.intraday.fueltechs}
+              />
+              {/* Legend */}
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/40 pt-3">
+                {data.intraday.fueltechs.map((ft) => (
+                  <div key={ft.key} className="flex items-center gap-1 text-[10px]">
+                    <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: ft.color }} />
+                    <span className="text-muted-foreground">{ft.label}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-1 text-[10px]">
+                  <div className="h-0.5 w-4 rounded bg-foreground" />
+                  <span className="text-muted-foreground">Price ($/MWh)</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </motion.div>

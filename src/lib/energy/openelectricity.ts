@@ -95,6 +95,15 @@ export interface EnergyDashboardData {
   renewable_pct_daily: { date: string; value: number }[];
   emissions_daily: { date: string; value: number }[];
   generation_daily: { date: string; fueltechs: Record<string, number> }[];
+
+  // Intraday: 30-min intervals for last 24h
+  intraday: {
+    timestamps: string[];
+    generation: Record<string, number[]>; // fueltech -> values per timestamp
+    price: number[]; // $/MWh per timestamp
+    fueltechs: { key: string; label: string; color: string }[];
+  };
+
   fetched_at: string;
   error: string | null;
 }
@@ -119,6 +128,7 @@ export async function fetchEnergyDashboard(): Promise<EnergyDashboardData> {
     renewable_pct_daily: [],
     emissions_daily: [],
     generation_daily: [],
+    intraday: { timestamps: [], generation: {}, price: [], fueltechs: [] },
     fetched_at: new Date().toISOString(),
     error: null,
   };
@@ -292,7 +302,75 @@ export async function fetchEnergyDashboard(): Promise<EnergyDashboardData> {
     }
     result.state_snapshots.sort((a, b) => b.renewable_pct - a.renewable_pct);
 
-    // 6. Prices by region
+    // 6. Intraday generation + price (last 24h, 1h intervals)
+    try {
+      const [intradayGen, intradayPrice] = await Promise.all([
+        client.getNetworkData("NEM", ["power"], {
+          interval: "1h" as DataInterval,
+          dateStart: yesterday,
+          dateEnd: now,
+          secondaryGrouping: "fueltech_group",
+        }),
+        client.getMarket("NEM", ["price"], {
+          interval: "1h" as DataInterval,
+          dateStart: yesterday,
+          dateEnd: now,
+        }),
+      ]);
+
+      const genSeries = intradayGen.response.data?.[0]?.results ?? [];
+      const priceSeries = intradayPrice.response.data?.[0]?.results ?? [];
+
+      // Collect all timestamps from generation data
+      const timestampSet = new Set<string>();
+      for (const r of genSeries) {
+        for (const [ts] of r.data) timestampSet.add(ts);
+      }
+      const timestamps = Array.from(timestampSet).sort();
+
+      // Build generation by fueltech per timestamp
+      const genMap: Record<string, number[]> = {};
+      const ftOrder: { key: string; label: string; color: string }[] = [];
+
+      // Sort fueltechs by total power descending
+      const ftTotals = new Map<string, number>();
+      for (const r of genSeries) {
+        if (r.name === "energy_battery" || r.name === "energy_battery_charging" || r.name === "energy_pumps") continue;
+        const total = r.data.reduce((s, [, v]) => s + Math.max(v ?? 0, 0), 0);
+        ftTotals.set(r.name, total);
+      }
+      const sortedFts = Array.from(ftTotals.entries()).sort((a, b) => b[1] - a[1]);
+
+      for (const [ftName] of sortedFts) {
+        const series = genSeries.find((r) => r.name === ftName);
+        if (!series) continue;
+
+        const tsToValue = new Map(series.data.map(([ts, v]) => [ts, v]));
+        genMap[ftName] = timestamps.map((ts) => Math.max(tsToValue.get(ts) ?? 0, 0));
+
+        ftOrder.push({
+          key: ftName,
+          label: FUELTECH_DISPLAY[ftName] ?? ftName.replace("energy_", ""),
+          color: FUELTECH_COLORS[ftName] ?? "#9CA3AF",
+        });
+      }
+
+      // Build price per timestamp
+      const priceData = priceSeries[0]?.data ?? [];
+      const priceMap = new Map(priceData.map(([ts, v]) => [ts, v]));
+      const prices = timestamps.map((ts) => priceMap.get(ts) ?? 0);
+
+      result.intraday = {
+        timestamps,
+        generation: genMap,
+        price: prices,
+        fueltechs: ftOrder,
+      };
+    } catch {
+      // Intraday data is non-critical
+    }
+
+    // 7. Prices by region
     try {
       const market = await client.getMarket("NEM", ["price"], {
         interval: "1h" as DataInterval,
