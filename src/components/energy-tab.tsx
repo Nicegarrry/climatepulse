@@ -20,55 +20,35 @@ import {
 import type { EnergyDashboardData } from "@/lib/energy/openelectricity";
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Colour maps
+   Colour maps — keyed by API series names (energy_solar, energy_coal, etc.)
    ────────────────────────────────────────────────────────────────────────── */
 
 const FUELTECH_COLORS: Record<string, string> = {
-  solar_utility: "#F59E0B",
-  solar_rooftop: "#FBBF24",
-  solar: "#F59E0B",
-  wind: "#3B82F6",
-  wind_offshore: "#2563EB",
-  hydro: "#06B6D4",
-  bioenergy_biogas: "#22C55E",
-  bioenergy_biomass: "#16A34A",
-  coal_black: "#374151",
-  coal_brown: "#78716C",
-  gas_ccgt: "#EF4444",
-  gas_ocgt: "#F87171",
-  gas_recip: "#FB923C",
-  gas_steam: "#DC2626",
-  gas_wcmg: "#B91C1C",
-  distillate: "#A3A3A3",
-  battery_discharging: "#8B5CF6",
-  battery_charging: "#C4B5FD",
-  pumps: "#7C3AED",
-  nuclear: "#EC4899",
-  other: "#9CA3AF",
+  energy_solar: "#F59E0B",
+  energy_wind: "#3B82F6",
+  energy_hydro: "#06B6D4",
+  energy_coal: "#57534E",
+  energy_gas: "#EF4444",
+  energy_bioenergy: "#22C55E",
+  energy_distillate: "#A3A3A3",
+  energy_battery_discharging: "#8B5CF6",
+  energy_battery_charging: "#C4B5FD",
+  energy_battery: "#8B5CF6",
+  energy_pumps: "#7C3AED",
 };
 
 const FUELTECH_LABELS: Record<string, string> = {
-  solar_utility: "Solar (Utility)",
-  solar_rooftop: "Solar (Rooftop)",
-  solar: "Solar",
-  wind: "Wind",
-  wind_offshore: "Wind (Offshore)",
-  hydro: "Hydro",
-  bioenergy_biogas: "Biogas",
-  bioenergy_biomass: "Biomass",
-  coal_black: "Black Coal",
-  coal_brown: "Brown Coal",
-  gas_ccgt: "Gas (CCGT)",
-  gas_ocgt: "Gas (OCGT)",
-  gas_recip: "Gas (Recip)",
-  gas_steam: "Gas (Steam)",
-  gas_wcmg: "Gas (Waste Coal)",
-  distillate: "Distillate",
-  battery_discharging: "Battery",
-  battery_charging: "Battery (Charge)",
-  pumps: "Pumped Hydro",
-  nuclear: "Nuclear",
-  other: "Other",
+  energy_solar: "Solar",
+  energy_wind: "Wind",
+  energy_hydro: "Hydro",
+  energy_coal: "Coal",
+  energy_gas: "Gas",
+  energy_bioenergy: "Bioenergy",
+  energy_distillate: "Distillate",
+  energy_battery_discharging: "Battery",
+  energy_battery_charging: "Battery (Charge)",
+  energy_battery: "Battery (Net)",
+  energy_pumps: "Pumped Hydro",
 };
 
 function getFueltechColor(ft: string): string {
@@ -76,7 +56,7 @@ function getFueltechColor(ft: string): string {
 }
 
 function getFueltechLabel(ft: string): string {
-  return FUELTECH_LABELS[ft] ?? ft.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return FUELTECH_LABELS[ft] ?? ft.replace(/^energy_/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -386,9 +366,9 @@ export function EnergyTab() {
   const mixSegments = data.generation_mix
     .filter((m) => m.share_pct >= 0.5)
     .map((m) => ({
-      label: getFueltechLabel(m.fueltech),
+      label: m.label,
       value: m.energy_gwh,
-      color: getFueltechColor(m.fueltech),
+      color: m.color,
       pct: m.share_pct,
     }));
 
@@ -564,9 +544,9 @@ export function EnergyTab() {
                     <div key={m.fueltech} className="flex items-center gap-1 text-[10px]">
                       <div
                         className="h-2 w-2 rounded-sm"
-                        style={{ backgroundColor: getFueltechColor(m.fueltech) }}
+                        style={{ backgroundColor: m.color }}
                       />
-                      <span className="text-muted-foreground">{getFueltechLabel(m.fueltech)}</span>
+                      <span className="text-muted-foreground">{m.label}</span>
                     </div>
                   ))}
               </div>
