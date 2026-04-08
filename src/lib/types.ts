@@ -170,6 +170,8 @@ export interface QuantitativeData {
   } | null;
 }
 
+export type SentimentValue = "positive" | "negative" | "neutral" | "mixed";
+
 export interface Stage2Result {
   microsectors: { slug: string; confidence: "high" | "medium" | "low" }[];
   entities: { name: string; type: string; role: EntityRole; context: string }[];
@@ -179,6 +181,7 @@ export interface Stage2Result {
   quantitative_data: QuantitativeData | null;
   transmission_channels_triggered: string[];
   significance: SignificanceScores;
+  sentiment: SentimentValue;
 }
 
 export interface CalibrationExample {
@@ -427,6 +430,7 @@ export interface DigestHeroStory {
   url: string;
   expert_take: string;
   key_metric: { value: string; unit: string; delta?: string } | null;
+  so_what?: string | null;
   connected_storyline: { title: string; context: string } | null;
   micro_sectors: string[];
   entities_mentioned: string[];

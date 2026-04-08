@@ -45,6 +45,7 @@ import {
   User,
   Cpu,
   FileText,
+  Sparkles,
 } from "lucide-react";
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -204,6 +205,9 @@ export function TaxonomyTab() {
 
   /* ── Enrichment controls state ─────────────────────────────────────── */
   const [enrichStats, setEnrichStats] = useState<EnrichmentStats | null>(null);
+  const [sentimentTrends, setSentimentTrends] = useState<Record<string, Array<{
+    period: string; positive: number; negative: number; neutral: number; mixed: number; total: number;
+  }>> | null>(null);
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichProgress, setEnrichProgress] = useState<EnrichmentProgress | null>(null);
   const [enrichError, setEnrichError] = useState<string | null>(null);
@@ -226,7 +230,7 @@ export function TaxonomyTab() {
   const [entityPagination, setEntityPagination] = useState<EntityPagination | null>(null);
   const [entityPage, setEntityPage] = useState(1);
   const [entityTypeFilter, setEntityTypeFilter] = useState("__all__");
-  const [entityStatusFilter, setEntityStatusFilter] = useState("__all__");
+  const [entityStatusFilter, setEntityStatusFilter] = useState("__active__");
   const [entitySearch, setEntitySearch] = useState("");
   const [entityLoading, setEntityLoading] = useState(false);
   const [expandedEntities, setExpandedEntities] = useState<Set<number>>(new Set());
@@ -241,6 +245,12 @@ export function TaxonomyTab() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [expandedChannels, setExpandedChannels] = useState<Set<number>>(new Set());
+  const [channelSuggestions, setChannelSuggestions] = useState<Array<{
+    source_domain: string; target_domain: string; source_domain_id: number | null;
+    target_domain_id: number | null; label: string; description: string;
+    mechanism: string; strength: string;
+  }>>([]);
+  const [suggestingChannels, setSuggestingChannels] = useState(false);
   const [addChannelForm, setAddChannelForm] = useState({
     source_domain_id: "",
     target_domain_id: "",
@@ -261,6 +271,18 @@ export function TaxonomyTab() {
       }
     } catch {
       log("warn", "Failed to fetch enrichment stats");
+    }
+  }, [log]);
+
+  const fetchSentimentTrends = useCallback(async () => {
+    try {
+      const res = await fetch("/api/enrichment/sentiment-trends?days=60&granularity=weekly");
+      if (res.ok) {
+        const data = await res.json();
+        setSentimentTrends(data.trends);
+      }
+    } catch {
+      log("warn", "Failed to fetch sentiment trends");
     }
   }, [log]);
 
@@ -287,7 +309,11 @@ export function TaxonomyTab() {
       try {
         const params = new URLSearchParams({ page: String(page), limit: "25" });
         if (entityTypeFilter !== "__all__") params.set("type", entityTypeFilter);
-        if (entityStatusFilter !== "__all__") params.set("status", entityStatusFilter);
+        if (entityStatusFilter === "__active__") {
+          params.set("exclude_status", "archived");
+        } else if (entityStatusFilter !== "__all__") {
+          params.set("status", entityStatusFilter);
+        }
         if (entitySearch.trim()) params.set("search", entitySearch.trim());
         const res = await fetch(`/api/entities?${params}`);
         if (res.ok) {
@@ -330,12 +356,12 @@ export function TaxonomyTab() {
   useEffect(() => {
     if (subTab === "tree") fetchTree();
     if (subTab === "entities") fetchEntities(1);
-    if (subTab === "signals") fetchEnrichStats();
+    if (subTab === "signals") { fetchEnrichStats(); fetchSentimentTrends(); }
     if (subTab === "channels") {
       fetchChannels();
       if (tree.length === 0) fetchTree();
     }
-  }, [subTab, fetchTree, fetchEntities, fetchEnrichStats, fetchChannels, tree.length]);
+  }, [subTab, fetchTree, fetchEntities, fetchEnrichStats, fetchSentimentTrends, fetchChannels, tree.length]);
 
   /* ── Enrichment run ────────────────────────────────────────────────── */
 
@@ -613,6 +639,53 @@ export function TaxonomyTab() {
       }
     } catch {
       log("error", "Failed to create channel");
+    }
+  }
+
+  async function suggestChannels() {
+    setSuggestingChannels(true);
+    setChannelSuggestions([]);
+    try {
+      const res = await fetch("/api/channels/suggest", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setChannelSuggestions(data.suggestions || []);
+        if (data.suggestions?.length === 0) {
+          log("info", data.message || "No new channel patterns found");
+        } else {
+          log("info", `Found ${data.suggestions.length} channel suggestions`);
+        }
+      }
+    } catch {
+      log("error", "Failed to suggest channels");
+    } finally {
+      setSuggestingChannels(false);
+    }
+  }
+
+  async function approveSuggestion(idx: number) {
+    const s = channelSuggestions[idx];
+    if (!s.source_domain_id || !s.target_domain_id) return;
+    try {
+      const res = await fetch("/api/channels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_domain_id: s.source_domain_id,
+          target_domain_id: s.target_domain_id,
+          label: s.label,
+          description: s.description,
+          mechanism: s.mechanism,
+          strength: s.strength,
+        }),
+      });
+      if (res.ok) {
+        log("info", `Created channel: ${s.label}`);
+        setChannelSuggestions((prev) => prev.filter((_, i) => i !== idx));
+        await fetchChannels();
+      }
+    } catch {
+      log("error", "Failed to create suggested channel");
     }
   }
 
@@ -1302,6 +1375,7 @@ export function TaxonomyTab() {
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__active__">Active (excl. archived)</SelectItem>
                   <SelectItem value="__all__">All Status</SelectItem>
                   {["candidate", "promoted", "archived", "dormant"].map((s) => (
                     <SelectItem key={s} value={s}>
@@ -1616,6 +1690,88 @@ export function TaxonomyTab() {
                 </Card>
               </div>
             </div>
+
+            {/* Sentiment Trends Over Time */}
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                <BarChart3 className="h-3.5 w-3.5" />
+                Sentiment Trends by Domain (Last 60 Days)
+              </h3>
+              <Card className="border-border/40">
+                <CardContent className="p-4">
+                  {sentimentTrends && Object.keys(sentimentTrends).length > 0 ? (
+                    <div className="space-y-4">
+                      {Object.entries(sentimentTrends)
+                        .sort(([, a], [, b]) => {
+                          const totalA = a.reduce((s, e) => s + e.total, 0);
+                          const totalB = b.reduce((s, e) => s + e.total, 0);
+                          return totalB - totalA;
+                        })
+                        .slice(0, 8)
+                        .map(([domain, entries]) => {
+                          const totalArticles = entries.reduce((s, e) => s + e.total, 0);
+                          const totalPos = entries.reduce((s, e) => s + e.positive, 0);
+                          const totalNeg = entries.reduce((s, e) => s + e.negative, 0);
+                          const totalMix = entries.reduce((s, e) => s + e.mixed, 0);
+                          return (
+                            <div key={domain} className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium">{domain.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {totalArticles} articles &middot;
+                                  {totalPos > 0 && <span className="text-green-600"> {totalPos} pos</span>}
+                                  {totalNeg > 0 && <span className="text-red-500"> {totalNeg} neg</span>}
+                                  {totalMix > 0 && <span className="text-amber-500"> {totalMix} mix</span>}
+                                </span>
+                              </div>
+                              <div className="flex h-5 gap-px overflow-hidden rounded-sm">
+                                {entries.map((entry) => {
+                                  const maxInDomain = Math.max(...entries.map((e) => e.total));
+                                  const width = maxInDomain > 0 ? (entry.total / maxInDomain) * 100 : 0;
+                                  const posH = entry.total > 0 ? (entry.positive / entry.total) * 100 : 0;
+                                  const negH = entry.total > 0 ? (entry.negative / entry.total) * 100 : 0;
+                                  const mixH = entry.total > 0 ? (entry.mixed / entry.total) * 100 : 0;
+                                  return (
+                                    <Tooltip key={entry.period}>
+                                      <TooltipTrigger asChild>
+                                        <div
+                                          className="flex flex-col justify-end"
+                                          style={{ width: `${Math.max(width, 4)}%`, minWidth: "4px" }}
+                                        >
+                                          {posH > 0 && <div className="bg-accent-emerald" style={{ height: `${posH}%`, minHeight: "1px" }} />}
+                                          {mixH > 0 && <div className="bg-accent-amber" style={{ height: `${mixH}%`, minHeight: "1px" }} />}
+                                          {negH > 0 && <div className="bg-status-error" style={{ height: `${negH}%`, minHeight: "1px" }} />}
+                                          {(100 - posH - negH - mixH) > 0 && (
+                                            <div className="bg-muted-foreground/30" style={{ height: `${100 - posH - negH - mixH}%` }} />
+                                          )}
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="text-xs">
+                                        <p className="font-medium">{entry.period}</p>
+                                        <p>+{entry.positive} / -{entry.negative} / ~{entry.neutral} / mix {entry.mixed}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      <div className="flex items-center gap-4 pt-2 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-accent-emerald" /> Positive</span>
+                        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-status-error" /> Negative</span>
+                        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-accent-amber" /> Mixed</span>
+                        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-muted-foreground/30" /> Neutral</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      No sentiment trend data yet. Run enrichment to generate trends.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </motion.div>
         </TabsContent>
 
@@ -1722,6 +1878,59 @@ export function TaxonomyTab() {
                     />
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Channel Suggestions */}
+            <Card className="border-border/40">
+              <CardContent className="p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                    AI-Suggested Channels
+                  </h3>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={suggestChannels}
+                    disabled={suggestingChannels}
+                    className="h-7 gap-1.5 text-xs"
+                  >
+                    {suggestingChannels ? (
+                      <><Loader2 className="h-3 w-3 animate-spin" /> Analyzing...</>
+                    ) : (
+                      <><Sparkles className="h-3 w-3" /> Suggest Channels</>
+                    )}
+                  </Button>
+                </div>
+                {channelSuggestions.length > 0 ? (
+                  <div className="space-y-2">
+                    {channelSuggestions.map((s, idx) => (
+                      <div key={idx} className="flex items-start justify-between gap-3 rounded-md border border-border/50 bg-muted/30 p-3">
+                        <div className="flex-1 space-y-1">
+                          <p className="text-sm font-medium">{s.label}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {s.source_domain} &rarr; {s.target_domain}
+                            {s.strength && <span className="ml-2 opacity-60">({s.strength})</span>}
+                          </p>
+                          {s.description && <p className="text-xs text-muted-foreground">{s.description}</p>}
+                          {s.mechanism && <p className="text-xs italic text-muted-foreground/70">{s.mechanism}</p>}
+                        </div>
+                        <div className="flex gap-1.5">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-green-600 hover:text-green-700" onClick={() => approveSuggestion(idx)} title="Approve">
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => setChannelSuggestions((prev) => prev.filter((_, i) => i !== idx))} title="Dismiss">
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Click &quot;Suggest Channels&quot; to analyze recent articles for domain co-occurrence patterns and propose new transmission channels.
+                  </p>
+                )}
               </CardContent>
             </Card>
 

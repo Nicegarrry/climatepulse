@@ -41,6 +41,8 @@ const VALID_ENTITY_ROLES = new Set<string>(["subject", "actor"]);
 
 const VALID_CONFIDENCES = new Set<string>(["high", "medium", "low"]);
 
+const VALID_SENTIMENTS = new Set<string>(["positive", "negative", "neutral", "mixed"]);
+
 /**
  * Build the taxonomy section for Stage 2 from a domain-filtered tree.
  * Same format as the old engine.ts buildTaxonomySection but for filtered tree.
@@ -223,6 +225,7 @@ export async function enrichArticle(
       quantitative_data: null,
       transmission_channels_triggered: [],
       significance: makeDefaultSignificance(),
+      sentiment: "neutral",
     };
   }
 
@@ -376,6 +379,11 @@ function parseStage2Response(
       raw.significance ?? raw.significance_score ?? raw.significance_scores;
     const significance = parseSignificance(rawSignificance);
 
+    // Parse sentiment — default to "neutral" if missing or invalid
+    const sentiment = VALID_SENTIMENTS.has(raw.sentiment)
+      ? (raw.sentiment as "positive" | "negative" | "neutral" | "mixed")
+      : "neutral";
+
     return {
       microsectors,
       entities,
@@ -385,6 +393,7 @@ function parseStage2Response(
       quantitative_data: quantitativeData,
       transmission_channels_triggered: channelsTriggered,
       significance,
+      sentiment,
     };
   } catch {
     return null;

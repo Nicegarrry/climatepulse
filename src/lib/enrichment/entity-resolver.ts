@@ -177,3 +177,20 @@ export async function markDormantEntities(): Promise<number> {
   );
   return rowCount ?? 0;
 }
+
+/**
+ * Archive stale candidate entities that haven't been seen in 30+ days.
+ * Archived entities are hidden from the UI by default but remain in the database.
+ * Returns the count of newly archived entities.
+ */
+export async function archiveStaleCandidates(): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE entities SET status = 'archived'
+     WHERE status = 'candidate'
+     AND (
+       (last_seen_at IS NOT NULL AND last_seen_at < NOW() - INTERVAL '30 days')
+       OR (last_seen_at IS NULL AND created_at < NOW() - INTERVAL '30 days')
+     )`
+  );
+  return rowCount ?? 0;
+}

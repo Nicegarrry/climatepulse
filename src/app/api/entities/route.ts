@@ -8,6 +8,7 @@ export async function GET(request: Request) {
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "50")));
     const type = searchParams.get("type");
     const status = searchParams.get("status");
+    const excludeStatus = searchParams.get("exclude_status");
     const search = searchParams.get("search");
 
     const conditions: string[] = [];
@@ -21,6 +22,10 @@ export async function GET(request: Request) {
     if (status) {
       conditions.push(`status = $${idx++}`);
       params.push(status);
+    }
+    if (excludeStatus) {
+      conditions.push(`status != $${idx++}`);
+      params.push(excludeStatus);
     }
     if (search) {
       conditions.push(`canonical_name ILIKE $${idx++}`);

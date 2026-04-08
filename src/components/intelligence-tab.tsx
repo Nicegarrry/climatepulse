@@ -446,6 +446,14 @@ function HeroStoryCard({
           </p>
         )}
 
+        {/* So What — cross-domain implication from transmission channels */}
+        {story.so_what && (
+          <p className="mt-3 rounded-md border border-accent-amber/20 bg-accent-amber/5 px-3 py-2 text-xs italic text-muted-foreground">
+            <span className="mr-1 font-medium not-italic text-accent-amber">Why this matters:</span>
+            {story.so_what}
+          </p>
+        )}
+
         {/* Connected storyline context */}
         {story.connected_storyline && (
           <p className="mt-3 flex items-center gap-1 text-xs italic text-muted-foreground">

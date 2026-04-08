@@ -2,8 +2,9 @@ import pool from "@/lib/db";
 import { prefetchFullText } from "@/lib/enrichment/fulltext-prefetch";
 import { classifyBatch } from "@/lib/enrichment/stage1-classifier";
 import { enrichArticle, computeComposite } from "@/lib/enrichment/stage2-enricher";
-import { resolveEntities, promoteEligibleEntities, markDormantEntities } from "@/lib/enrichment/entity-resolver";
+import { resolveEntities, promoteEligibleEntities, markDormantEntities, archiveStaleCandidates } from "@/lib/enrichment/entity-resolver";
 import { getAllMicrosectors } from "@/lib/enrichment/taxonomy-cache";
+import { discoverStorylines } from "@/lib/enrichment/storyline-discovery";
 import type {
   RawArticle,
   Stage1Result,
@@ -54,7 +55,7 @@ async function withConcurrency<T>(
 export async function runEnrichmentBatch(
   opts?: { reenrich?: boolean }
 ): Promise<
-  EnrichmentBatchResult & { fulltext_fetched: number; entities_promoted: number; entities_dormant: number }
+  EnrichmentBatchResult & { fulltext_fetched: number; entities_promoted: number; entities_dormant: number; entities_archived: number }
 > {
   const start = Date.now();
   const reenrich = opts?.reenrich ?? false;
@@ -64,7 +65,7 @@ export async function runEnrichmentBatch(
 
   // Step 2: Fetch articles to process
   const whereClause = reenrich
-    ? `WHERE ea.id IS NULL OR ea.pipeline_version < 3`
+    ? `WHERE ea.id IS NULL OR ea.pipeline_version < 4`
     : `WHERE ea.id IS NULL`;
 
   const { rows: articles } = await pool.query<ArticleRow>(
@@ -105,6 +106,7 @@ export async function runEnrichmentBatch(
       fulltext_fetched: fulltextResult.fetched,
       entities_promoted: 0,
       entities_dormant: 0,
+      entities_archived: 0,
     };
   }
 
@@ -127,6 +129,7 @@ export async function runEnrichmentBatch(
   let errors = 0;
   let entitiesCreated = 0;
   let entitiesMatched = 0;
+  const enrichedArticleIds: string[] = [];
 
   // Load microsector slug->id mapping
   const allMicrosectors = await getAllMicrosectors();
@@ -207,7 +210,7 @@ export async function runEnrichmentBatch(
             microsectorIds,
             [], // tag_ids — not populated yet
             classification.signal_type,
-            "neutral", // sentiment — Stage 2 doesn't return sentiment separately, could extract from significance
+            result.sentiment, // sentiment — extracted from Stage 2 AI response
             result.jurisdictions,
             JSON.stringify(result.entities),
             "gemini-2.5-flash",
@@ -222,12 +225,13 @@ export async function runEnrichmentBatch(
             result.transmission_channels_triggered,
             result.regulations_referenced,
             result.technologies_referenced,
-            3, // pipeline_version — v3 entity redesign
+            4, // pipeline_version — v4 sentiment + channels + storylines
           ]
         );
 
         if (enrichedRows.length > 0) {
           const enrichedId = enrichedRows[0].id;
+          enrichedArticleIds.push(enrichedId);
 
           // Delete old article_entities for re-enrichment
           if (reenrich) {
@@ -267,6 +271,24 @@ export async function runEnrichmentBatch(
   // Step 5: Promote entities and mark dormant
   const entitiesPromoted = await promoteEligibleEntities();
   const entitiesDormant = await markDormantEntities();
+  const entitiesArchived = await archiveStaleCandidates();
+  if (entitiesArchived > 0) {
+    console.log(`Archived ${entitiesArchived} stale candidate entities`);
+  }
+
+  // Step 6: Storyline discovery
+  let storylinesMatched = 0;
+  let storylinesSuggested = 0;
+  try {
+    const storylineResult = await discoverStorylines(enrichedArticleIds);
+    storylinesMatched = storylineResult.matched;
+    storylinesSuggested = storylineResult.suggested;
+    if (storylinesMatched > 0 || storylinesSuggested > 0) {
+      console.log(`Storylines: ${storylinesMatched} matched, ${storylinesSuggested} suggested`);
+    }
+  } catch (err) {
+    console.error("Storyline discovery failed:", err);
+  }
 
   // Cost calculation
   const estimatedCost =
@@ -293,5 +315,6 @@ export async function runEnrichmentBatch(
     fulltext_fetched: fulltextResult.fetched,
     entities_promoted: entitiesPromoted,
     entities_dormant: entitiesDormant,
+    entities_archived: entitiesArchived,
   };
 }

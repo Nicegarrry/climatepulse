@@ -302,6 +302,7 @@ export const MOCK_DIGEST: DigestOutput = {
       expert_take:
         "The transition from reporting to payment fundamentally changes CBAM's impact calculus. Australian exporters of aluminium and steel now face a direct cost wedge that scales with the EU carbon price — currently EUR 70/t. The simultaneous Italian push to suspend the ETS creates a paradox: if ETS prices fall, CBAM certificates become cheaper, but the political signal weakens the long-term carbon price trajectory that underpins green premium investments. For portfolio positioning, the key question is whether Australian producers will accelerate domestic decarbonisation to avoid CBAM costs, or lobby for an equivalent domestic carbon price to claim CBAM exemptions.",
       key_metric: { value: "2.5", unit: "B EUR", delta: undefined },
+      so_what: "Rising EU carbon costs directly pressure Australian aluminium and steel exporters, accelerating domestic decarbonisation investment to avoid CBAM surcharges.",
       connected_storyline: {
         title: "CBAM Implementation",
         context: "First definitive-phase payments mark the end of the transition period",

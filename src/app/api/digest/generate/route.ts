@@ -205,7 +205,8 @@ c) EXPERT TAKE: Analytical frame using transmission channels and role lens.${
       : " Provide 3-4 sentences."
 }
 d) KEY METRIC
-e) CONNECTED STORYLINE (if applicable)
+e) SO WHAT (if the story triggers a transmission channel from the list above): One sentence explaining the cross-domain implication, framed for the user's role. E.g., "Rising lithium costs could delay Australia's grid-scale storage targets." If no channel is triggered, omit this field.
+f) CONNECTED STORYLINE (if applicable)
 
 4. COMPACT STORY ANALYSIS (for stories marked "compact")
 For each compact story, provide:
@@ -239,7 +240,7 @@ Respond in JSON matching this schema exactly:
 {
   "narrative": "string",
   "daily_number": { "value": "string", "label": "string", "context": "string", "trend": "string|null" },
-  "hero_stories": [{ "rank": 1, "headline": "string", "source": "string", "url": "string", "expert_take": "string", "key_metric": { "value": "string", "unit": "string", "delta": "string" } | null, "connected_storyline": { "title": "string", "context": "string" } | null, "micro_sectors": ["string"], "entities_mentioned": ["string"] }],
+  "hero_stories": [{ "rank": 1, "headline": "string", "source": "string", "url": "string", "expert_take": "string", "key_metric": { "value": "string", "unit": "string", "delta": "string" } | null, "so_what": "string|null", "connected_storyline": { "title": "string", "context": "string" } | null, "micro_sectors": ["string"], "entities_mentioned": ["string"] }],
   "compact_stories": [{ "rank": 4, "headline": "string", "source": "string", "url": "string", "one_line_take": "string", "key_metric": { "value": "string", "unit": "string", "delta": "string" } | null }],
   "cross_story_connections": [{ "story_ranks": [1, 3], "connection": "string" }] | null
 }`;

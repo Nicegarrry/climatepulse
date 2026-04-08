@@ -58,11 +58,13 @@ DO NOT extract:
 - Organisations quoted only for generic commentary (e.g., "Bloomberg NEF analysts say...")
 - Technology terms that are vocabulary, not specific named products (e.g., "lithium-ion batteries", "solar panels")
 - Entities mentioned only in comparison or historical context
+- Generic government departments or agencies (e.g., "Department of Defense", "Department of Commerce", "EPA") unless they are the PRIMARY subject taking a specific climate/energy action reported in this story
+- Generic or overly broad company names that are ambiguous without context (e.g., "Armstrong", "Verne")
 
 Rules:
 - Aim for 2-5 entities per story. If a story is about a single company's announcement, 2 entities may be sufficient.
-- If you are uncertain whether an entity meets the subject/actor threshold, do not extract it.
-- If context_quality is "headline_only", only extract entities visible in the headline (max 2).
+- If you are uncertain whether an entity meets the subject/actor threshold, do not extract it. Prefer extracting NO entities over extracting uncertain ones.
+- If context_quality is "headline_only", extract at most 1-2 entities visible in the headline. If the headline is generic, extract 0 entities.
 
 --- STORY-LEVEL REFERENCES ---
 
@@ -114,6 +116,16 @@ SCORING RULES:
 - Scores above 90: extremely rare, 1-2 per month.
 - Scores below 30: filler content.
 - If context_quality is "headline_only", note uncertainty in rationales.
+
+--- SENTIMENT ---
+
+Assess the overall sentiment of this story from the perspective of climate/energy transition progress:
+- "positive": Good news for the transition — new investment, policy support, cost reductions, project approvals, technology breakthroughs
+- "negative": Setback or risk — project cancellations, policy rollbacks, cost blowouts, opposition, environmental damage
+- "mixed": Contains both positive and negative elements (e.g., a policy that helps renewables but hurts gas workers)
+- "neutral": Factual reporting without clear positive/negative valence (e.g., data releases, personnel changes, routine updates)
+
+Include a `sentiment` field (one of: "positive", "negative", "neutral", "mixed") and a `sentiment_rationale` field (one sentence explaining why).
 
 Respond in JSON only. No preamble, no markdown fences, no explanation.
 
