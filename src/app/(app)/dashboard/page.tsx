@@ -14,10 +14,14 @@ import {
   Activity,
   Globe,
   Zap,
+  Network,
+  Newspaper,
 } from "lucide-react";
 import { DiscoveryTab } from "@/components/discovery-tab";
 import { CategoriesTab } from "@/components/categories-tab";
 import { EnergyTab } from "@/components/energy-tab";
+import { TaxonomyTab } from "@/components/taxonomy-tab";
+import { IntelligenceTab } from "@/components/intelligence-tab";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
@@ -60,6 +64,14 @@ const statsConfig = [
 
 const tabConfig = [
   {
+    value: "intelligence",
+    label: "Intelligence",
+    icon: Newspaper,
+    emptyTitle: "Intelligence",
+    emptyDesc:
+      "Your personalised daily climate intelligence briefing — AI-synthesised analysis, not just headlines.",
+  },
+  {
     value: "discovery",
     label: "Discovery",
     icon: Compass,
@@ -82,6 +94,14 @@ const tabConfig = [
     emptyTitle: "Energy Data",
     emptyDesc:
       "Live Australian NEM data from OpenElectricity — generation mix, renewables, emissions, prices.",
+  },
+  {
+    value: "taxonomy",
+    label: "Taxonomy",
+    icon: Network,
+    emptyTitle: "Taxonomy",
+    emptyDesc:
+      "Manage the 3-level classification hierarchy, entities, signal types, and transmission channels.",
   },
   {
     value: "events",
@@ -168,7 +188,7 @@ function EmptyTabContent({
 
 export default function DashboardPage() {
   const { log } = useDevLogger();
-  const [activeTab, setActiveTab] = useState("discovery");
+  const [activeTab, setActiveTab] = useState("intelligence");
 
   useEffect(() => {
     log("info", "Dashboard loaded");
@@ -254,6 +274,9 @@ export default function DashboardPage() {
           </TabsList>
 
           <Card className="border-border/40">
+            <TabsContent value="intelligence" className="m-0">
+              <IntelligenceTab />
+            </TabsContent>
             <TabsContent value="discovery" className="m-0">
               <DiscoveryTab />
             </TabsContent>
@@ -263,8 +286,11 @@ export default function DashboardPage() {
             <TabsContent value="energy" className="m-0">
               <EnergyTab />
             </TabsContent>
+            <TabsContent value="taxonomy" className="m-0">
+              <TaxonomyTab />
+            </TabsContent>
             {tabConfig
-              .filter((tab) => tab.value !== "discovery" && tab.value !== "categories" && tab.value !== "energy")
+              .filter((tab) => tab.value !== "intelligence" && tab.value !== "discovery" && tab.value !== "categories" && tab.value !== "energy" && tab.value !== "taxonomy")
               .map((tab) => (
                 <TabsContent
                   key={tab.value}

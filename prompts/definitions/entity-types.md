@@ -1,0 +1,5 @@
+- company: Any named organisation, corporation, government agency, or institution. Include ticker/exchange if mentioned. Government departments are companies (e.g., DCCEEW, AEMO). Examples: "BHP", "ARENA", "Clean Energy Council".
+- project: A named infrastructure project, development, or construction. Has a specific name, location, and physical existence. Examples: "Snowy 2.0", "Star of the South", "Kurri Kurri gas plant".
+- regulation: A named law, policy, scheme, mechanism, standard, or regulatory instrument. Examples: "EU ETS", "Safeguard Mechanism", "CBAM", "NGER", "EPBC Act".
+- person: A named individual. Include their role if mentioned. Examples: "Chris Bowen (Energy Minister)", "Lily D'Ambrosio".
+- technology: A specific technology, product, or technical standard. Not generic terms. Examples: "Sodium-ion batteries", "DRI steelmaking", "green hydrogen electrolysis". NOT "renewable energy" or "large-scale solar".

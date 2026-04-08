@@ -1,4 +1,4 @@
-# ClimatePlus
+# ClimatePulse
 
 AI-powered daily climate, energy & sustainability intelligence digest. Adapts the BenchWatch pattern for climate/energy practitioners.
 
@@ -6,177 +6,212 @@ AI-powered daily climate, energy & sustainability intelligence digest. Adapts th
 
 This is a **local development testing environment** — not a production app. We are building and testing each phase of the data pipeline independently, with a simple visual frontend to inspect results at each stage. Each phase is a separate tab in a tabbed SaaS shell.
 
-The goal is to validate that we can: (1) ingest climate/energy news from RSS + scrapers, (2) categorise it cheaply, (3) prioritise within categories, and (4) generate a smart digest — before building the real product.
+The goal is to validate that we can: (1) ingest climate/energy news from RSS + scrapers, (2) enrich articles with granular taxonomy + entity tagging + sentiment, (3) prioritise within categories, and (4) generate a smart digest — before building the real product.
 
 ## Stack
 
-- **Framework**: Wasp (same as BenchWatch)
-- **Frontend**: React + Vite (for local testing UI)
-- **Backend**: Node.js
-- **Database**: Supabase (PostgreSQL via Prisma)
-- **AI (Triage/Categorisation)**: Gemini 2.5 Flash via Google AI API — chosen for cost. Migrated from 2.0 Flash (retired by Google March 2026).
+- **Framework**: Next.js 16 (App Router)
+- **Frontend**: React 19 + Tailwind CSS 4 + shadcn/ui + Framer Motion
+- **Backend**: Node.js (Next.js API routes)
+- **Database**: PostgreSQL 16 via `pg` driver (Docker Compose, no ORM)
+- **AI (Triage/Enrichment)**: Gemini 2.5 Flash via Google AI API — chosen for cost
 - **AI (Digest Generation)**: Claude Sonnet via Anthropic API
-- **Email**: Resend
+- **Email**: Resend (future)
 - **Hosting (future)**: Railway (backend), Vercel (frontend)
 
 ## Architecture
 
-### Four-Phase Pipeline
+### Pipeline Phases
 
-**Phase 1 — Ingestion (Tab 1: "Sources")**
-- Poll 30+ RSS feeds across 4 tiers (news, industry, government, research)
-- Scrape non-RSS sources (ARENA, AEMO, Clean Energy Council) via URL monitoring
-- Store: title, summary snippet, source, URL, published_at — NO full text yet
+**Phase 1 — Ingestion (Tab: "Discovery")**
+- Poll 15+ RSS feeds across 2 tiers (news, industry/research)
+- Scrape 3 non-RSS sources (ARENA, Clean Energy Council, RMI)
+- API sources: NewsAPI.ai (EventRegistry), NewsAPI.org (fallback)
+- Store: title, summary snippet, source, URL, published_at
 - Deduplicate by URL
 - Target: ~100-200 new entries per day
 
-**Phase 2a — Categorisation (Tab 2: "Categories")**
-- Gemini 2.0 Flash processes each entry using ONLY title + RSS summary snippet
-- Assigns primary category + up to 2 secondary categories from 20-category taxonomy
-- Structured JSON output, batched requests
-- Cost target: <$0.01/day for 200 articles
+**Phase 2 — Enrichment (Tab: "Categories" enriched view + "Taxonomy")**
+- Full text extraction BEFORE enrichment (cheerio-based, 100-word minimum)
+- Gemini 2.5 Flash processes batches (5 articles with full text, 15 without)
+- Single AI call extracts: micro-sectors (1-3), signal type, sentiment, jurisdictions, entities
+- Entity resolution: exact match → alias match → fuzzy match (pg_trgm) → create candidate
+- Auto-promotion: regulations/projects/jurisdictions immediately; others after 3+ mentions
+- Cost target: ~$0.03-0.05/day for 200 articles
 
-**Phase 2b — Prioritisation (Tab 3: "Priorities")**
-- Within each category, rank articles by significance (1-5 scale)
-- Hard filter to top 3-5 per category
-- Gemini 2.0 Flash again — send all articles in a category as one batch, ask for ranking
-- Output: ~60-100 shortlisted articles across all categories
+**Phase 2a — Legacy Categorisation (Tab: "Categories" classic view)**
+- Old 20-category flat taxonomy (kept for backward compatibility)
+- Gemini 2.5 Flash, batches of 20, title+snippet only
+- Cost: ~$0.01/day
 
-**Phase 3 — Digest Generation (Tab 4: "Digest")**
+**Phase 2b — Significance Scoring (implemented)**
+- Two-stage pipeline: Stage 1 (batch domain classification) → Stage 2 (per-article enrichment + 6-factor significance scoring)
+- Stage 1 classifies 10 articles per Gemini call; Stage 2 enriches one article at a time with domain-filtered context
+- 6-factor significance scoring: impact_breadth (25%), novelty (20%), decision_forcing (20%), quantitative_magnitude (15%), source_authority (10%), temporal_urgency (10%)
+- Composite score 0-100 stored in enriched_articles.significance_composite
+- Prompt templates in prompts/ directory, definitions in prompts/definitions/, calibration in prompts/scoring/
+- pipeline_version column enables safe re-enrichment of existing articles (?reenrich=true)
+
+**Phase 3 — Digest Generation (future)**
 - Claude Sonnet generates personalised digest per user
-- Smart batching: more interest areas = fewer articles per area in the batch
-- Formula: articles_per_sector = max(2, floor(15 / num_sectors))
-- Always cap at 15 articles total sent to Sonnet regardless of sector count
-- Output structure:
-  - Top 3 stories (full treatment, "why it matters")
-  - Next 7-10 in accordion-style list (headline + one-liner)
-  - Matches BenchWatch digest format
+- Cap at 15 articles total sent to Sonnet
 
-### Category Taxonomy (20 categories)
+### Taxonomy (108 Micro-Sectors)
 
-1. Solar
-2. Wind
-3. Energy Storage & Batteries
-4. Hydrogen & Green Fuels
-5. Grid & Transmission
-6. Transport Electrification
-7. Buildings & Energy Efficiency
-8. Heavy Industry Decarbonisation
-9. Carbon Capture & Removal
-10. Nature, Land Use & Agriculture
-11. Climate Finance & Carbon Markets
-12. Policy & Regulation
-13. Climate Science & Research
-14. Adaptation & Resilience
-15. Mining & Critical Minerals
-16. Nuclear
-17. Oil, Gas & Fossil Fuel Transition
-18. Circular Economy & Waste
-19. Water & Oceans
-20. Climate Tech & Startups
+Three-level hierarchy stored in the database (editable via Taxonomy tab):
 
-### RSS Feed Sources (Tier 1 — poll daily)
+**12 Domains**: Energy–Generation, Energy–Storage, Energy–Grid, Carbon & Emissions, Transport, Industry, Agriculture, Built Environment, Critical Minerals, Finance, Policy, Workforce & Adaptation
 
-| Source | Feed URL |
-|--------|----------|
-| Carbon Brief | `https://www.carbonbrief.org/feed` |
-| Canary Media | `https://www.canarymedia.com/rss-feed` |
-| CleanTechnica | `https://cleantechnica.com/feed` |
-| Electrek | `https://electrek.co/feed` |
-| Guardian Environment | `https://www.theguardian.com/environment/rss` |
-| Inside Climate News | `https://insideclimatenews.org/feed` |
-| Grist | `https://grist.org/feed` |
-| RealClearEnergy | `https://www.realclearenergy.org/rss/` |
-| PV Magazine | `https://www.pv-magazine.com/feed` |
-| Energy Storage News | `https://www.energy-storage.news/feed` |
-| Renewables Now | `https://renewablesnow.com/feeds/` |
-| Bloomberg Green | `https://feeds.bloomberg.com/green/news.rss` |
+**~75 Sectors** under domains, **103 Micro-Sectors** as leaf nodes, plus **5 Cross-Cutting Tags** (Geopolitics, AI & Digital, Gender & Equity, First Nations, Disinformation)
 
-### RSS Feed Sources (Tier 2 — poll daily)
+Taxonomy is DB-stored (not hardcoded) in: `taxonomy_domains`, `taxonomy_sectors`, `taxonomy_microsectors`, `taxonomy_tags`
 
-| Source | Feed URL |
-|--------|----------|
-| DCCEEW Australia | `https://www.dcceew.gov.au/about/news/stay-informed/rss` |
-| CSIRO Climate | `https://blog.csiro.au/feed/` |
-| IEA | `https://www.iea.org/news/rss` |
-| IRENA | `https://www.irena.org/rssfeed` |
-| EIA Today in Energy | `https://www.eia.gov/rss/todayinenergy.xml` |
-| NOAA Climate | `https://www.climate.gov/feeds` |
-| Nature Climate Change | `https://www.nature.com/nclimate.rss` |
-| CTVC | `https://www.ctvc.co/rss/` |
-| PV Magazine Australia | `https://www.pv-magazine-australia.com/feed` |
+### Signal Types (10)
 
-### Scrape Targets (no RSS — monitor for new content)
+Every enriched article gets exactly one: market_move, policy_change, project_milestone, corporate_action, data_release, enforcement, personnel, technology_advance, international, community_social
 
-| Source | URL to monitor | Check frequency |
-|--------|---------------|-----------------|
-| ARENA News | `https://arena.gov.au/news/` | Every 6 hours |
-| AEMO Media | `https://aemo.com.au/newsroom` | Every 6 hours |
-| Clean Energy Council | `https://www.cleanenergycouncil.org.au/news` | Every 12 hours |
-| RMI | `https://rmi.org/insights/` | Every 12 hours |
+### Entity Types (6)
+
+Company, Project, Regulation, Jurisdiction, Person, Technology — stored in `entities` table with canonical_name, aliases[], auto-discovery, and promotion logic.
+
+### Transmission Channels
+
+Hand-authored causal links between domains (e.g., "EU ETS price → Australian offset demand"). Stored in `transmission_channels` table. Used in future "So What" generation.
+
+## Database Schema
+
+### Core Tables
+- `sources` — source health tracking (RSS, scrape, API)
+- `raw_articles` — ingested articles (title, snippet, URL, deduped)
+- `full_text_articles` — extracted article content (cheerio)
+- `categorised_articles` — old 20-category classification (legacy)
+
+### Enrichment Tables
+- `taxonomy_domains` / `taxonomy_sectors` / `taxonomy_microsectors` — 3-level hierarchy
+- `taxonomy_tags` — 5 cross-cutting tags
+- `entities` — entity registry with aliases, fuzzy matching (pg_trgm)
+- `enriched_articles` — new enrichment results (microsector_ids[], signal_type, sentiment, jurisdictions[], raw_entities)
+- `article_entities` — join table (enriched_article ↔ entity)
+- `transmission_channels` — causal links between domains
+- `enrichment_runs` — cost/performance tracking
+- `category_migration_map` — old 20 categories → new microsector slugs
+
+### Migrations
+- `scripts/migrate.sql` — Phase 1 schema
+- `scripts/migrate-enrichment.sql` — Enrichment tables, enums, extensions
+- `scripts/seed-taxonomy.sql` — 12 domains, 75 sectors, 103 microsectors, 5 tags
+
+## Dashboard Tabs
+
+1. **Intelligence** — v1 Daily briefing: personalised digest with Daily Number, narrative synthesis, hero stories (expert analysis), compact stories (accordion), cross-story connections. Uses mock data by default; calls Claude Sonnet when ANTHROPIC_API_KEY is set.
+2. **Discovery** — Phase 1: Article ingestion, source health, full text testing
+3. **Categories** — Phase 2: Dual view (Classic 20-cat / Enriched with taxonomy drill-down)
+4. **Energy** — Live Australian NEM data from OpenElectricity
+5. **Taxonomy** — Manage taxonomy tree, entity registry, signal/sentiment overview, transmission channels, run enrichment
+6. **Events** — Future: climate events timeline
 
 ## Key Principles
 
-- **No full text in Phase 1 or 2** — only title + summary snippet. Full text fetched only for Phase 3 winners if needed.
-- **Cost efficiency over quality for triage** — Gemini Flash for categorisation/prioritisation, Sonnet only for final digest.
-- **Aggressive filtering** — max 3-5 articles per category survive prioritisation. Users see top 3 + accordion of next 7-10.
-- **Smart batching for digest** — more sectors selected = fewer articles per sector. Total article count to Sonnet capped at 15.
-- **Each phase is independently testable** — separate tabs, separate data, can re-run any phase without touching others.
-
-## Design Language
-
-Inherits from BenchWatch "Digital Ledger" aesthetic:
-- **Typefaces**: DM Sans + Newsreader serif
-- **Accent**: Amber (#C9922A) — shared across Nick's projects
-- **Surface hierarchy**: Six-tier, no 1px borders (tonal background shifts)
-- **Theme**: Light warm-white
-- **For testing UI**: Keep it simple. Basic tabs, data tables, cards. Don't over-invest in styling during testing phase.
+- **Full text extraction BEFORE enrichment** — trivial cost increase, massive quality improvement
+- **Tag once at ingestion, query forever** — zero AI at read time
+- **Normalise entities, not strings** — alias resolution, fuzzy matching, canonical names
+- **Emergent themes surface automatically** — unregistered entities promoted by frequency
+- **Taxonomy stored in DB** — editable via dashboard, not hardcoded
+- **Cost efficiency** — Gemini Flash for all triage/enrichment, Sonnet only for final digest
+- **Each phase independently testable** — separate tabs, separate data
+- **Old pipeline preserved** — categorised_articles table and classic view remain functional
 
 ## Mistakes to Avoid
 
-- DO NOT fetch full article text during ingestion or categorisation — it's unnecessary and expensive
-- DO NOT use NewsAPI.org free tier — it explicitly blocks server-side production calls
-- DO NOT send more than 15 articles total to the Sonnet digest call regardless of how many sectors a user follows
+- DO NOT use NewsAPI.org free tier for production — it blocks server-side calls
+- DO NOT send more than 15 articles to Sonnet digest regardless of sector count
 - DO NOT build auth, payments, or user management during testing — hardcode a test user
-- DO NOT over-engineer the frontend — this is a testing harness, not the final product
-- Gemini 2.0 Flash is deprecated June 2026 — plan migration to 2.5 Flash but don't worry about it now
-- RSS feeds can change URLs without notice — build source health monitoring from the start (last_successful_poll, consecutive_failures)
+- DO NOT drop categorised_articles — it's the historical record and classic view fallback
+- DO NOT hardcode taxonomy — it lives in the database, loaded via taxonomy-cache.ts
+- RSS feeds can change URLs without notice — source health monitoring is built-in
 
-## Environment Variables Required
+## Environment Variables
 
 ```
-GOOGLE_AI_API_KEY=       # Gemini Flash for categorisation/prioritisation
+DATABASE_URL=            # PostgreSQL connection string
+GOOGLE_AI_API_KEY=       # Gemini 2.5 Flash for enrichment
+NEWSAPI_AI_KEY=          # EventRegistry API
+NEWSAPI_ORG_KEY=         # NewsAPI.org (backup)
+OPENELECTRICITY_API_KEY= # Australian NEM energy data
 ANTHROPIC_API_KEY=       # Claude Sonnet for digest generation
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
 RESEND_API_KEY=          # Future: email delivery
 ```
 
-## File Structure (Testing Phase)
+## File Structure
 
 ```
-climateplus/
+climatepulse/
 ├── CLAUDE.md
-├── .env
 ├── package.json
+├── docker-compose.yml           # PostgreSQL 16
+├── prompts/
+│   ├── stage1-system.md         # Stage 1 domain classification prompt
+│   ├── stage2-system.md         # Stage 2 enrichment + scoring prompt
+│   ├── definitions/
+│   │   ├── domains.md           # 12 domain definitions
+│   │   ├── micro-sectors.md     # 108 microsector definitions (include/exclude)
+│   │   ├── signal-types.md      # 10 signal type definitions
+│   │   └── entity-types.md      # 6 entity type definitions
+│   └── scoring/
+│       ├── calibration-examples.md  # 8 scored examples for prompt anchoring
+│       └── prioritisation-logic.md  # 6-factor scoring spec (reference)
+├── scripts/
+│   ├── migrate.sql              # Phase 1 schema
+│   ├── migrate-enrichment.sql   # Enrichment schema
+│   ├── migrate-two-stage.sql    # Two-stage pipeline columns + indexes
+│   ├── seed-taxonomy.sql        # 108 microsectors + domains + tags
+│   └── seed-sources.sql         # Initial source seeding
 ├── src/
-│   ├── phases/
-│   │   ├── phase1-ingestion/     # RSS polling, scraping, dedup
-│   │   ├── phase2a-categorise/   # Gemini Flash categorisation
-│   │   ├── phase2b-prioritise/   # Gemini Flash ranking within categories
-│   │   └── phase3-digest/        # Claude Sonnet digest generation
-│   ├── shared/
-│   │   ├── taxonomy.ts           # 20-category definitions
-│   │   ├── sources.ts            # RSS feed + scrape target configs
-│   │   ├── db.ts                 # Supabase client
-│   │   └── types.ts              # Shared TypeScript types
-│   └── ui/
-│       ├── App.tsx               # Tabbed shell
-│       ├── tabs/
-│       │   ├── SourcesTab.tsx    # Phase 1 visual
-│       │   ├── CategoriesTab.tsx # Phase 2a visual
-│       │   ├── PrioritiesTab.tsx # Phase 2b visual
-│       │   └── DigestTab.tsx     # Phase 3 visual
-│       └── components/           # Shared UI components
+│   ��── app/
+│   │   ├── layout.tsx
+│   │   ├── (app)/
+│   │   │   ├── dashboard/page.tsx   # Main tabbed dashboard
+│   │   │   ├── settings/page.tsx
+│   │   │   └── profile/page.tsx
+│   │   └── api/
+│   │       ├── discovery/           # Phase 1 routes
+│   │       ├── phase2a/             # Legacy categorisation routes
+│   │       ├── enrichment/          # New enrichment routes (run, stats, results)
+│   │       ├── taxonomy/            # Taxonomy CRUD (tree, domains, sectors, microsectors, tags)
+│   │       ├─�� entities/            # Entity registry CRUD
+│   │       ├── channels/            # Transmission channel CRUD
+│   │       ├── energy/              # NEM energy data
+│   │       └── digest/              # Digest generation (Claude Sonnet)
+│   ├── lib/
+│   │   ├── db.ts                    # PostgreSQL pool
+│   │   ├── types.ts                 # All TypeScript interfaces (incl. personalisation + digest)
+│   │   ├── personalisation.ts       # Relevance scoring + briefing story selection
+│   │   ├── mock-digest.ts           # Mock data for UI development
+│   │   ├── taxonomy.ts              # Old 20-category definitions (legacy)
+│   │   ├── sources.ts               # RSS + scrape configs
+│   │   ├── categorise/
+│   │   │   └── engine.ts            # Old Gemini categorisation (legacy)
+│   │   ├── enrichment/
+│   │   │   ├── pipeline.ts          # Two-stage orchestrator (prefetch → classify → enrich → promote)
+│   │   │   ├── stage1-classifier.ts # Stage 1: batch domain classification (10/call)
+│   │   │   ├── stage2-enricher.ts   # Stage 2: per-article enrichment + significance
+│   │   │   ├── prompt-loader.ts     # Load/cache .md prompt templates
+│   │   │   ├── entity-resolver.ts   # Entity matching + candidate creation
+│   │   │   ├── taxonomy-cache.ts    # DB-loaded taxonomy cache (5-min TTL)
+│   │   │   └─��� fulltext-prefetch.ts # Pre-fetch full text before enrichment
+│   │   ├── discovery/
+│   │   │   ├── poller.ts, scraper.ts, fulltext.ts
+│   │   │   ├── newsapi-ai.ts, newsapi-org.ts
+│   │   │   └── news-queries.ts
+│   ��   └── energy/
+│   │       └── openelectricity.ts
+│   └── components/
+│       ├── intelligence-tab.tsx     # v1 Daily briefing UI (Daily Number, Narrative, Hero/Compact stories)
+│       ├── discovery-tab.tsx
+│       ├── categories-tab.tsx       # Dual view: classic + enriched
+│       ├── energy-tab.tsx
+│       ├── taxonomy-tab.tsx         # Taxonomy management
+│       ├── app-header.tsx
+│       ├── dev-panel.tsx
+│       └── ui/                      # shadcn/ui components
 ```
