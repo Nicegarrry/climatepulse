@@ -1,0 +1,415 @@
+import type {
+  UserProfile,
+  ScoredStory,
+  DigestOutput,
+  DailyBriefing,
+} from "./types";
+
+// ─── Mock User Profile ─────────────────────────────────────────────────────
+
+export const MOCK_USER_PROFILE: UserProfile = {
+  id: "test-user-1",
+  name: "Alex Chen",
+  email: "alex@climatepulse.dev",
+  role_lens: "investor",
+  primary_sectors: ["eu-ets", "lithium-ion-grid-bess", "esg-disclosure-reporting"],
+  jurisdictions: ["australia", "eu"],
+  followed_entities: ["CBAM", "Origin Energy"],
+  followed_storylines: [],
+  triage_history: {},
+  accordion_opens: {},
+  story_ring_taps: {},
+  briefing_depth: "standard",
+  digest_time: "06:30",
+};
+
+// ─── Mock Scored Stories ───────────────────────────────────────────────────
+
+export const MOCK_SCORED_STORIES: ScoredStory[] = [
+  {
+    id: "story-001",
+    title: "Italy Calls for Temporary ETS Suspension Amid Industrial Backlash",
+    source_name: "S&P Global",
+    article_url: "https://www.spglobal.com/commodityinsights/en/market-insights/latest-news/energy-transition/eu-ets-suspension",
+    snippet: "Italian Industry Minister calls for emergency EU ETS suspension as carbon prices hit EUR 70.23/t, threatening competitiveness of energy-intensive manufacturers.",
+    full_text: null,
+    signal_type: "policy_change",
+    primary_domain: "carbon-emissions",
+    secondary_domain: "policy",
+    microsector_slugs: ["eu-ets", "cbam-carbon-tariffs"],
+    secondary_microsector_slugs: [],
+    entities: [
+      { name: "EU ETS", type: "regulation" },
+      { name: "Italy", type: "jurisdiction" },
+      { name: "European Commission", type: "jurisdiction" },
+    ],
+    quantitative_data: {
+      primary_metric: { value: "70.23", unit: "EUR/t", context: "EU ETS carbon price" },
+      delta: { value: "-3.1", unit: "%", period: "week" },
+    },
+    jurisdictions: ["eu"],
+    inherent_score: 73,
+    context_quality: "snippet",
+    source_authority: 8,
+    linked_storylines: ["EU ETS Reform Saga"],
+    transmission_channels_triggered: ["EU carbon price → Australian offset demand"],
+    personal_score: 98,
+    relevance_boost: 25,
+    boost_breakdown: [
+      { condition: "Primary sector: eu-ets", boost: 15 },
+      { condition: "Jurisdiction: eu", boost: 10 },
+    ],
+    designation: "hero",
+  },
+  {
+    id: "story-002",
+    title: "Origin Energy Greenlights 700MW Battery at Eraring Site",
+    source_name: "RenewEconomy",
+    article_url: "https://reneweconomy.com.au/origin-energy-eraring-battery-700mw",
+    snippet: "Origin Energy confirms final investment decision on Australia's largest grid battery, to be co-located at the retiring Eraring coal plant site in the Hunter Valley.",
+    full_text: null,
+    signal_type: "project_milestone",
+    primary_domain: "energy-storage",
+    secondary_domain: "energy-generation",
+    microsector_slugs: ["lithium-ion-grid-bess"],
+    secondary_microsector_slugs: ["coal-retirement"],
+    entities: [
+      { name: "Origin Energy", type: "company" },
+      { name: "Eraring Power Station", type: "project" },
+    ],
+    quantitative_data: {
+      primary_metric: { value: "700", unit: "MW / 2,800 MWh", context: "Battery capacity" },
+      delta: null,
+    },
+    jurisdictions: ["australia"],
+    inherent_score: 71,
+    context_quality: "snippet",
+    source_authority: 7,
+    linked_storylines: ["Eraring Closure Transition"],
+    transmission_channels_triggered: ["Coal retirement → storage investment"],
+    personal_score: 96,
+    relevance_boost: 25,
+    boost_breakdown: [
+      { condition: "Followed entity: Origin Energy", boost: 25 },
+    ],
+    designation: "hero",
+  },
+  {
+    id: "story-003",
+    title: "EU CBAM Enters Definitive Phase: First Quarterly Payments Due",
+    source_name: "Carbon Pulse",
+    article_url: "https://carbon-pulse.com/eu-cbam-definitive-phase-payments",
+    snippet: "The EU's Carbon Border Adjustment Mechanism transitions from reporting-only to payment phase, with first quarterly certificates purchased by importers of steel, cement, aluminium, fertilisers, and electricity.",
+    full_text: null,
+    signal_type: "policy_change",
+    primary_domain: "carbon-emissions",
+    secondary_domain: null,
+    microsector_slugs: ["cbam-carbon-tariffs"],
+    secondary_microsector_slugs: ["esg-disclosure-reporting"],
+    entities: [
+      { name: "CBAM", type: "regulation" },
+      { name: "European Commission", type: "jurisdiction" },
+    ],
+    quantitative_data: {
+      primary_metric: { value: "2.5", unit: "B EUR", context: "Estimated annual CBAM revenue" },
+      delta: null,
+    },
+    jurisdictions: ["eu"],
+    inherent_score: 82,
+    context_quality: "snippet",
+    source_authority: 8,
+    linked_storylines: ["CBAM Implementation"],
+    transmission_channels_triggered: ["EU CBAM → Australian export competitiveness"],
+    personal_score: 107,
+    relevance_boost: 25,
+    boost_breakdown: [
+      { condition: "Followed entity: CBAM", boost: 25 },
+    ],
+    designation: "hero",
+  },
+  {
+    id: "story-004",
+    title: "NEM Renewable Share Hits 49.9% in Q1, Closing on 82% Target",
+    source_name: "OpenElectricity",
+    article_url: "https://openelectricity.org.au/analysis/nem-q1-2026",
+    snippet: "Australia's National Electricity Market recorded 49.9% renewable generation in Q1 2026, driven by record rooftop solar output and strong wind performance.",
+    full_text: null,
+    signal_type: "data_release",
+    primary_domain: "energy-generation",
+    secondary_domain: null,
+    microsector_slugs: ["utility-solar-pv", "onshore-wind"],
+    secondary_microsector_slugs: [],
+    entities: [
+      { name: "AEMO", type: "jurisdiction" },
+      { name: "NEM", type: "project" },
+    ],
+    quantitative_data: {
+      primary_metric: { value: "49.9", unit: "%", context: "NEM renewable electricity share" },
+      delta: { value: "+8.2", unit: "pp", period: "YoY" },
+    },
+    jurisdictions: ["australia"],
+    inherent_score: 65,
+    context_quality: "full_text",
+    source_authority: 9,
+    linked_storylines: [],
+    transmission_channels_triggered: [],
+    personal_score: 65,
+    relevance_boost: 0,
+    boost_breakdown: [],
+    designation: "compact",
+  },
+  {
+    id: "story-005",
+    title: "Fortescue Halves Green Hydrogen Target After Project Review",
+    source_name: "Australian Financial Review",
+    article_url: "https://www.afr.com/companies/energy/fortescue-green-hydrogen-halved",
+    snippet: "Fortescue Energy slashes its 2030 green hydrogen production target from 15 to 7.5 million tonnes, citing cost blowouts at the Gibson Island and Gladstone projects.",
+    full_text: null,
+    signal_type: "corporate_action",
+    primary_domain: "energy-generation",
+    secondary_domain: "industry",
+    microsector_slugs: ["green-hydrogen-electrolysis"],
+    secondary_microsector_slugs: [],
+    entities: [
+      { name: "Fortescue Energy", type: "company" },
+    ],
+    quantitative_data: {
+      primary_metric: { value: "7.5", unit: "Mt", context: "Revised 2030 green H2 target" },
+      delta: { value: "-50", unit: "%", period: "from original target" },
+    },
+    jurisdictions: ["australia"],
+    inherent_score: 62,
+    context_quality: "snippet",
+    source_authority: 8,
+    linked_storylines: [],
+    transmission_channels_triggered: ["Green hydrogen economics → electrolyser demand"],
+    personal_score: 62,
+    relevance_boost: 0,
+    boost_breakdown: [],
+    designation: "compact",
+  },
+  {
+    id: "story-006",
+    title: "ASIC Launches ESG Greenwashing Enforcement Against Major Bank",
+    source_name: "The Guardian",
+    article_url: "https://www.theguardian.com/business/2026/apr/08/asic-esg-greenwashing-enforcement",
+    snippet: "ASIC files Federal Court proceedings against a major Australian bank for misleading ESG claims in its sustainable investment products.",
+    full_text: null,
+    signal_type: "enforcement",
+    primary_domain: "finance",
+    secondary_domain: null,
+    microsector_slugs: ["esg-disclosure-reporting"],
+    secondary_microsector_slugs: [],
+    entities: [
+      { name: "ASIC", type: "jurisdiction" },
+    ],
+    quantitative_data: null,
+    jurisdictions: ["australia"],
+    inherent_score: 58,
+    context_quality: "snippet",
+    source_authority: 7,
+    linked_storylines: [],
+    transmission_channels_triggered: ["ESG enforcement → disclosure standards"],
+    personal_score: 73,
+    relevance_boost: 15,
+    boost_breakdown: [
+      { condition: "Primary sector: esg-disclosure-reporting", boost: 15 },
+    ],
+    designation: "compact",
+  },
+  {
+    id: "story-007",
+    title: "Critical Minerals Strategy: Govt Backs $2B Rare Earths Processing Hub",
+    source_name: "ABC News",
+    article_url: "https://www.abc.net.au/news/2026-04-08/rare-earths-processing-hub",
+    snippet: "Federal government announces $2 billion in concessional finance for a domestic rare earths processing facility in WA, aiming to reduce dependence on Chinese supply chains.",
+    full_text: null,
+    signal_type: "policy_change",
+    primary_domain: "critical-minerals",
+    secondary_domain: null,
+    microsector_slugs: ["rare-earths-processing"],
+    secondary_microsector_slugs: [],
+    entities: [
+      { name: "Lynas Rare Earths", type: "company" },
+    ],
+    quantitative_data: {
+      primary_metric: { value: "2", unit: "B AUD", context: "Concessional finance package" },
+      delta: null,
+    },
+    jurisdictions: ["australia"],
+    inherent_score: 55,
+    context_quality: "snippet",
+    source_authority: 7,
+    linked_storylines: [],
+    transmission_channels_triggered: ["Critical minerals supply → battery manufacturing"],
+    personal_score: 55,
+    relevance_boost: 0,
+    boost_breakdown: [],
+    designation: "compact",
+  },
+  {
+    id: "story-008",
+    title: "42,000 Clean Energy Workers Needed by 2030: Skills Report",
+    source_name: "Clean Energy Council",
+    article_url: "https://www.cleanenergycouncil.org.au/news/workforce-skills-report-2026",
+    snippet: "New workforce analysis reveals Australia needs 42,000 additional clean energy workers by 2030, with critical shortages in grid engineering and battery installation.",
+    full_text: null,
+    signal_type: "data_release",
+    primary_domain: "workforce-adaptation",
+    secondary_domain: null,
+    microsector_slugs: ["clean-energy-workforce"],
+    secondary_microsector_slugs: [],
+    entities: [
+      { name: "Clean Energy Council", type: "company" },
+    ],
+    quantitative_data: {
+      primary_metric: { value: "42,000", unit: "workers", context: "Workforce gap by 2030" },
+      delta: null,
+    },
+    jurisdictions: ["australia"],
+    inherent_score: 45,
+    context_quality: "snippet",
+    source_authority: 6,
+    linked_storylines: [],
+    transmission_channels_triggered: [],
+    personal_score: 45,
+    relevance_boost: 0,
+    boost_breakdown: [],
+    designation: "compact",
+  },
+];
+
+// ─── Mock Digest Output ────────────────────────────────────────────────────
+
+export const MOCK_DIGEST: DigestOutput = {
+  narrative:
+    "Carbon markets are fracturing under political pressure while the physical transition accelerates regardless. Italy's call to suspend the EU ETS — though unlikely to succeed — signals growing industrial anxiety that will feed directly into CBAM negotiations, where the first real payments are now due. Meanwhile in Australia, Origin's 700MW Eraring battery FID is the clearest signal yet that coal site repurposing economics have crossed the viability threshold. The gap between the 49.9% NEM renewable share and the 82% target defines the investment opportunity ahead — and explains why workforce shortages, not technology costs, may be the binding constraint on the transition timeline.",
+
+  daily_number: {
+    value: "49.9%",
+    label: "NEM renewable electricity share (Q1 2026)",
+    context:
+      "For investors: this gap to 82% represents the scale of capital deployment still required — storage, transmission, and firming assets remain underfunded relative to policy ambition.",
+    trend: "up 8.2pp YoY",
+  },
+
+  hero_stories: [
+    {
+      rank: 1,
+      headline: "EU CBAM Enters Definitive Phase: First Quarterly Payments Due",
+      source: "Carbon Pulse",
+      url: "https://carbon-pulse.com/eu-cbam-definitive-phase-payments",
+      expert_take:
+        "The transition from reporting to payment fundamentally changes CBAM's impact calculus. Australian exporters of aluminium and steel now face a direct cost wedge that scales with the EU carbon price — currently EUR 70/t. The simultaneous Italian push to suspend the ETS creates a paradox: if ETS prices fall, CBAM certificates become cheaper, but the political signal weakens the long-term carbon price trajectory that underpins green premium investments. For portfolio positioning, the key question is whether Australian producers will accelerate domestic decarbonisation to avoid CBAM costs, or lobby for an equivalent domestic carbon price to claim CBAM exemptions.",
+      key_metric: { value: "2.5", unit: "B EUR", delta: undefined },
+      connected_storyline: {
+        title: "CBAM Implementation",
+        context: "First definitive-phase payments mark the end of the transition period",
+      },
+      micro_sectors: ["cbam-carbon-tariffs"],
+      entities_mentioned: ["CBAM", "European Commission"],
+    },
+    {
+      rank: 2,
+      headline: "Origin Energy Greenlights 700MW Battery at Eraring Site",
+      source: "RenewEconomy",
+      url: "https://reneweconomy.com.au/origin-energy-eraring-battery-700mw",
+      expert_take:
+        "This FID is significant beyond its 700MW headline because it validates coal-to-storage conversion economics at scale. Eraring's grid connection, substation capacity, and planning approvals give it a structural cost advantage over greenfield battery sites — a template that applies to every retiring thermal asset in the NEM. Origin's willingness to commit capital here, despite regulatory uncertainty around the CIS capacity mechanism, suggests the storage investment case now stands on merchant revenue alone. Watch for Brookfield (AGL's owner) to announce a similar conversion at Liddell within 90 days.",
+      key_metric: { value: "700", unit: "MW", delta: undefined },
+      connected_storyline: {
+        title: "Eraring Closure Transition",
+        context: "Battery FID follows the delayed coal closure timeline",
+      },
+      micro_sectors: ["lithium-ion-grid-bess"],
+      entities_mentioned: ["Origin Energy", "Eraring Power Station"],
+    },
+    {
+      rank: 3,
+      headline: "Italy Calls for Temporary ETS Suspension Amid Industrial Backlash",
+      source: "S&P Global",
+      url: "https://www.spglobal.com/commodityinsights/en/market-insights/latest-news/energy-transition/eu-ets-suspension",
+      expert_take:
+        "Italy's call is performative — suspension requires Council unanimity and Germany will block — but the political signal matters. It reflects the manufacturing lobby's growing leverage as European elections approach, and it will almost certainly result in an expanded free allocation pool in the next ETS review. For Australian carbon market participants, the transmission channel runs through offset demand: EU price instability reduces the incentive for voluntary offsets at the margin, pressuring ACCU prices. The more important tell is whether Poland and Czech Republic echo Italy's position this week.",
+      key_metric: { value: "70.23", unit: "EUR/t", delta: "-3.1%" },
+      connected_storyline: {
+        title: "EU ETS Reform Saga",
+        context: "Latest escalation in the reform debate",
+      },
+      micro_sectors: ["eu-ets", "cbam-carbon-tariffs"],
+      entities_mentioned: ["EU ETS", "Italy", "European Commission"],
+    },
+  ],
+
+  compact_stories: [
+    {
+      rank: 4,
+      headline: "NEM Renewable Share Hits 49.9% in Q1, Closing on 82% Target",
+      source: "OpenElectricity",
+      url: "https://openelectricity.org.au/analysis/nem-q1-2026",
+      one_line_take:
+        "The 8.2pp YoY gain is the fastest annual improvement on record, but the last 32 points to the 82% target require grid-forming inverters and firming investment that hasn't been committed yet.",
+      key_metric: { value: "49.9%", unit: "renewable share", delta: "+8.2pp YoY" },
+    },
+    {
+      rank: 5,
+      headline: "Fortescue Halves Green Hydrogen Target After Project Review",
+      source: "Australian Financial Review",
+      url: "https://www.afr.com/companies/energy/fortescue-green-hydrogen-halved",
+      one_line_take:
+        "A reality check on green hydrogen economics that will ripple through electrolyser supply chains and force a re-rating of hydrogen-exposed equities.",
+      key_metric: { value: "7.5Mt", unit: "2030 target", delta: "-50%" },
+    },
+    {
+      rank: 6,
+      headline: "ASIC Launches ESG Greenwashing Enforcement Against Major Bank",
+      source: "The Guardian",
+      url: "https://www.theguardian.com/business/2026/apr/08/asic-esg-greenwashing-enforcement",
+      one_line_take:
+        "ASIC's third greenwashing action in 12 months signals a structural shift in enforcement posture — compliance costs for ESG-branded products are about to increase significantly.",
+      key_metric: null,
+    },
+    {
+      rank: 7,
+      headline: "Critical Minerals Strategy: Govt Backs $2B Rare Earths Processing Hub",
+      source: "ABC News",
+      url: "https://www.abc.net.au/news/2026-04-08/rare-earths-processing-hub",
+      one_line_take:
+        "The concessional finance structure suggests government expects private capital won't underwrite rare earths processing at current prices — a bearish signal for near-term economics but bullish for Lynas.",
+      key_metric: { value: "$2B", unit: "AUD", delta: undefined },
+    },
+    {
+      rank: 8,
+      headline: "42,000 Clean Energy Workers Needed by 2030: Skills Report",
+      source: "Clean Energy Council",
+      url: "https://www.cleanenergycouncil.org.au/news/workforce-skills-report-2026",
+      one_line_take:
+        "Workforce shortages will constrain project timelines and inflate contractor costs — factor into DCF models for any project with a 2027+ COD.",
+      key_metric: { value: "42K", unit: "workers needed", delta: undefined },
+    },
+  ],
+
+  cross_story_connections: [
+    {
+      story_ranks: [1, 3],
+      connection:
+        "The EU carbon price decline from Italy's ETS suspension push directly affects CBAM certificate costs — if ETS prices fall to EUR 60/t, Australian exporters save roughly EUR 10/t on CBAM obligations, but the weakened price signal reduces pressure to decarbonise domestically.",
+    },
+    {
+      story_ranks: [2, 4],
+      connection:
+        "Origin's Eraring battery is part of the infrastructure buildout needed to close the gap from 49.9% to 82% renewables — grid-scale storage enables higher renewable penetration by firming intermittent supply.",
+    },
+  ],
+};
+
+// ─── Mock Daily Briefing (assembled) ───────────────────────────────────────
+
+export const MOCK_BRIEFING: DailyBriefing = {
+  id: "briefing-001",
+  user_id: "user-001",
+  date: new Date().toISOString().split("T")[0],
+  stories: MOCK_SCORED_STORIES,
+  digest: MOCK_DIGEST,
+  generated_at: new Date().toISOString(),
+};

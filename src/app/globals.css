@@ -67,6 +67,7 @@
   --color-accent-amber-light: var(--accent-amber-light);
   --color-cream: var(--cream);
   --color-cream-dark: var(--cream-dark);
+  --color-forest-green: var(--forest-green);
   --color-slate: var(--slate);
   --color-slate-light: var(--slate-light);
 
@@ -101,6 +102,9 @@
   --accent-emerald: #2A9D8F;
   --accent-emerald-light: #4DB8A8;
   --accent-emerald-glow: #1A6B60;
+
+  /* Forest green — Daily Number card */
+  --forest-green: #0B3D2E;
 
   /* Amber — warnings & AI moments */
   --accent-amber: #C9922A;
@@ -182,6 +186,9 @@
   --accent-emerald: #34B8A8;
   --accent-emerald-light: #5CCFBF;
   --accent-emerald-glow: #1A6B60;
+
+  /* Forest green — Daily Number card */
+  --forest-green: #0B3D2E;
 
   /* Amber */
   --accent-amber: #E8B45A;

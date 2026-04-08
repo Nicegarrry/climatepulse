@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Playfair_Display, DM_Sans, DM_Mono } from "next/font/google";
+import { Playfair_Display, DM_Sans, JetBrains_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { AuthProvider } from "@/lib/auth-context";
 import { DevLoggerProvider } from "@/lib/dev-logger";
@@ -17,8 +17,8 @@ const dmSans = DM_Sans({
   variable: "--font-sans",
 });
 
-const dmMono = DM_Mono({
-  weight: ["400"],
+const jetbrainsMono = JetBrains_Mono({
+  weight: ["400", "700"],
   subsets: ["latin"],
   variable: "--font-mono",
 });
@@ -36,7 +36,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${playfairDisplay.variable} ${dmSans.variable} ${dmMono.variable} h-full antialiased`}
+      className={`${playfairDisplay.variable} ${dmSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
