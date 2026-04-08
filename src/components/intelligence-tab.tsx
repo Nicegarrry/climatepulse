@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,16 @@ import {
   BookOpen,
   AlertCircle,
   Loader2,
+  Scale,
+  Milestone,
+  Building2,
+  BarChart3,
+  ShieldAlert,
+  UserCircle,
+  Users,
+  Globe as GlobeIcon,
+  Cpu as CpuIcon,
+  Megaphone,
 } from "lucide-react";
 import type {
   DailyBriefing,
@@ -25,7 +36,9 @@ import type {
   DigestDailyNumber,
   DigestCrossConnection,
   ScoredStory,
+  SignalType,
 } from "@/lib/types";
+import type { LucideIcon } from "lucide-react";
 import type { EnergyDashboardData, PriceSummary } from "@/lib/energy/openelectricity";
 
 // ─── Domain colour map ─────────────────────────────────────────────────────
@@ -49,6 +62,36 @@ function getDomainAccent(domain: string | null): string {
   const color = DOMAIN_COLORS[domain ?? ""] ?? "emerald";
   return color;
 }
+
+// ─── Signal type → icon + human label ─────────────────────────────────────
+
+const SIGNAL_TYPE_CONFIG: Record<SignalType, { icon: LucideIcon; label: string }> = {
+  market_move:        { icon: TrendingUp,   label: "Market Move" },
+  policy_change:      { icon: Scale,        label: "Policy Change" },
+  project_milestone:  { icon: Milestone,    label: "Project Milestone" },
+  corporate_action:   { icon: Building2,    label: "Corporate Action" },
+  data_release:       { icon: BarChart3,    label: "Data Release" },
+  enforcement:        { icon: ShieldAlert,  label: "Enforcement" },
+  personnel:          { icon: UserCircle,   label: "Personnel" },
+  technology_advance: { icon: CpuIcon,      label: "Tech Advance" },
+  international:      { icon: GlobeIcon,    label: "International" },
+  community_social:   { icon: Megaphone,    label: "Community & Social" },
+};
+
+const DOMAIN_LABELS: Record<string, string> = {
+  "carbon-emissions": "Carbon & Emissions",
+  "energy-storage": "Energy Storage",
+  "energy-generation": "Energy Generation",
+  "energy-grid": "Grid & Transmission",
+  "transport": "Transport",
+  "industry": "Industry",
+  "agriculture": "Agriculture",
+  "built-environment": "Built Environment",
+  "critical-minerals": "Critical Minerals",
+  "finance": "Climate Finance",
+  "policy": "Policy & Regulation",
+  "workforce-adaptation": "Workforce",
+};
 
 // ─── Fuel-tech colour / label maps (mirrored from energy-tab) ─────────────
 
@@ -255,17 +298,29 @@ function DailyNumberCard({
 // ─── Narrative Card ────────────────────────────────────────────────────────
 
 function NarrativeCard({ text }: { text: string }) {
+  // Split narrative into sentences and take up to 3 as bullet points
+  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
+  const bullets = sentences.slice(0, 3).map((s) => s.trim());
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.2 }}
-      className="rounded-xl p-6"
+      className="rounded-xl p-5"
       style={{ backgroundColor: "rgba(42, 157, 143, 0.04)" }}
     >
-      <p className="font-display text-[15px] italic leading-[1.8] text-foreground/85">
-        {text}
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-accent-emerald">
+        Today&apos;s Insights
       </p>
+      <ul className="space-y-2">
+        {bullets.map((bullet, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm leading-relaxed text-foreground/85">
+            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-emerald/60" />
+            {bullet}
+          </li>
+        ))}
+      </ul>
     </motion.div>
   );
 }
@@ -281,79 +336,123 @@ function HeroStoryCard({
   scoredStory?: ScoredStory;
   index: number;
 }) {
-  const domain = scoredStory?.primary_domain ?? null;
+  const signalType = scoredStory?.signal_type ?? null;
+  const config = signalType ? SIGNAL_TYPE_CONFIG[signalType] : null;
+  const SignalIcon = config?.icon ?? BookOpen;
+  const categoryLabel =
+    config?.label ??
+    DOMAIN_LABELS[scoredStory?.primary_domain ?? ""] ??
+    "Climate Intelligence";
+
+  // Split expert_take into key takeaway (first sentence) + detail
+  const sentences = story.expert_take.match(/[^.!?]+[.!?]+/g) ?? [story.expert_take];
+  const keyTakeaway = sentences[0].trim();
+  const detail = sentences.slice(1).join(" ").trim();
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
-      className="py-7"
+      className="overflow-hidden rounded-xl bg-card ring-1 ring-border-subtle"
     >
-      {/* Header row */}
-      <div className="flex items-start gap-4">
-        <StoryRing domain={domain} size={48} glow />
+      {/* ── Card header ── */}
+      <div className="flex items-start gap-3.5 p-5 pb-0">
+        {/* Signal type icon with rank overlay */}
+        <div className="relative shrink-0">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-2">
+            <SignalIcon className="h-5 w-5 text-accent-emerald" />
+          </div>
+          <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent-amber text-[10px] font-bold text-background">
+            {story.rank}
+          </span>
+        </div>
 
+        {/* Main content */}
         <div className="min-w-0 flex-1">
-          {/* Category + score */}
-          <div className="mb-1 flex items-center gap-2">
-            {story.micro_sectors[0] && (
-              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-accent-emerald">
-                {story.micro_sectors[0].replace(/-/g, " ")}
-              </span>
-            )}
+          {/* Category label + score */}
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent-emerald">
+              {categoryLabel}
+            </span>
             {scoredStory && (
-              <Badge
-                variant="secondary"
-                className="h-4 px-1.5 text-[9px] font-medium"
-              >
+              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] font-medium">
                 {scoredStory.personal_score}
               </Badge>
             )}
           </div>
 
-          {/* Headline */}
-          <h3 className="font-display text-base font-semibold leading-snug text-foreground">
-            {story.headline}
-          </h3>
+          {/* Headline as link */}
+          <a href={story.url} target="_blank" rel="noopener noreferrer" className="group inline-flex items-start gap-1.5">
+            <h3 className="font-display text-base font-semibold leading-snug text-foreground decoration-accent-emerald/40 underline-offset-2 group-hover:underline">
+              {story.headline}
+            </h3>
+            <ExternalLink className="mt-1 h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+          </a>
 
-          {/* Source link */}
-          <div className="mt-1">
-            <SourceLink source={story.source} url={story.url} />
+          {/* Source attribution + entities */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">via {story.source}</span>
+            {scoredStory?.entities?.slice(0, 3).map((e) => (
+              <Badge key={e.name} variant="secondary" className="h-5 text-[10px]">
+                {e.name}
+              </Badge>
+            ))}
           </div>
         </div>
-
-        {/* Key metric */}
-        <KeyMetric metric={story.key_metric} large />
       </div>
 
-      {/* Analysis block */}
-      <div className="mt-4 pl-16">
-        <p className="text-[13px] leading-relaxed text-foreground/70">
-          {story.expert_take}
-        </p>
-
-        {/* Connected storyline */}
-        {story.connected_storyline && (
-          <div className="mt-3">
-            <Badge
-              variant="outline"
-              className="gap-1 border-accent-amber/30 text-accent-amber"
+      {/* Key metric — full-width banner between header and analysis */}
+      {story.key_metric && (
+        <div className="mx-5 mt-3 flex items-baseline gap-2.5 rounded-lg bg-surface-2/60 px-4 py-2.5">
+          <span className="font-mono text-xl font-bold tracking-tight text-accent-emerald">
+            {story.key_metric.value}
+          </span>
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {story.key_metric.unit}
+          </span>
+          {story.key_metric.delta && (
+            <span
+              className={`flex items-center gap-0.5 font-mono text-xs ${
+                story.key_metric.delta.startsWith("-")
+                  ? "text-status-error"
+                  : "text-status-success"
+              }`}
             >
-              <Link2 className="h-3 w-3" />
-              Part of: {story.connected_storyline.title}
-            </Badge>
-          </div>
+              {story.key_metric.delta.startsWith("-") ? (
+                <TrendingDown className="h-3 w-3" />
+              ) : (
+                <TrendingUp className="h-3 w-3" />
+              )}
+              {story.key_metric.delta}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ── Analysis section ── */}
+      <div className="px-5 pb-5 pt-4">
+        {/* Key takeaway pull-quote */}
+        <div className="border-l-2 border-accent-emerald pl-3">
+          <p className="text-sm font-medium leading-relaxed text-foreground/90">
+            {keyTakeaway}
+          </p>
+        </div>
+
+        {/* Extended detail */}
+        {detail && (
+          <p className="mt-2.5 text-[13px] leading-relaxed text-muted-foreground">
+            {detail}
+          </p>
         )}
 
-        {/* Repeated source link at bottom */}
-        <div className="mt-3">
-          <SourceLink
-            source={`Read full article at ${story.source}`}
-            url={story.url}
-            className="text-xs text-muted-foreground"
-          />
-        </div>
+        {/* Connected storyline context */}
+        {story.connected_storyline && (
+          <p className="mt-3 flex items-center gap-1 text-xs italic text-muted-foreground">
+            <Link2 className="h-3 w-3 shrink-0 text-accent-amber" />
+            {story.connected_storyline.context}
+          </p>
+        )}
       </div>
     </motion.div>
   );
@@ -371,7 +470,13 @@ function CompactStoryRow({
   index: number;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const domain = scoredStory?.primary_domain ?? null;
+  const signalType = scoredStory?.signal_type ?? null;
+  const config = signalType ? SIGNAL_TYPE_CONFIG[signalType] : null;
+  const SignalIcon = config?.icon ?? BookOpen;
+  const categoryLabel =
+    config?.label ??
+    DOMAIN_LABELS[scoredStory?.primary_domain ?? ""] ??
+    "";
 
   return (
     <motion.div
@@ -395,19 +500,27 @@ function CompactStoryRow({
         }}
         className="flex w-full items-center gap-3 py-3.5 text-left transition-colors hover:bg-surface-2/30"
       >
-        <StoryRing domain={domain} size={32} glow={false} />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-2">
+          <SignalIcon className="h-4 w-4 text-accent-emerald" />
+        </div>
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">
             {story.headline}
           </p>
-          <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>{story.source}</span>
+            {categoryLabel && (
+              <>
+                <span className="text-border-medium">&middot;</span>
+                <span className="text-accent-emerald/70">{categoryLabel}</span>
+              </>
+            )}
           </div>
         </div>
 
         {story.key_metric && (
-          <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
+          <span className="shrink-0 font-mono text-sm font-bold text-accent-emerald">
             {story.key_metric.value}
           </span>
         )}
@@ -441,11 +554,15 @@ function CompactStoryRow({
               )}
 
               <div className="mt-2">
-                <SourceLink
-                  source={`Read at ${story.source}`}
-                  url={story.url}
-                  className="text-xs"
-                />
+                <a
+                  href={story.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-accent-emerald underline-offset-2 transition-colors hover:text-accent-emerald-light hover:underline"
+                >
+                  Read at {story.source}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
               </div>
             </div>
           </motion.div>
@@ -555,13 +672,17 @@ function IntelligenceSkeleton() {
 
       {/* Hero stories skeleton */}
       {[1, 2, 3].map((i) => (
-        <div key={i} className="flex gap-4 py-5">
-          <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="mt-3 h-16 w-full" />
+        <div key={i} className="overflow-hidden rounded-xl bg-card ring-1 ring-border-subtle">
+          <div className="flex gap-3.5 p-5 pb-3">
+            <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          </div>
+          <div className="px-5 pb-5">
+            <Skeleton className="h-12 w-full" />
           </div>
         </div>
       ))}
@@ -1064,18 +1185,21 @@ function EnergySidebar({ data }: { data: EnergyDashboardData }) {
 // ─── Main Intelligence Tab ─────────────────────────────────────────────────
 
 export function IntelligenceTab() {
+  const { user } = useAuth();
   const [briefing, setBriefing] = useState<DailyBriefing | null>(null);
   const [energyData, setEnergyData] = useState<EnergyDashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const userId = user?.id || "test-user-1";
+
   const fetchBriefing = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [digestRes, energyRes] = await Promise.allSettled([
-        fetch("/api/digest/generate"),
+        fetch(`/api/digest/generate?userId=${userId}`),
         fetch("/api/energy/dashboard"),
       ]);
 
@@ -1094,7 +1218,7 @@ export function IntelligenceTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   const generateBriefing = useCallback(async () => {
     setGenerating(true);
@@ -1103,7 +1227,7 @@ export function IntelligenceTab() {
       const res = await fetch("/api/digest/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ userId }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -1116,9 +1240,9 @@ export function IntelligenceTab() {
     } finally {
       setGenerating(false);
     }
-  }, []);
+  }, [userId]);
 
-  // Auto-fetch mock briefing on mount
+  // Fetch briefing on mount and when user changes
   useEffect(() => {
     fetchBriefing();
   }, [fetchBriefing]);
@@ -1161,7 +1285,7 @@ export function IntelligenceTab() {
 
           {/* Hero Stories */}
           <SectionLabel>Top Stories</SectionLabel>
-          <div className="space-y-1">
+          <div className="space-y-4">
             {digest.hero_stories.map((story, i) => (
               <HeroStoryCard
                 key={story.rank}

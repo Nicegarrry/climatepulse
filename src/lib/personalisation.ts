@@ -3,22 +3,28 @@ import type {
   UserProfile,
   ScoredStory,
   BriefingDepth,
+  TaxonomyTreeNode,
 } from "./types";
+import { expandToMicrosectorSlugs } from "./expand-sectors";
 
 // ─── Boost Constants ───────────────────────────────────────────────────────
 
 const BOOST_CAP = 35;
+const BOOST_FLOOR = -10;
 const INCLUSION_THRESHOLD = 40;
 const QUIET_DAY_THRESHOLD = 30;
-const BREAKING_NEWS_THRESHOLD = 90;
-const GLOBALLY_SIGNIFICANT_THRESHOLD = 80;
+const BREAKING_NEWS_THRESHOLD = 90;   // Force-include: truly breaking stories only
+const GLOBALLY_SIGNIFICANT_THRESHOLD = 85; // Exempt from mismatch penalty (was 80)
 const MIN_STORIES_QUICK = 3;
 const MAX_DOMAIN_PER_BRIEFING = 3;
 
-const DEPTH_RANGES: Record<BriefingDepth, { min: number; max: number }> = {
-  quick: { min: 3, max: 5 },
-  standard: { min: 5, max: 8 },
-  deep: { min: 8, max: 12 },
+export const DEPTH_RANGES: Record<
+  BriefingDepth,
+  { min: number; max: number; heroes: number; analysisDetail: "brief" | "standard" | "extended" }
+> = {
+  quick: { min: 3, max: 5, heroes: 3, analysisDetail: "brief" },
+  standard: { min: 5, max: 8, heroes: 3, analysisDetail: "standard" },
+  deep: { min: 8, max: 12, heroes: 5, analysisDetail: "extended" },
 };
 
 // ─── Boost Calculation ─────────────────────────────────────────────────────
@@ -30,24 +36,31 @@ interface BoostEntry {
 
 function computeBoosts(
   story: EnrichedArticle,
-  profile: UserProfile
+  profile: UserProfile,
+  expandedSectors: Set<string>
 ): BoostEntry[] {
   const boosts: BoostEntry[] = [];
+  const inherentScore = Number(story.significance_composite) || 50;
 
-  // Followed entity match (+25)
+  // Story microsector slugs (resolved from DB join)
+  const storyMicrosectors = new Set(
+    (story.microsector_names ?? []).map((s) =>
+      s.toLowerCase().replace(/\s+/g, "-")
+    )
+  );
+
+  // ── Followed entity match (+25) ──────────────────────────────────────
   if (profile.followed_entities.length > 0 && story.entities) {
     const entityNames = story.entities.map((e) => e.name.toLowerCase());
     for (const followed of profile.followed_entities) {
       if (entityNames.includes(followed.toLowerCase())) {
         boosts.push({ condition: `Followed entity: ${followed}`, boost: 25 });
-        break; // only count once
+        break;
       }
     }
   }
 
-  // Followed storyline match (+20)
-  // Future: match against story.linked_storylines when available
-  // For now, check transmission_channels_triggered as a proxy
+  // ── Followed storyline match (+20) ───────────────────────────────────
   if (
     profile.followed_storylines.length > 0 &&
     story.transmission_channels_triggered?.length > 0
@@ -67,36 +80,56 @@ function computeBoosts(
     }
   }
 
-  // Primary micro-sector match (+15)
-  const microsectorSlugs = (story.microsector_names ?? []).map((s) =>
-    s.toLowerCase().replace(/\s+/g, "-")
-  );
-  // Also check raw microsector_ids mapped to slugs if available
-  const storyMicrosectors = new Set([
-    ...microsectorSlugs,
-    ...(story.primary_domain ? [story.primary_domain] : []),
-  ]);
+  // ── Sector matching (using expanded microsector slugs) ───────────────
+  let hasSectorMatch = false;
 
-  let primaryMatch = false;
-  for (const sector of profile.primary_sectors) {
-    if (storyMicrosectors.has(sector)) {
-      boosts.push({ condition: `Primary sector: ${sector}`, boost: 15 });
-      primaryMatch = true;
+  // Primary microsector match (+20) — exact slug match
+  for (const slug of storyMicrosectors) {
+    if (expandedSectors.has(slug)) {
+      boosts.push({ condition: `Sector match: ${slug}`, boost: 20 });
+      hasSectorMatch = true;
       break;
     }
   }
 
-  // Secondary micro-sector match (+8) — only if no primary match
-  if (!primaryMatch && story.secondary_domain) {
-    for (const sector of profile.primary_sectors) {
-      if (story.secondary_domain === sector) {
-        boosts.push({ condition: `Secondary sector: ${sector}`, boost: 8 });
-        break;
-      }
+  // Domain-level fallback (+15) — when story has no microsector tags but
+  // has a primary_domain that maps to the user's expanded sectors.
+  // This catches stories the enrichment pipeline tagged at domain level only.
+  if (!hasSectorMatch && storyMicrosectors.size === 0 && story.primary_domain) {
+    // Check if the story's domain is one the user cares about
+    // by seeing if ANY of the user's expanded microsectors belong to this domain
+    // We do this by checking if the domain slug itself is in the user's raw primary_sectors
+    // (users who selected the domain will have it there pre-expansion)
+    if (profile.primary_sectors.includes(story.primary_domain)) {
+      boosts.push({ condition: `Domain match: ${story.primary_domain}`, boost: 15 });
+      hasSectorMatch = true;
     }
   }
 
-  // Jurisdiction match (+10 for non-Australia)
+  // Secondary domain match (+12) — story's secondary topic is in user's area
+  if (!hasSectorMatch && story.secondary_domain) {
+    for (const slug of storyMicrosectors) {
+      if (expandedSectors.has(slug)) {
+        boosts.push({ condition: `Secondary match: ${slug}`, boost: 12 });
+        hasSectorMatch = true;
+        break;
+      }
+    }
+    // Also check secondary domain-level fallback
+    if (!hasSectorMatch && profile.primary_sectors.includes(story.secondary_domain)) {
+      boosts.push({ condition: `Secondary domain: ${story.secondary_domain}`, boost: 10 });
+      hasSectorMatch = true;
+    }
+  }
+
+  // ── Mismatch penalty (-10) ───────────────────────────────────────────
+  // If the story has NO sector overlap with the user AND is not globally
+  // significant (inherent < 80), penalise to push irrelevant stories down
+  if (!hasSectorMatch && inherentScore < GLOBALLY_SIGNIFICANT_THRESHOLD) {
+    boosts.push({ condition: "No sector overlap", boost: -10 });
+  }
+
+  // ── Jurisdiction match (+10 for non-Australia) ───────────────────────
   if (story.jurisdictions?.length > 0) {
     for (const jur of story.jurisdictions) {
       const jurLower = jur.toLowerCase();
@@ -110,7 +143,7 @@ function computeBoosts(
     }
   }
 
-  // Implicit: swipe-right history (+5)
+  // ── Swipe-right history (+5) ─────────────────────────────────────────
   for (const slug of storyMicrosectors) {
     const history = profile.triage_history[slug];
     if (history && history.swipe_right >= 3) {
@@ -119,20 +152,12 @@ function computeBoosts(
     }
   }
 
-  // Implicit: swipe-left history (-5)
+  // ── Swipe-left history (-5) ──────────────────────────────────────────
   for (const slug of storyMicrosectors) {
     const history = profile.triage_history[slug];
     if (history && history.swipe_left >= 3) {
       boosts.push({ condition: `Swipe-left history: ${slug}`, boost: -5 });
       break;
-    }
-  }
-
-  // Implicit: engagement pattern from accordion opens (+3)
-  if (story.signal_type && profile.accordion_opens) {
-    const recentOpens = Object.values(profile.accordion_opens).length;
-    if (recentOpens >= 3) {
-      boosts.push({ condition: "Engagement pattern", boost: 3 });
     }
   }
 
@@ -143,13 +168,14 @@ function computeBoosts(
 
 export function computePersonalScore(
   story: EnrichedArticle,
-  profile: UserProfile
+  profile: UserProfile,
+  expandedSectors: Set<string>
 ): ScoredStory {
-  const inherentScore = story.significance_composite ?? 50;
-  const boosts = computeBoosts(story, profile);
+  const inherentScore = Number(story.significance_composite) || 50;
+  const boosts = computeBoosts(story, profile, expandedSectors);
 
   const rawBoost = boosts.reduce((sum, b) => sum + b.boost, 0);
-  const cappedBoost = Math.min(rawBoost, BOOST_CAP);
+  const cappedBoost = Math.max(BOOST_FLOOR, Math.min(rawBoost, BOOST_CAP));
   const personalScore = inherentScore + cappedBoost;
 
   return {
@@ -188,17 +214,34 @@ export function computePersonalScore(
 
 export function selectBriefingStories(
   stories: EnrichedArticle[],
-  profile: UserProfile
+  profile: UserProfile,
+  taxonomyTree?: TaxonomyTreeNode[]
 ): ScoredStory[] {
-  // 1. Score all stories
-  let scored = stories.map((s) => computePersonalScore(s, profile));
+  // 0. Expand user's primary_sectors to microsector slugs
+  const expandedSectors = taxonomyTree
+    ? expandToMicrosectorSlugs(profile.primary_sectors, taxonomyTree)
+    : new Set(profile.primary_sectors);
 
-  // 2. Breaking news always included (inherent >= 90)
+  // 1. Deduplicate stories by title (keep highest inherent score version)
+  const titleMap = new Map<string, EnrichedArticle>();
+  for (const story of stories) {
+    const key = story.title.toLowerCase().trim();
+    const existing = titleMap.get(key);
+    if (!existing || (Number(story.significance_composite) || 0) > (Number(existing.significance_composite) || 0)) {
+      titleMap.set(key, story);
+    }
+  }
+  const deduped = Array.from(titleMap.values());
+
+  // 2. Score all stories
+  const scored = deduped.map((s) => computePersonalScore(s, profile, expandedSectors));
+
+  // 3. Breaking news always included (inherent >= 90)
   const breaking = scored.filter(
     (s) => s.inherent_score >= BREAKING_NEWS_THRESHOLD
   );
 
-  // 3. Filter by threshold
+  // 4. Filter by threshold
   let threshold = INCLUSION_THRESHOLD;
   let filtered = scored.filter((s) => s.personal_score >= threshold);
 
@@ -208,27 +251,17 @@ export function selectBriefingStories(
     filtered = scored.filter((s) => s.personal_score >= threshold);
   }
 
-  // Ensure breaking news is always included
+  // Ensure breaking news is always included (inherent >= 90 only)
   for (const b of breaking) {
     if (!filtered.find((f) => f.id === b.id)) {
       filtered.push(b);
     }
   }
 
-  // Globally significant stories always included
-  for (const s of scored) {
-    if (
-      s.inherent_score >= GLOBALLY_SIGNIFICANT_THRESHOLD &&
-      !filtered.find((f) => f.id === s.id)
-    ) {
-      filtered.push(s);
-    }
-  }
-
-  // 4. Sort by personal_score descending
+  // 5. Sort by personal_score descending
   filtered.sort((a, b) => b.personal_score - a.personal_score);
 
-  // 5. Apply diversity constraint: max 3 per domain
+  // 6. Apply diversity constraint: max 3 per domain
   const domainCounts: Record<string, number> = {};
   const diverse: ScoredStory[] = [];
 
@@ -241,13 +274,13 @@ export function selectBriefingStories(
     }
   }
 
-  // 6. Select top N by briefing depth
-  const { max } = DEPTH_RANGES[profile.briefing_depth];
-  const selected = diverse.slice(0, max);
+  // 7. Select top N by briefing depth
+  const depth = DEPTH_RANGES[profile.briefing_depth];
+  const selected = diverse.slice(0, depth.max);
 
-  // 7. Designate hero (top 3) vs compact
+  // 8. Designate hero vs compact (hero count varies by depth)
   return selected.map((story, i) => ({
     ...story,
-    designation: i < 3 ? ("hero" as const) : ("compact" as const),
+    designation: i < depth.heroes ? ("hero" as const) : ("compact" as const),
   }));
 }

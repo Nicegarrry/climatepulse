@@ -9,12 +9,12 @@ import type {
 
 export const MOCK_USER_PROFILE: UserProfile = {
   id: "test-user-1",
-  name: "Alex Chen",
-  email: "alex@climatepulse.dev",
+  name: "Sarah Chen",
+  email: "sarah@climatepulse.dev",
   role_lens: "investor",
-  primary_sectors: ["eu-ets", "lithium-ion-grid-bess", "esg-disclosure-reporting"],
-  jurisdictions: ["australia", "eu"],
-  followed_entities: ["CBAM", "Origin Energy"],
+  primary_sectors: ["renewable-finance", "infra-funds", "lithium-bess", "utility-solar", "ma-transactions", "electricity-pricing"],
+  jurisdictions: ["australia", "nsw", "vic", "qld"],
+  followed_entities: ["Capacity Investment Scheme", "AGL Energy", "Origin Energy"],
   followed_storylines: [],
   triage_history: {},
   accordion_opens: {},

@@ -27,6 +27,9 @@ export default function LoginPage() {
     const success = await login(email, password);
     if (success) {
       log("info", "Login successful", { email });
+      // Check onboarding status — auth context login fetches the profile
+      // and sets onboardedAt. The (app) layout will redirect to /onboarding
+      // if needed, but we can also check here for immediate redirect.
       router.push("/dashboard");
     } else {
       log("warn", "Login failed", { email });

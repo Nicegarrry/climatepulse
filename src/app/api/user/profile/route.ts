@@ -3,27 +3,27 @@ import pool from "@/lib/db";
 import { MOCK_USER_PROFILE } from "@/lib/mock-digest";
 import type { UserProfile } from "@/lib/types";
 
-const TEST_USER_ID = "test-user-1";
-
 // ─── GET — fetch user profile ─────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const userId = req.nextUrl.searchParams.get("userId") || "test-user-1";
+
     const result = await pool.query(
       `SELECT id, name, email, role_lens, primary_sectors, jurisdictions,
               followed_entities, followed_storylines, triage_history,
-              accordion_opens, story_ring_taps, briefing_depth, digest_time
+              accordion_opens, story_ring_taps, briefing_depth, digest_time,
+              onboarded_at
        FROM user_profiles WHERE id = $1`,
-      [TEST_USER_ID]
+      [userId]
     );
 
     if (result.rows.length === 0) {
-      // Fall back to mock profile if table doesn't exist or no row
       return NextResponse.json(MOCK_USER_PROFILE);
     }
 
     const row = result.rows[0];
-    const profile: UserProfile = {
+    const profile: UserProfile & { onboarded_at: string | null } = {
       id: row.id,
       name: row.name,
       email: row.email,
@@ -37,11 +37,11 @@ export async function GET() {
       story_ring_taps: row.story_ring_taps ?? {},
       briefing_depth: row.briefing_depth ?? "standard",
       digest_time: row.digest_time ?? "06:30",
+      onboarded_at: row.onboarded_at ?? null,
     };
 
     return NextResponse.json(profile);
   } catch {
-    // Table might not exist yet — return mock
     return NextResponse.json(MOCK_USER_PROFILE);
   }
 }
@@ -51,6 +51,7 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
+    const userId = body.userId || "test-user-1";
 
     const allowedFields = [
       "role_lens",
@@ -60,6 +61,7 @@ export async function PUT(req: NextRequest) {
       "followed_storylines",
       "briefing_depth",
       "digest_time",
+      "onboarded_at",
     ];
 
     const updates: string[] = [];
@@ -82,7 +84,7 @@ export async function PUT(req: NextRequest) {
     }
 
     updates.push(`updated_at = NOW()`);
-    values.push(TEST_USER_ID);
+    values.push(userId);
 
     await pool.query(
       `UPDATE user_profiles SET ${updates.join(", ")} WHERE id = $${paramIndex}`,
@@ -92,6 +94,51 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Profile update error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
+}
+
+// ─── POST — create new user profile (onboarding) ─────────────────────────
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { name, email, role_lens, primary_sectors, jurisdictions, briefing_depth } = body;
+
+    if (!name || !email) {
+      return NextResponse.json(
+        { error: "name and email are required" },
+        { status: 400 }
+      );
+    }
+
+    const result = await pool.query(
+      `INSERT INTO user_profiles (name, email, role_lens, primary_sectors, jurisdictions, briefing_depth, onboarded_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT (email) DO UPDATE SET
+         role_lens = EXCLUDED.role_lens,
+         primary_sectors = EXCLUDED.primary_sectors,
+         jurisdictions = EXCLUDED.jurisdictions,
+         briefing_depth = EXCLUDED.briefing_depth,
+         onboarded_at = COALESCE(user_profiles.onboarded_at, NOW()),
+         updated_at = NOW()
+       RETURNING id, name, email, role_lens, primary_sectors, jurisdictions, briefing_depth, onboarded_at`,
+      [
+        name,
+        email,
+        role_lens || "general",
+        primary_sectors || [],
+        jurisdictions || ["australia"],
+        briefing_depth || "standard",
+      ]
+    );
+
+    return NextResponse.json(result.rows[0]);
+  } catch (err) {
+    console.error("Profile create error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Unknown error" },
       { status: 500 }

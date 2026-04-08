@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { useTheme } from "next-themes";
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/lib/auth-context";
 import { useDevLogger } from "@/lib/dev-logger";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,33 +11,55 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { StepSectors } from "@/components/onboarding/step-sectors";
+import { ROLE_ICONS, DOMAIN_ICONS } from "@/lib/domain-icons";
+import { ROLE_LENS_OPTIONS } from "@/lib/types";
+import type { UserProfile, BriefingDepth, RoleLens } from "@/lib/types";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Palette, Bell, Database, Shield, Key, Monitor } from "lucide-react";
+  ChevronRight,
+  ArrowLeft,
+  X,
+  User,
+  Newspaper,
+  BookOpen,
+  Bell,
+  Info,
+  Lock,
+  Clock,
+  Zap,
+  MapPin,
+  Pencil,
+  Check,
+  Loader2,
+} from "lucide-react";
 
 const fadeUp = {
   initial: { opacity: 0, y: 16 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.45, ease: [0.23, 1, 0.32, 1] as [number, number, number, number] },
+  transition: { duration: 0.35, ease: [0.23, 1, 0.32, 1] as [number, number, number, number] },
 };
 
-const palettes = [
-  { name: "Emerald", color: "bg-accent-emerald" },
-  { name: "Teal", color: "bg-status-info" },
-  { name: "Sky", color: "bg-[#5B8DB8]" },
-  { name: "Amber", color: "bg-accent-amber" },
-  { name: "Rose", color: "bg-status-error" },
-  { name: "Violet", color: "bg-[#7C5CBF]" },
-];
+// ─── Taxonomy types ───────────────────────────────────────────────────────
+
+interface TaxonomyDomain {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  article_count?: number;
+  sectors: {
+    id: number;
+    slug: string;
+    name: string;
+    microsectors: { id: number; slug: string; name: string }[];
+  }[];
+}
+
+// ─── Section components ───────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-5 border-b border-border/40 pb-3">
+    <div className="mb-4 border-b border-border/40 pb-2">
       <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
         {children}
       </h3>
@@ -46,279 +67,567 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ToggleRow({
+function SettingRow({
   label,
-  description,
-  children,
+  value,
+  onClick,
 }: {
   label: string;
-  description: string;
-  children: React.ReactNode;
+  value: React.ReactNode;
+  onClick?: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-1">
-      <div className="space-y-0.5">
-        <Label className="text-sm font-medium">{label}</Label>
-        <p className="text-sm text-muted-foreground">{description}</p>
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className="flex w-full items-center justify-between gap-4 rounded-lg px-1 py-2.5 text-left transition-colors hover:bg-muted/30 disabled:cursor-default disabled:hover:bg-transparent"
+    >
+      <span className="text-sm font-medium text-foreground">{label}</span>
+      <span className="flex items-center gap-1 text-sm text-muted-foreground">
+        {value}
+        {onClick && <ChevronRight className="h-4 w-4" />}
+      </span>
+    </button>
+  );
+}
+
+// ─── Sub-pages (overlays) ─────────────────────────────────────────────────
+
+type Overlay = null | "role" | "sectors" | "regions" | "depth" | "time" | "entities" | "storylines";
+
+const AU_STATES = [
+  { id: "nsw", label: "NSW" }, { id: "vic", label: "VIC" },
+  { id: "qld", label: "QLD" }, { id: "sa", label: "SA" },
+  { id: "wa", label: "WA" }, { id: "tas", label: "TAS" },
+  { id: "act", label: "ACT" }, { id: "nt", label: "NT" },
+];
+const INTERNATIONAL = [
+  { id: "eu", label: "EU" }, { id: "us", label: "United States" },
+  { id: "china", label: "China" }, { id: "india", label: "India" },
+  { id: "southeast-asia", label: "Southeast Asia" }, { id: "japan-korea", label: "Japan / Korea" },
+];
+
+const DEPTH_OPTIONS: { id: BriefingDepth; label: string; desc: string; stories: string; icon: typeof Zap }[] = [
+  { id: "quick", label: "Quick", desc: "The essentials in 2 minutes", stories: "3–5 stories", icon: Zap },
+  { id: "standard", label: "Standard", desc: "A solid morning briefing", stories: "5–8 stories", icon: Newspaper },
+  { id: "deep", label: "Deep", desc: "Comprehensive coverage", stories: "8–12 stories", icon: BookOpen },
+];
+
+// ─── Main settings page ───────────────────────────────────────────────────
+
+export default function SettingsPage() {
+  const { user, updateUser } = useAuth();
+  const { log } = useDevLogger();
+
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [overlay, setOverlay] = useState<Overlay>(null);
+  const [taxonomy, setTaxonomy] = useState<TaxonomyDomain[]>([]);
+
+  // Notifications (local state for now)
+  const [notifBriefing, setNotifBriefing] = useState(true);
+  const [notifHighPriority, setNotifHighPriority] = useState(true);
+  const [notifEntity, setNotifEntity] = useState(true);
+
+  const userId = user?.id || "test-user-1";
+
+  // Fetch profile
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/user/profile?userId=${userId}`);
+      const data = await res.json();
+      setProfile(data);
+    } catch (err) {
+      console.error("Failed to load profile:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  // Fetch taxonomy for sector picker
+  useEffect(() => {
+    fetch("/api/taxonomy/tree")
+      .then((r) => r.json())
+      .then((data) => setTaxonomy(data.domains ?? []))
+      .catch(console.error);
+  }, []);
+
+  // Save profile field(s)
+  const saveProfile = async (updates: Partial<UserProfile>) => {
+    setSaving(true);
+    try {
+      await fetch("/api/user/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, ...updates }),
+      });
+      setProfile((prev) => prev ? { ...prev, ...updates } : prev);
+      log("info", "Profile updated", updates);
+    } catch (err) {
+      console.error("Save failed:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading || !profile) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-emerald border-t-transparent" />
       </div>
-      {children}
+    );
+  }
+
+  const roleLensLabel = ROLE_LENS_OPTIONS.find((r) => r.id === profile.role_lens)?.label ?? "General Interest";
+  const RoleIcon = ROLE_ICONS[profile.role_lens] ?? User;
+
+  // Count selected domains
+  const selectedDomainCount = taxonomy.filter((d) =>
+    d.sectors.some((s) => s.microsectors.some((ms) => profile.primary_sectors.includes(ms.slug)))
+  ).length;
+
+  const regionDisplay = profile.jurisdictions
+    .filter((j) => j !== "australia")
+    .map((j) => j.toUpperCase())
+    .join(", ");
+
+  // ─── Overlay content ──────────────────────────────────────────────────
+
+  if (overlay) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+        <motion.div {...fadeUp} className="space-y-6">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setOverlay(null)}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="font-display text-xl tracking-tight">
+              {overlay === "role" && "Change Role"}
+              {overlay === "sectors" && "Edit Sectors"}
+              {overlay === "regions" && "Edit Regions"}
+              {overlay === "depth" && "Briefing Depth"}
+              {overlay === "time" && "Delivery Time"}
+              {overlay === "entities" && "Followed Entities"}
+              {overlay === "storylines" && "Followed Storylines"}
+            </h1>
+            {saving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          </div>
+
+          {/* Role picker */}
+          {overlay === "role" && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {ROLE_LENS_OPTIONS.map((role) => {
+                const Icon = ROLE_ICONS[role.id];
+                const isSelected = profile.role_lens === role.id;
+                return (
+                  <button
+                    key={role.id}
+                    onClick={async () => {
+                      await saveProfile({ role_lens: role.id as RoleLens });
+                      setOverlay(null);
+                    }}
+                    className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
+                      isSelected
+                        ? "border-accent-emerald bg-accent-emerald/5 ring-2 ring-accent-emerald/30"
+                        : "border-border/60 bg-card hover:border-accent-emerald/40"
+                    }`}
+                  >
+                    {Icon && (
+                      <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                        isSelected ? "bg-accent-emerald text-white" : "bg-muted text-muted-foreground"
+                      }`}>
+                        <Icon className="h-4.5 w-4.5" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">{role.label}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{role.framing}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Sector picker (reuses onboarding component) */}
+          {overlay === "sectors" && taxonomy.length > 0 && (
+            <StepSectors
+              domains={taxonomy}
+              initialSlugs={profile.primary_sectors}
+              onNext={async (slugs) => {
+                await saveProfile({ primary_sectors: slugs });
+                setOverlay(null);
+              }}
+            />
+          )}
+
+          {/* Region picker */}
+          {overlay === "regions" && (
+            <RegionPicker
+              jurisdictions={profile.jurisdictions}
+              onSave={async (jurisdictions) => {
+                await saveProfile({ jurisdictions });
+                setOverlay(null);
+              }}
+            />
+          )}
+
+          {/* Briefing depth */}
+          {overlay === "depth" && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {DEPTH_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const isSelected = profile.briefing_depth === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={async () => {
+                      await saveProfile({ briefing_depth: opt.id });
+                      setOverlay(null);
+                    }}
+                    className={`flex flex-col items-center gap-2 rounded-xl border p-4 text-center transition-all ${
+                      isSelected
+                        ? "border-accent-emerald bg-accent-emerald/5 ring-2 ring-accent-emerald/30"
+                        : "border-border/60 bg-card hover:border-accent-emerald/40"
+                    }`}
+                  >
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                      isSelected ? "bg-accent-emerald text-white" : "bg-muted text-muted-foreground"
+                    }`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <p className="text-sm font-medium">{opt.label}</p>
+                    <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" /> {opt.stories}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Delivery time */}
+          {overlay === "time" && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Choose when your daily briefing is ready each morning.
+              </p>
+              <Input
+                type="time"
+                defaultValue={profile.digest_time}
+                className="w-40"
+                onChange={(e) => {
+                  // Debounced save on blur
+                }}
+                onBlur={async (e) => {
+                  if (e.target.value !== profile.digest_time) {
+                    await saveProfile({ digest_time: e.target.value });
+                    setOverlay(null);
+                  }
+                }}
+              />
+              <Button variant="outline" size="sm" onClick={() => setOverlay(null)}>
+                Done
+              </Button>
+            </div>
+          )}
+
+          {/* Followed entities */}
+          {overlay === "entities" && (
+            <FollowedList
+              items={profile.followed_entities}
+              emptyMessage="No followed entities yet. Tap entity names in your briefing to follow them."
+              onRemove={async (item) => {
+                const updated = profile.followed_entities.filter((e) => e !== item);
+                await saveProfile({ followed_entities: updated });
+              }}
+            />
+          )}
+
+          {/* Followed storylines */}
+          {overlay === "storylines" && (
+            <FollowedList
+              items={profile.followed_storylines}
+              emptyMessage="No followed storylines yet. Follow storylines from the briefing to track them."
+              onRemove={async (item) => {
+                const updated = profile.followed_storylines.filter((s) => s !== item);
+                await saveProfile({ followed_storylines: updated });
+              }}
+            />
+          )}
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ─── Main settings view ────────────────────────────────────────────────
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+      <motion.div {...fadeUp} className="space-y-6">
+        <div>
+          <h1 className="font-display text-2xl tracking-tight">Settings</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage your briefing preferences
+          </p>
+        </div>
+
+        {/* Profile */}
+        <Card className="border-border/40 bg-card/50">
+          <CardContent className="p-6">
+            <SectionLabel>Profile</SectionLabel>
+            <div className="space-y-1">
+              <SettingRow label="Name" value={profile.name} />
+              <SettingRow label="Email" value={profile.email} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Your Briefing */}
+        <Card className="border-border/40 bg-card/50">
+          <CardContent className="p-6">
+            <SectionLabel>Your Briefing</SectionLabel>
+            <div className="space-y-1">
+              <SettingRow
+                label="Role"
+                value={
+                  <span className="flex items-center gap-1.5">
+                    <RoleIcon className="h-3.5 w-3.5" />
+                    {roleLensLabel}
+                  </span>
+                }
+                onClick={() => setOverlay("role")}
+              />
+              <SettingRow
+                label="Sectors"
+                value={`${selectedDomainCount} domain${selectedDomainCount !== 1 ? "s" : ""}, ${profile.primary_sectors.length} micro-sectors`}
+                onClick={() => setOverlay("sectors")}
+              />
+              <SettingRow
+                label="Regions"
+                value={
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    Australia{regionDisplay ? `, ${regionDisplay}` : ""}
+                  </span>
+                }
+                onClick={() => setOverlay("regions")}
+              />
+              <SettingRow
+                label="Briefing Depth"
+                value={profile.briefing_depth.charAt(0).toUpperCase() + profile.briefing_depth.slice(1)}
+                onClick={() => setOverlay("depth")}
+              />
+              <SettingRow
+                label="Delivery Time"
+                value={profile.digest_time}
+                onClick={() => setOverlay("time")}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Following */}
+        <Card className="border-border/40 bg-card/50">
+          <CardContent className="p-6">
+            <SectionLabel>Following</SectionLabel>
+            <div className="space-y-1">
+              <SettingRow
+                label="Entities"
+                value={`${profile.followed_entities.length} followed`}
+                onClick={() => setOverlay("entities")}
+              />
+              <SettingRow
+                label="Storylines"
+                value={`${profile.followed_storylines.length} followed`}
+                onClick={() => setOverlay("storylines")}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Notifications */}
+        <Card className="border-border/40 bg-card/50">
+          <CardContent className="p-6">
+            <SectionLabel>Notifications</SectionLabel>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Daily briefing ready</Label>
+                  <p className="text-xs text-muted-foreground">Notified when your morning briefing is generated</p>
+                </div>
+                <Switch checked={notifBriefing} onCheckedChange={setNotifBriefing} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">High-priority alerts (75+)</Label>
+                  <p className="text-xs text-muted-foreground">Breaking stories with significance score above 75</p>
+                </div>
+                <Switch checked={notifHighPriority} onCheckedChange={setNotifHighPriority} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium">Followed entity alerts</Label>
+                  <p className="text-xs text-muted-foreground">When a followed entity appears in a new story</p>
+                </div>
+                <Switch checked={notifEntity} onCheckedChange={setNotifEntity} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* About */}
+        <Card className="border-border/40 bg-card/50">
+          <CardContent className="p-6">
+            <SectionLabel>About</SectionLabel>
+            <div className="space-y-1">
+              <SettingRow label="Data sources" value={<Info className="h-3.5 w-3.5" />} />
+              <SettingRow label="How scoring works" value={<Info className="h-3.5 w-3.5" />} />
+              <SettingRow label="Feedback" value={<ChevronRight className="h-3.5 w-3.5" />} />
+              <SettingRow label="Terms & Privacy" value={<ChevronRight className="h-3.5 w-3.5" />} />
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }
 
-export default function SettingsPage() {
-  const { theme, setTheme } = useTheme();
-  const { log } = useDevLogger();
-  const [notifications, setNotifications] = useState(true);
-  const [emailDigest, setEmailDigest] = useState(false);
+// ─── Region picker sub-component ──────────────────────────────────────────
+
+function RegionPicker({
+  jurisdictions,
+  onSave,
+}: {
+  jurisdictions: string[];
+  onSave: (jurisdictions: string[]) => Promise<void>;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(jurisdictions));
+
+  const toggle = (id: string) => {
+    if (id === "australia") return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-      <motion.div {...fadeUp} className="space-y-8">
-        {/* Page heading */}
-        <div>
-          <h1 className="font-display text-2xl tracking-tight">Settings</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Configure your workspace and preferences
-          </p>
+    <div className="space-y-6">
+      {/* Australia locked */}
+      <div>
+        <div className="mb-3 flex items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-full border border-accent-emerald bg-accent-emerald/10 px-3 py-1.5 text-xs font-medium text-accent-emerald">
+            <Lock className="h-3 w-3" /> Australia
+          </div>
         </div>
 
-        <Tabs defaultValue="appearance">
-          <TabsList className="mb-6 w-full justify-start gap-1 rounded-none border-b border-border/40 bg-transparent p-0">
-            {[
-              { value: "appearance", icon: Palette, label: "Appearance" },
-              { value: "notifications", icon: Bell, label: "Notifications" },
-              { value: "data", icon: Database, label: "Data" },
-              { value: "security", icon: Shield, label: "Security" },
-            ].map((tab) => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="relative gap-1.5 rounded-none border-b-2 border-transparent px-4 pb-3 pt-1.5 text-sm text-muted-foreground transition-colors data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">States</p>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {AU_STATES.map((s) => {
+            const isActive = selected.has(s.id);
+            return (
+              <button
+                key={s.id}
+                onClick={() => toggle(s.id)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                  isActive
+                    ? "border-accent-emerald bg-accent-emerald/10 text-accent-emerald"
+                    : "border-border bg-card text-muted-foreground hover:border-accent-emerald/40"
+                }`}
               >
-                <tab.icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
 
-          {/* Appearance */}
-          <TabsContent value="appearance">
-            <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
-              <CardContent className="p-6 space-y-6">
-                <SectionLabel>Theme</SectionLabel>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">International</p>
+        <div className="flex flex-wrap gap-2">
+          {INTERNATIONAL.map((r) => {
+            const isActive = selected.has(r.id);
+            return (
+              <button
+                key={r.id}
+                onClick={() => toggle(r.id)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                  isActive
+                    ? "border-accent-emerald bg-accent-emerald/10 text-accent-emerald"
+                    : "border-border bg-card text-muted-foreground hover:border-accent-emerald/40"
+                }`}
+              >
+                {r.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-                <ToggleRow
-                  label="Color scheme"
-                  description="Select your preferred appearance"
-                >
-                  <Select
-                    value={theme}
-                    onValueChange={(v) => {
-                      setTheme(v);
-                      log("info", `Theme changed to: ${v}`);
-                    }}
-                  >
-                    <SelectTrigger className="w-32 border-border/50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </ToggleRow>
+      <Button
+        onClick={() => onSave(Array.from(selected))}
+        className="bg-accent-emerald text-white hover:bg-accent-emerald/90"
+      >
+        Save Regions
+      </Button>
+    </div>
+  );
+}
 
-                <Separator className="bg-border/40" />
+// ─── Followed items list ──────────────────────────────────────────────────
 
-                <div className="space-y-3">
-                  <div className="mb-4 border-b border-border/40 pb-3">
-                    <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                      Color Palette
-                    </h3>
-                  </div>
-                  <div className="flex gap-3">
-                    {palettes.map((c) => (
-                      <button
-                        key={c.name}
-                        className={`h-9 w-9 rounded-full ${c.color} ring-2 ring-transparent ring-offset-2 ring-offset-background transition-all hover:scale-110 hover:ring-primary/50 focus:ring-primary`}
-                        title={c.name}
-                        onClick={() =>
-                          log("info", `Color selected: ${c.name}`)
-                        }
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Accent color customization (coming soon)
-                  </p>
-                </div>
+function FollowedList({
+  items,
+  emptyMessage,
+  onRemove,
+}: {
+  items: string[];
+  emptyMessage: string;
+  onRemove: (item: string) => Promise<void>;
+}) {
+  const [removing, setRemoving] = useState<string | null>(null);
 
-                <Separator className="bg-border/40" />
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border/60 py-12 text-center">
+        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+      </div>
+    );
+  }
 
-                <SectionLabel>Layout</SectionLabel>
-
-                <ToggleRow
-                  label="Compact density"
-                  description="Reduce spacing for denser layouts"
-                >
-                  <Switch
-                    onCheckedChange={(v) =>
-                      log("info", `Compact mode: ${v}`)
-                    }
-                  />
-                </ToggleRow>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Notifications */}
-          <TabsContent value="notifications">
-            <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
-              <CardContent className="p-6 space-y-6">
-                <SectionLabel>Alerts</SectionLabel>
-
-                <ToggleRow
-                  label="Push notifications"
-                  description="Receive alerts for climate events"
-                >
-                  <Switch
-                    checked={notifications}
-                    onCheckedChange={(v) => {
-                      setNotifications(v);
-                      log("info", `Notifications: ${v}`);
-                    }}
-                  />
-                </ToggleRow>
-
-                <Separator className="bg-border/40" />
-
-                <SectionLabel>Digests</SectionLabel>
-
-                <ToggleRow
-                  label="Email digest"
-                  description="Weekly summary of climate intelligence"
-                >
-                  <Switch
-                    checked={emailDigest}
-                    onCheckedChange={(v) => {
-                      setEmailDigest(v);
-                      log("info", `Email digest: ${v}`);
-                    }}
-                  />
-                </ToggleRow>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Data */}
-          <TabsContent value="data">
-            <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
-              <CardContent className="p-6 space-y-6">
-                <SectionLabel>Storage</SectionLabel>
-
-                <ToggleRow
-                  label="Database status"
-                  description="Local Docker PostgreSQL"
-                >
-                  <Badge
-                    variant="secondary"
-                    className="bg-status-warning/10 text-status-warning text-xs font-medium"
-                  >
-                    Not connected
-                  </Badge>
-                </ToggleRow>
-
-                <Separator className="bg-border/40" />
-
-                <SectionLabel>Connection</SectionLabel>
-
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">
-                    Database URL
-                  </Label>
-                  <Input
-                    readOnly
-                    value="postgresql://localhost:5432/climatepulse"
-                    className="bg-muted/30 font-mono text-xs"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-border/50 text-muted-foreground hover:text-foreground"
-                  onClick={() =>
-                    log("info", "Test database connection clicked")
-                  }
-                >
-                  <Monitor className="mr-1.5 h-3.5 w-3.5" />
-                  Test Connection
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Security */}
-          <TabsContent value="security">
-            <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
-              <CardContent className="p-6 space-y-6">
-                <SectionLabel>Authentication</SectionLabel>
-
-                <ToggleRow
-                  label="Two-factor authentication"
-                  description="Add an extra layer of security"
-                >
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-border/50 text-muted-foreground hover:text-foreground"
-                    onClick={() => log("info", "Enable 2FA clicked")}
-                  >
-                    <Shield className="mr-1.5 h-3.5 w-3.5" />
-                    Enable
-                  </Button>
-                </ToggleRow>
-
-                <Separator className="bg-border/40" />
-
-                <SectionLabel>Access</SectionLabel>
-
-                <ToggleRow
-                  label="API keys"
-                  description="Manage your API access tokens"
-                >
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-border/50 text-muted-foreground hover:text-foreground"
-                    onClick={() => log("info", "Manage API keys clicked")}
-                  >
-                    <Key className="mr-1.5 h-3.5 w-3.5" />
-                    Manage
-                  </Button>
-                </ToggleRow>
-
-                <Separator className="bg-border/40" />
-
-                <SectionLabel>Sessions</SectionLabel>
-
-                <ToggleRow
-                  label="Active sessions"
-                  description="1 active session"
-                >
-                  <Badge
-                    variant="secondary"
-                    className="text-xs font-medium"
-                  >
-                    Current device
-                  </Badge>
-                </ToggleRow>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </motion.div>
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div
+          key={item}
+          className="flex items-center justify-between rounded-lg border border-border/40 bg-card/50 px-4 py-3"
+        >
+          <span className="text-sm font-medium">{item}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 text-xs text-muted-foreground hover:text-destructive"
+            disabled={removing === item}
+            onClick={async () => {
+              setRemoving(item);
+              await onRemove(item);
+              setRemoving(null);
+            }}
+          >
+            {removing === item ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+            Unfollow
+          </Button>
+        </div>
+      ))}
     </div>
   );
 }
