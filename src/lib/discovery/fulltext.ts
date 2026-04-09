@@ -5,7 +5,7 @@ import pool from "@/lib/db";
  * Fetch a page and extract the main article text content.
  * Strips nav, footer, sidebar, ads, scripts, styles, etc.
  */
-async function fetchAndExtract(url: string): Promise<string | null> {
+export async function fetchAndExtract(url: string): Promise<string | null> {
   const res = await fetch(url, {
     headers: {
       "User-Agent":
@@ -193,4 +193,101 @@ export async function testFullTextBySources(): Promise<FulltextTestResult[]> {
   }
 
   return results;
+}
+
+/**
+ * Bulk-extract full text for all raw_articles missing from full_text_articles.
+ * Processes in batches of 10 with concurrency 5, respects a time budget.
+ */
+export async function extractAllFullText(
+  timeBudgetMs: number = 3 * 60 * 1000
+): Promise<{
+  processed: number;
+  successes: number;
+  failures: number;
+  remaining: number;
+  budget_exceeded: boolean;
+}> {
+  const deadline = Date.now() + timeBudgetMs;
+  let processed = 0;
+  let successes = 0;
+  let failures = 0;
+  const BATCH_SIZE = 10;
+  const CONCURRENCY = 5;
+
+  while (Date.now() < deadline) {
+    // Fetch next batch of articles without full text
+    const batch = await pool.query(
+      `SELECT ra.id, ra.article_url, ra.source_name
+       FROM raw_articles ra
+       LEFT JOIN full_text_articles ft ON ft.raw_article_id = ra.id
+       WHERE ft.id IS NULL
+       ORDER BY ra.fetched_at DESC
+       LIMIT $1`,
+      [BATCH_SIZE]
+    );
+
+    if (batch.rows.length === 0) {
+      // All articles have full text
+      return { processed, successes, failures, remaining: 0, budget_exceeded: false };
+    }
+
+    // Process batch with concurrency limit
+    const articles = batch.rows as Array<{
+      id: string;
+      article_url: string;
+      source_name: string;
+    }>;
+
+    for (let i = 0; i < articles.length; i += CONCURRENCY) {
+      if (Date.now() >= deadline) {
+        const countResult = await pool.query(
+          `SELECT COUNT(*) as cnt FROM raw_articles ra
+           LEFT JOIN full_text_articles ft ON ft.raw_article_id = ra.id
+           WHERE ft.id IS NULL`
+        );
+        const remaining = parseInt(countResult.rows[0].cnt, 10);
+        return { processed, successes, failures, remaining, budget_exceeded: true };
+      }
+
+      const chunk = articles.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map(async (article) => {
+          const text = await fetchAndExtract(article.article_url);
+          if (text) {
+            const wordCount = text.split(/\s+/).length;
+            await pool.query(
+              `INSERT INTO full_text_articles (raw_article_id, content, word_count)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (raw_article_id) DO UPDATE SET
+                 content = EXCLUDED.content,
+                 word_count = EXCLUDED.word_count,
+                 extracted_at = NOW()`,
+              [article.id, text, wordCount]
+            );
+            return true;
+          }
+          return false;
+        })
+      );
+
+      for (const r of results) {
+        processed++;
+        if (r.status === "fulfilled" && r.value) {
+          successes++;
+        } else {
+          failures++;
+        }
+      }
+    }
+  }
+
+  // Budget exceeded — count remaining
+  const countResult = await pool.query(
+    `SELECT COUNT(*) as cnt FROM raw_articles ra
+     LEFT JOIN full_text_articles ft ON ft.raw_article_id = ra.id
+     WHERE ft.id IS NULL`
+  );
+  const remaining = parseInt(countResult.rows[0].cnt, 10);
+  return { processed, successes, failures, remaining, budget_exceeded: true };
 }
