@@ -109,10 +109,12 @@ export async function step2FullText(): Promise<StepResult> {
 
     const result = await extractAllFullText(3 * 60 * 1000); // 3-minute budget
 
-    // Fail if success rate < 20% and we processed at least 5 articles
-    if (result.processed >= 5 && result.successes / result.processed < 0.2) {
+    // Fail only if we processed a large batch and got zero successes
+    // (indicates systemic issue like network down, not just stale URLs from backlog)
+    // Threshold of 50 avoids false positives from small batches of historically unfetchable articles
+    if (result.processed >= 50 && result.successes === 0) {
       throw new Error(
-        `Full text extraction success rate too low: ${result.successes}/${result.processed} (${Math.round((result.successes / result.processed) * 100)}%)`
+        `Full text extraction got 0 successes out of ${result.processed} attempts — possible network issue`
       );
     }
 

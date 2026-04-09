@@ -200,7 +200,8 @@ export async function testFullTextBySources(): Promise<FulltextTestResult[]> {
  * Processes in batches of 10 with concurrency 5, respects a time budget.
  */
 export async function extractAllFullText(
-  timeBudgetMs: number = 3 * 60 * 1000
+  timeBudgetMs: number = 3 * 60 * 1000,
+  maxAgeHours: number = 48
 ): Promise<{
   processed: number;
   successes: number;
@@ -214,17 +215,24 @@ export async function extractAllFullText(
   let failures = 0;
   const BATCH_SIZE = 10;
   const CONCURRENCY = 5;
+  const attempted = new Set<string>(); // Track attempted IDs to avoid re-processing
 
   while (Date.now() < deadline) {
-    // Fetch next batch of articles without full text
+    // Fetch next batch of recent articles without full text
+    // Only process articles ingested within maxAgeHours to skip stale URLs
+    const excludeIds = Array.from(attempted);
     const batch = await pool.query(
       `SELECT ra.id, ra.article_url, ra.source_name
        FROM raw_articles ra
        LEFT JOIN full_text_articles ft ON ft.raw_article_id = ra.id
        WHERE ft.id IS NULL
+         AND ra.fetched_at > NOW() - INTERVAL '1 hour' * $2
+         ${excludeIds.length > 0 ? `AND ra.id != ALL($3::uuid[])` : ""}
        ORDER BY ra.fetched_at DESC
        LIMIT $1`,
-      [BATCH_SIZE]
+      excludeIds.length > 0
+        ? [BATCH_SIZE, maxAgeHours, excludeIds]
+        : [BATCH_SIZE, maxAgeHours]
     );
 
     if (batch.rows.length === 0) {
@@ -244,13 +252,17 @@ export async function extractAllFullText(
         const countResult = await pool.query(
           `SELECT COUNT(*) as cnt FROM raw_articles ra
            LEFT JOIN full_text_articles ft ON ft.raw_article_id = ra.id
-           WHERE ft.id IS NULL`
+           WHERE ft.id IS NULL
+             AND ra.fetched_at > NOW() - INTERVAL '1 hour' * $1`,
+          [maxAgeHours]
         );
         const remaining = parseInt(countResult.rows[0].cnt, 10);
         return { processed, successes, failures, remaining, budget_exceeded: true };
       }
 
       const chunk = articles.slice(i, i + CONCURRENCY);
+      // Track all attempted articles to avoid re-fetching failures
+      for (const a of chunk) attempted.add(a.id);
       const results = await Promise.allSettled(
         chunk.map(async (article) => {
           const text = await fetchAndExtract(article.article_url);
@@ -286,7 +298,9 @@ export async function extractAllFullText(
   const countResult = await pool.query(
     `SELECT COUNT(*) as cnt FROM raw_articles ra
      LEFT JOIN full_text_articles ft ON ft.raw_article_id = ra.id
-     WHERE ft.id IS NULL`
+     WHERE ft.id IS NULL
+       AND ra.fetched_at > NOW() - INTERVAL '1 hour' * $1`,
+    [maxAgeHours]
   );
   const remaining = parseInt(countResult.rows[0].cnt, 10);
   return { processed, successes, failures, remaining, budget_exceeded: true };
