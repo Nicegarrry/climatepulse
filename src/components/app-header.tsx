@@ -44,7 +44,7 @@ export function AppHeader() {
   const currentPage = pathname.split("/").pop() || "dashboard";
 
   return (
-    <header className="sticky top-0 z-50 h-14 border-b border-border/40 bg-background/95 backdrop-blur-xl dark:border-[rgba(42,157,143,0.2)]">
+    <header className="sticky top-0 z-50 h-14 border-b border-border/40 bg-background/95 backdrop-blur-xl">
       <div className="mx-auto flex h-full max-w-screen-2xl items-center gap-3 px-4 sm:px-6">
         {/* Logo */}
         <button

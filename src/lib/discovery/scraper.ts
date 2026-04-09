@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import pool from "@/lib/db";
 import { SCRAPE_TARGETS, type ScrapeTarget } from "@/lib/sources";
+import { isMajorReport } from "./report-keywords";
 
 async function fetchPage(url: string): Promise<string> {
   const res = await fetch(url, {
@@ -90,6 +91,14 @@ async function scrapeTarget(target: ScrapeTarget): Promise<{
       );
       if (res.rows.length > 0) {
         newCount++;
+
+        // Flag major reports
+        if (isMajorReport(item.title)) {
+          await pool.query(
+            `UPDATE raw_articles SET is_major_report = TRUE WHERE article_url = $1`,
+            [item.articleUrl]
+          );
+        }
       } else {
         dupCount++;
       }

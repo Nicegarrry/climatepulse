@@ -30,6 +30,14 @@ export const RSS_SOURCES: RSSSource[] = [
   // Renewables Now: 403 — WAF blocks server-side fetching. Disabled 2026-03-31.
   // { name: "Renewables Now", feedUrl: "https://renewablesnow.com/feeds/", tier: 1 },
   { name: "Bloomberg Green", feedUrl: "https://feeds.bloomberg.com/green/news.rss", tier: 1 },
+  { name: "RenewEconomy", feedUrl: "https://reneweconomy.com.au/feed", tier: 1 },
+  { name: "The Driven", feedUrl: "https://thedriven.io/feed", tier: 1 },
+  { name: "Utility Dive", feedUrl: "https://www.utilitydive.com/feeds/news/", tier: 1 },
+  { name: "Recharge News", feedUrl: "https://www.rechargenews.com/rss", tier: 1 },
+  { name: "Carbon Tracker", feedUrl: "https://carbontracker.org/feed/", tier: 1 },
+  { name: "Climate Home News", feedUrl: "https://www.climatechangenews.com/feed/", tier: 1 },
+  { name: "Ember Climate", feedUrl: "https://ember-climate.org/feed/", tier: 1 },
+  { name: "DeSmog", feedUrl: "https://www.desmog.com/feed/", tier: 1 },
   // Tier 2 — government, institutional, research
   // DCCEEW Australia: 403 — government WAF blocks server-side fetching. Disabled 2026-03-31.
   // { name: "DCCEEW Australia", feedUrl: "https://www.dcceew.gov.au/about/news/stay-informed/rss", tier: 2 },
@@ -44,6 +52,10 @@ export const RSS_SOURCES: RSSSource[] = [
   { name: "Nature Climate Change", feedUrl: "https://www.nature.com/nclimate.rss", tier: 2 },
   { name: "CTVC", feedUrl: "https://www.ctvc.co/rss/", tier: 2 },
   { name: "PV Magazine Australia", feedUrl: "https://www.pv-magazine-australia.com/feed", tier: 2 },
+  { name: "CEFC Media", feedUrl: "https://www.cefc.com.au/media/media-releases/feed/", tier: 2 },
+  { name: "World Resources Institute", feedUrl: "https://www.wri.org/feed", tier: 2 },
+  { name: "Climate Council Australia", feedUrl: "https://www.climatecouncil.org.au/feed/", tier: 2 },
+  { name: "Bellona", feedUrl: "https://bellona.org/feed", tier: 2 },
 ];
 
 export const SCRAPE_TARGETS: ScrapeTarget[] = [
@@ -80,5 +92,57 @@ export const SCRAPE_TARGETS: ScrapeTarget[] = [
     titleSelector: "h2 a, h3 a, .title a",
     linkSelector: "h2 a, h3 a, .title a, a",
     snippetSelector: ".excerpt, .description, p",
+  },
+  {
+    name: "CEFC Media Releases",
+    url: "https://www.cefc.com.au/media/media-releases/",
+    articleSelector: ".media-release, article, .post-item, .card, .listing-item",
+    titleSelector: "h2 a, h3 a, .title a",
+    linkSelector: "h2 a, h3 a, .title a, a",
+    snippetSelector: ".excerpt, .summary, p",
+  },
+  {
+    name: "CSIRO News",
+    url: "https://www.csiro.au/en/news/all",
+    articleSelector: ".news-item, article, .card, .listing-item",
+    titleSelector: "h2 a, h3 a, .title a, .card-title a",
+    linkSelector: "h2 a, h3 a, .title a, a",
+    snippetSelector: ".description, .summary, .card-text, p",
+  },
+  {
+    name: "ImpactAlpha Dealflow",
+    url: "https://impactalpha.com/category/dealflow/",
+    articleSelector: "article, .post, .entry",
+    titleSelector: "h2 a, h3 a, .entry-title a",
+    linkSelector: "h2 a, h3 a, .entry-title a, a",
+    snippetSelector: ".excerpt, .entry-summary, p",
+  },
+  // Major report sources — low frequency, high value
+  {
+    name: "IEA Reports",
+    url: "https://www.iea.org/reports",
+    articleSelector: ".m-report-listing__item, article, .card, .report-item",
+    titleSelector: "h3 a, h2 a, .title a, .m-report-listing__title a",
+    linkSelector: "h3 a, h2 a, .title a, a",
+    snippetSelector: ".description, .summary, .m-report-listing__desc, p",
+    dateSelector: ".date, time, .m-report-listing__date",
+  },
+  {
+    name: "IRENA Publications",
+    url: "https://www.irena.org/Publications",
+    articleSelector: ".publication-item, article, .card, .listing-item",
+    titleSelector: "h3 a, h2 a, .title a",
+    linkSelector: "h3 a, h2 a, .title a, a",
+    snippetSelector: ".description, .summary, .excerpt, p",
+    dateSelector: ".date, time",
+  },
+  {
+    name: "CER News",
+    url: "https://www.cleanenergyregulator.gov.au/About/Pages/News-and-updates.aspx",
+    articleSelector: ".news-item, article, .dfwp-item, li",
+    titleSelector: "h2 a, h3 a, .title a, a",
+    linkSelector: "h2 a, h3 a, .title a, a",
+    snippetSelector: ".description, .summary, p",
+    dateSelector: ".date, time",
   },
 ];

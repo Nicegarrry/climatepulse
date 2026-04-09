@@ -1,5 +1,6 @@
 import pool from "@/lib/db";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -249,7 +250,7 @@ async function createSuggestedStorylines(candidates: StorylineCandidate[]): Prom
   );
   const titleMap = new Map(articles.map((a) => [a.id, a.title]));
 
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
   const clustersContext = candidates.map((c, i) => {
     const titles = c.article_ids.map((id) => titleMap.get(id) || "Untitled").join("; ");

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 import pool from "@/lib/db";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -54,7 +55,7 @@ export async function POST() {
     }
 
     // Step 2: Use Gemini to generate channel suggestions from the co-occurrence data
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
     const pairsContext = coOccurrences.map((row) => {
       const titles = (row.sample_titles as string[]).slice(0, 5).join("; ");

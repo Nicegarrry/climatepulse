@@ -1,6 +1,7 @@
 import RSSParser from "rss-parser";
 import pool from "@/lib/db";
 import { RSS_SOURCES } from "@/lib/sources";
+import { isMajorReport } from "./report-keywords";
 
 const FETCH_HEADERS = {
   "User-Agent":
@@ -73,6 +74,14 @@ export async function pollAllFeeds(): Promise<PollResult> {
           if (res.rows.length > 0) {
             sourceNewCount++;
             result.new_articles++;
+
+            // Flag major reports
+            if (isMajorReport(title)) {
+              await pool.query(
+                `UPDATE raw_articles SET is_major_report = TRUE WHERE article_url = $1`,
+                [articleUrl]
+              );
+            }
           } else {
             result.duplicates_skipped++;
           }

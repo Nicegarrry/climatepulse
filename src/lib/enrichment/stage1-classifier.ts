@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import { getDomainSlugs } from "@/lib/enrichment/taxonomy-cache";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
@@ -94,7 +95,7 @@ export async function classifyBatch(
 
   // Call Gemini
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
   let parsed: GeminiStage1Response[] | null = null;
   let inputTokens = 0;

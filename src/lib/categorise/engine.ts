@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import { TAXONOMY, VALID_CATEGORY_IDS } from "@/lib/taxonomy";
 import type { RawArticle } from "@/lib/types";
@@ -133,7 +134,7 @@ export async function categoriseOneBatch(): Promise<BatchResult> {
   let inputTokens = 0;
   let outputTokens = 0;
 
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
   const prompt = buildPrompt(uncategorised);
 
   let results: GeminiResult[] | null = null;
@@ -166,7 +167,7 @@ export async function categoriseOneBatch(): Promise<BatchResult> {
           `INSERT INTO categorised_articles (raw_article_id, primary_category, secondary_categories, model_used)
            VALUES ($1, $2, $3, $4)
            ON CONFLICT (raw_article_id) DO NOTHING`,
-          [article.id, result.primary, result.secondary, "gemini-2.5-flash"]
+          [article.id, result.primary, result.secondary, GEMINI_MODEL]
         );
         processed++;
       } catch (dbErr) {

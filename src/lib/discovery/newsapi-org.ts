@@ -1,6 +1,7 @@
 import pool from "@/lib/db";
 import { NEWSAPI_ORG_QUERIES, NEWSAPI_ORG_PAGE_SIZE } from "./news-queries";
 import type { NewsApiRunResult } from "@/lib/types";
+import { isMajorReport } from "./report-keywords";
 
 interface NewsApiOrgArticle {
   source: { id: string | null; name: string };
@@ -99,6 +100,14 @@ export async function fetchNewsApiOrg(): Promise<NewsApiRunResult> {
 
           if (dbRes.rows.length > 0) {
             totalNew++;
+
+            // Flag major reports
+            if (isMajorReport(article.title)) {
+              await pool.query(
+                `UPDATE raw_articles SET is_major_report = TRUE WHERE article_url = $1`,
+                [article.url]
+              );
+            }
           } else {
             totalDups++;
           }

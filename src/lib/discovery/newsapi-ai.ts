@@ -2,6 +2,7 @@ import { EventRegistry, QueryArticlesIter, ArticleInfoFlags, ReturnInfo, QueryIt
 import pool from "@/lib/db";
 import { NEWSAPI_AI_QUERIES, NEWSAPI_AI_MAX_PER_QUERY } from "./news-queries";
 import type { NewsApiRunResult } from "@/lib/types";
+import { isMajorReport } from "./report-keywords";
 
 // Use a permissive type since the library's Article type has all fields optional
 interface ERArticle {
@@ -97,6 +98,14 @@ export async function fetchNewsApiAi(): Promise<NewsApiRunResult> {
 
           if (res.rows.length > 0) {
             totalNew++;
+
+            // Flag major reports
+            if (isMajorReport(article.title)) {
+              await pool.query(
+                `UPDATE raw_articles SET is_major_report = TRUE WHERE article_url = $1`,
+                [article.url]
+              );
+            }
 
             // Store full text if available
             if (article.body && article.body.split(/\s+/).length >= 50) {
