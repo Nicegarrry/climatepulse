@@ -51,11 +51,11 @@ export function AppHeader() {
           onClick={() => router.push("/dashboard")}
           className="flex items-center gap-2.5 transition-opacity duration-150 hover:opacity-80"
         >
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-white dark:bg-emerald-600">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent-emerald text-white">
             <Globe className="h-3.5 w-3.5" />
           </div>
           <span className="hidden font-display text-base font-semibold tracking-tight text-foreground sm:block">
-            ClimatePulse
+            catalyst.study
           </span>
         </button>
 
@@ -119,7 +119,7 @@ export function AppHeader() {
                 className="h-8 gap-2 rounded-md px-2 transition-colors duration-150"
               >
                 <Avatar className="h-6 w-6">
-                  <AvatarFallback className="bg-emerald-600/10 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                  <AvatarFallback className="bg-accent-emerald/10 text-[11px] font-medium text-accent-emerald">
                     {initials}
                   </AvatarFallback>
                 </Avatar>

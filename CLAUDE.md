@@ -68,7 +68,7 @@ Taxonomy is DB-stored (not hardcoded) in: `taxonomy_domains`, `taxonomy_sectors`
 
 ### Signal Types (10)
 
-Every enriched article gets exactly one: market_move, policy_change, project_milestone, corporate_action, data_release, enforcement, personnel, technology_advance, international, community_social
+Every enriched article gets exactly one: market_move, policy_change, project_milestone, corporate_action, enforcement, personnel, technology_advance, international, community_social
 
 ### Entity Types (6)
 

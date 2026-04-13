@@ -40,6 +40,7 @@ import type {
 } from "@/lib/types";
 import type { LucideIcon } from "lucide-react";
 import type { EnergyDashboardData, PriceSummary } from "@/lib/energy/openelectricity";
+import { ThermalResonanceHero } from "@/components/thermal-resonance-hero";
 
 // ─── Domain colour map ─────────────────────────────────────────────────────
 
@@ -70,7 +71,6 @@ const SIGNAL_TYPE_CONFIG: Record<SignalType, { icon: LucideIcon; label: string }
   policy_change:      { icon: Scale,        label: "Policy Change" },
   project_milestone:  { icon: Milestone,    label: "Project Milestone" },
   corporate_action:   { icon: Building2,    label: "Corporate Action" },
-  data_release:       { icon: BarChart3,    label: "Data Release" },
   enforcement:        { icon: ShieldAlert,  label: "Enforcement" },
   personnel:          { icon: UserCircle,   label: "Personnel" },
   technology_advance: { icon: CpuIcon,      label: "Tech Advance" },
@@ -636,7 +636,7 @@ function DigestFooter({
     <div className="flex items-center justify-between py-6 text-xs text-muted-foreground">
       <span>Updated {time} AEST</span>
       <div className="flex items-center gap-3">
-        <span>Powered by ClimatePulse intelligence</span>
+        <span>Powered by catalyst.study intelligence</span>
         <Button
           variant="ghost"
           size="sm"
@@ -1168,18 +1168,18 @@ function EnergySidebar({ data }: { data: EnergyDashboardData }) {
         Energy Snapshot
       </span>
 
+      {data.intraday.price.length > 2 && (
+        <CompactPriceChart
+          timestamps={data.intraday.timestamps}
+          price={data.intraday.price}
+        />
+      )}
+
       {data.intraday.timestamps.length > 2 && (
         <CompactGenerationChart
           timestamps={data.intraday.timestamps}
           generation={data.intraday.generation}
           fueltechs={data.intraday.fueltechs}
-        />
-      )}
-
-      {data.intraday.price.length > 2 && (
-        <CompactPriceChart
-          timestamps={data.intraday.timestamps}
-          price={data.intraday.price}
         />
       )}
 
@@ -1275,23 +1275,24 @@ export function IntelligenceTab() {
   });
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="lg:grid lg:grid-cols-[1fr_340px] lg:gap-6 xl:grid-cols-[1fr_380px]">
+    <div className="px-3 py-4 sm:px-4 sm:py-5">
+      <ThermalResonanceHero
+        title="Daily Intelligence Briefing"
+        subtitle={`${today} · ${stories.length} signals tracked`}
+        dailyNumber={{
+          value: digest.daily_number.value,
+          label: digest.daily_number.label,
+          trend: digest.daily_number.trend,
+          context: digest.daily_number.context,
+        }}
+        storyCount={stories.length}
+        className="mb-5"
+      />
+
+      <div className="lg:grid lg:grid-cols-[1fr_400px] lg:gap-5 xl:grid-cols-[1fr_440px]">
         {/* ── Left column: briefing content ──────────────────────── */}
         <div className="min-w-0">
-          {/* Daily Number — serves as the page greeting */}
-          <DailyNumberCard
-            data={digest.daily_number}
-            date={today}
-            storyCount={stories.length}
-          />
-
-          {/* Narrative */}
-          <div className="mt-5">
-            <NarrativeCard text={digest.narrative} />
-          </div>
-
-          {/* Hero Stories */}
+          {/* Top Stories — brought up directly after hero */}
           <SectionLabel>Top Stories</SectionLabel>
           <div className="space-y-4">
             {digest.hero_stories.map((story, i) => (
@@ -1338,14 +1339,15 @@ export function IntelligenceTab() {
           />
         </div>
 
-        {/* ── Right column: energy charts sidebar ────────────────── */}
-        {energyData && (
-          <aside className="mt-6 lg:mt-0">
-            <div className="space-y-4 lg:sticky lg:top-6">
-              <EnergySidebar data={energyData} />
-            </div>
-          </aside>
-        )}
+        {/* ── Right column: energy charts + insights ─────────────── */}
+        <aside className="mt-5 lg:mt-0">
+          <div className="space-y-4 lg:sticky lg:top-4">
+            {energyData && <EnergySidebar data={energyData} />}
+
+            {/* Today's Insights — moved here from left column */}
+            <NarrativeCard text={digest.narrative} />
+          </div>
+        </aside>
       </div>
     </div>
   );

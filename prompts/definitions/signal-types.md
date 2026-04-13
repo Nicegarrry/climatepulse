@@ -2,7 +2,6 @@
 - policy_change: New legislation, regulation change, government announcement, ministerial statement, policy reversal, target update, scheme modification.
 - project_milestone: Approval, FID, construction start, commissioning, delay, cancellation, cost overrun, grid connection, capacity addition.
 - corporate_action: Company announcement, PPA signing, investment decision, target commitment, strategy change, restructure, partnership.
-- data_release: New data publication, report release, study findings, statistics, quarterly/annual results, survey results, modelling output.
 - enforcement: Regulatory action, fine, investigation, greenwashing case, legal ruling, court decision, compliance action.
 - personnel: Appointment, resignation, ministerial change, board change, leadership transition, key hire.
 - technology_advance: New product launch, deployment record, cost breakthrough, demonstration project, pilot results, technical standard.

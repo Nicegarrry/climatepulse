@@ -20,7 +20,6 @@ const VALID_SIGNAL_TYPES = new Set<string>([
   "policy_change",
   "project_milestone",
   "corporate_action",
-  "data_release",
   "enforcement",
   "personnel",
   "technology_advance",
@@ -124,7 +123,7 @@ export async function classifyBatch(
       raw_article_id: a.id,
       primary_domain: "uncertain",
       secondary_domain: null,
-      signal_type: "data_release" as SignalType,
+      signal_type: "corporate_action" as SignalType,
       headline_entities: [],
       context_quality: determineContextQuality(a),
     }));
@@ -158,7 +157,7 @@ export async function classifyBatch(
     // Validate signal type
     const signalType = VALID_SIGNAL_TYPES.has(resp.signal_type)
       ? (resp.signal_type as SignalType)
-      : ("data_release" as SignalType);
+      : ("corporate_action" as SignalType);
 
     // Validate headline entities
     const entities = Array.isArray(resp.headline_entities)
@@ -187,7 +186,7 @@ export async function classifyBatch(
         raw_article_id: article.id,
         primary_domain: "uncertain",
         secondary_domain: null,
-        signal_type: "data_release" as SignalType,
+        signal_type: "corporate_action" as SignalType,
         headline_entities: [],
         context_quality: determineContextQuality(article),
       });

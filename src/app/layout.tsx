@@ -24,8 +24,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClimatePulse",
-  description: "Climate intelligence platform",
+  title: "catalyst.study",
+  description: "Climate & energy intelligence platform",
 };
 
 export default function RootLayout({

@@ -33,7 +33,8 @@ export const RSS_SOURCES: RSSSource[] = [
   { name: "RenewEconomy", feedUrl: "https://reneweconomy.com.au/feed", tier: 1 },
   { name: "The Driven", feedUrl: "https://thedriven.io/feed", tier: 1 },
   { name: "Utility Dive", feedUrl: "https://www.utilitydive.com/feeds/news/", tier: 1 },
-  { name: "Recharge News", feedUrl: "https://www.rechargenews.com/rss", tier: 1 },
+  // Recharge News: paywalled behind NHST SSO, no public RSS. Disabled 2026-04-13.
+  // { name: "Recharge News", feedUrl: "https://www.rechargenews.com/rss", tier: 1 },
   { name: "Carbon Tracker", feedUrl: "https://carbontracker.org/feed/", tier: 1 },
   { name: "Climate Home News", feedUrl: "https://www.climatechangenews.com/feed/", tier: 1 },
   { name: "Ember Climate", feedUrl: "https://ember-climate.org/feed/", tier: 1 },
@@ -52,8 +53,12 @@ export const RSS_SOURCES: RSSSource[] = [
   { name: "Nature Climate Change", feedUrl: "https://www.nature.com/nclimate.rss", tier: 2 },
   { name: "CTVC", feedUrl: "https://www.ctvc.co/rss/", tier: 2 },
   { name: "PV Magazine Australia", feedUrl: "https://www.pv-magazine-australia.com/feed", tier: 2 },
-  { name: "CEFC Media", feedUrl: "https://www.cefc.com.au/media/media-releases/feed/", tier: 2 },
-  { name: "World Resources Institute", feedUrl: "https://www.wri.org/feed", tier: 2 },
+  // CEFC Media: feed URL dead (404), no replacement RSS. Disabled 2026-04-13.
+  // { name: "CEFC Media", feedUrl: "https://www.cefc.com.au/media/media-releases/feed/", tier: 2 },
+  // WRI: feed URL dead (404), no replacement RSS. Disabled 2026-04-13.
+  // { name: "World Resources Institute", feedUrl: "https://www.wri.org/feed", tier: 2 },
+  { name: "The Fifth Estate", feedUrl: "https://thefifthestate.com.au/feed/", tier: 2 },
+  { name: "ScienceDaily Renewables", feedUrl: "https://www.sciencedaily.com/rss/earth_climate/renewable_energy.xml", tier: 2 },
   { name: "Climate Council Australia", feedUrl: "https://www.climatecouncil.org.au/feed/", tier: 2 },
   { name: "Bellona", feedUrl: "https://bellona.org/feed", tier: 2 },
 ];
@@ -95,8 +100,8 @@ export const SCRAPE_TARGETS: ScrapeTarget[] = [
   },
   {
     name: "CEFC Media Releases",
-    url: "https://www.cefc.com.au/media/media-releases/",
-    articleSelector: ".media-release, article, .post-item, .card, .listing-item",
+    url: "https://www.cefc.com.au/media/?type=media+release",
+    articleSelector: ".media-release, article, .post-item, .card, .listing-item, a[href*='/media/media-release/']",
     titleSelector: "h2 a, h3 a, .title a",
     linkSelector: "h2 a, h3 a, .title a, a",
     snippetSelector: ".excerpt, .summary, p",
@@ -117,32 +122,15 @@ export const SCRAPE_TARGETS: ScrapeTarget[] = [
     linkSelector: "h2 a, h3 a, .entry-title a, a",
     snippetSelector: ".excerpt, .entry-summary, p",
   },
-  // Major report sources — low frequency, high value
-  {
-    name: "IEA Reports",
-    url: "https://www.iea.org/reports",
-    articleSelector: ".m-report-listing__item, article, .card, .report-item",
-    titleSelector: "h3 a, h2 a, .title a, .m-report-listing__title a",
-    linkSelector: "h3 a, h2 a, .title a, a",
-    snippetSelector: ".description, .summary, .m-report-listing__desc, p",
-    dateSelector: ".date, time, .m-report-listing__date",
-  },
-  {
-    name: "IRENA Publications",
-    url: "https://www.irena.org/Publications",
-    articleSelector: ".publication-item, article, .card, .listing-item",
-    titleSelector: "h3 a, h2 a, .title a",
-    linkSelector: "h3 a, h2 a, .title a, a",
-    snippetSelector: ".description, .summary, .excerpt, p",
-    dateSelector: ".date, time",
-  },
+  // IEA Reports: 403 — WAF blocks server-side fetching. Disabled 2026-04-13.
+  // IRENA Publications: 403 — WAF blocks server-side fetching. Disabled 2026-04-13.
   {
     name: "CER News",
-    url: "https://www.cleanenergyregulator.gov.au/About/Pages/News-and-updates.aspx",
-    articleSelector: ".news-item, article, .dfwp-item, li",
+    url: "https://cer.gov.au/news-and-media/media-centre",
+    articleSelector: ".news-item, article, .card, .listing-item, .views-row",
     titleSelector: "h2 a, h3 a, .title a, a",
     linkSelector: "h2 a, h3 a, .title a, a",
-    snippetSelector: ".description, .summary, p",
-    dateSelector: ".date, time",
+    snippetSelector: ".description, .summary, .field-content, p",
+    dateSelector: ".date, time, .datetime",
   },
 ];

@@ -75,7 +75,7 @@ export async function step1Ingest(): Promise<StepResult> {
         source_errors += r.value.errors;
         if (r.value.error_details) {
           for (const d of r.value.error_details) {
-            error_details.push({ source: labels[i], error: d.error ?? d.source ?? String(d) });
+            error_details.push({ source: labels[i], error: d.error ?? ("source" in d ? d.source : String(d)) });
           }
         }
       } else {

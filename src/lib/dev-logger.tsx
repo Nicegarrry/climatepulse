@@ -45,7 +45,7 @@ export function DevLoggerProvider({ children }: { children: React.ReactNode }) {
             : level === "debug"
               ? console.debug
               : console.log;
-      consoleFn(`[ClimatePulse:${level}] ${message}`, data ?? "");
+      consoleFn(`[catalyst.study:${level}] ${message}`, data ?? "");
     },
     [],
   );

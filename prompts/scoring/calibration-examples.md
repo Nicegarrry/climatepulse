@@ -28,7 +28,7 @@
 
 ### Example 3 — Score: 68 [domain: energy-generation]
 **Headline**: "Australia Hits 49.9% Renewables in NEM — Q4 2025 Data"
-**Signal type**: data_release
+**Signal type**: market_move
 | Factor | Score |
 |---|---|
 | impact_breadth | 7 |
@@ -56,7 +56,7 @@
 
 ### Example 5 — Score: 48 [domain: workforce-adaptation]
 **Headline**: "42,000 Energy Worker Shortfall Projected by 2030 — New Analysis"
-**Signal type**: data_release
+**Signal type**: corporate_action
 | Factor | Score |
 |---|---|
 | impact_breadth | 6 |

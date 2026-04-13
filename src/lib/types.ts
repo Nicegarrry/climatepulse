@@ -103,7 +103,6 @@ export type SignalType =
   | "policy_change"
   | "project_milestone"
   | "corporate_action"
-  | "data_release"
   | "enforcement"
   | "personnel"
   | "technology_advance"

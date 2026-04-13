@@ -163,7 +163,7 @@ Source URL: ${s.article_url}
       .map((ch) => `- ${ch}`)
       .join("\n") || "None identified today.";
 
-  return `You are the intelligence analyst for ClimatePulse, producing a personalised daily
+  return `You are the intelligence analyst for catalyst.study, producing a personalised daily
 briefing for a climate and energy professional. Your job is to ADD analytical value
 that the source articles do not provide. Never summarise what happened — the user
 can read the source. Instead, explain WHY it matters, WHAT it connects to, and

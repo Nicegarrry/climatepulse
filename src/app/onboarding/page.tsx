@@ -45,8 +45,13 @@ export default function OnboardingPage() {
   // Fetch taxonomy on mount
   useEffect(() => {
     fetch("/api/taxonomy/tree")
-      .then((r) => r.json())
-      .then((data) => setTaxonomy(data))
+      .then((r) => {
+        if (!r.ok) throw new Error(`Taxonomy fetch failed: ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        if (data.domains) setTaxonomy(data);
+      })
       .catch(console.error);
   }, []);
 
@@ -102,7 +107,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#FAFAF8] dark:bg-[#0D1B2A]">
+    <div className="flex min-h-screen flex-col bg-surface-0">
       {/* Top bar */}
       <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
         {step > 0 ? (
@@ -114,11 +119,11 @@ export default function OnboardingPage() {
           </button>
         ) : (
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-white">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent-emerald text-white">
               <Globe className="h-3.5 w-3.5" />
             </div>
             <span className="font-display text-base font-semibold tracking-tight text-foreground">
-              ClimatePulse
+              catalyst.study
             </span>
           </div>
         )}

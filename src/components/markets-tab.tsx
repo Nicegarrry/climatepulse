@@ -26,6 +26,7 @@ interface TickerData {
   company_name: string;
   sub_sector: string;
   last_price: number | null;
+  close_price?: number | null;
   change_percent: number | null;
   change_price: number | null;
   volume: number | null;
@@ -108,9 +109,11 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ─── Price Change Display ─────────────────────────────────────────────────
 
-function PriceChange({ percent }: { percent: number | null }) {
+function PriceChange({ percent }: { percent: number | string | null }) {
   if (percent == null) return <span className="text-xs text-muted-foreground">—</span>;
-  const isUp = percent >= 0;
+  const val = typeof percent === "string" ? parseFloat(percent) : percent;
+  if (isNaN(val)) return <span className="text-xs text-muted-foreground">—</span>;
+  const isUp = val >= 0;
   return (
     <span
       className={`flex items-center gap-0.5 font-mono text-xs font-medium ${
@@ -118,7 +121,7 @@ function PriceChange({ percent }: { percent: number | null }) {
       }`}
     >
       {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-      {Math.abs(percent).toFixed(1)}%
+      {Math.abs(val).toFixed(1)}%
     </span>
   );
 }
@@ -137,9 +140,9 @@ function IndexStrip({ tickers }: { tickers: TickerData[] }) {
           className="flex shrink-0 items-center gap-2 rounded-lg bg-surface-2/60 px-3 py-2"
         >
           <span className="font-mono text-xs font-bold text-foreground">{etf.ticker}</span>
-          {etf.last_price != null && (
+          {(etf.last_price ?? etf.close_price) != null && (
             <span className="font-mono text-xs text-muted-foreground">
-              ${etf.last_price.toFixed(2)}
+              ${Number(etf.last_price ?? etf.close_price).toFixed(2)}
             </span>
           )}
           <PriceChange percent={etf.change_percent} />
@@ -225,7 +228,9 @@ function WatchlistRow({
         {ticker.company_name}
       </span>
       <span className="w-16 shrink-0 text-right font-mono text-sm font-medium text-foreground">
-        {ticker.last_price != null ? `$${ticker.last_price.toFixed(2)}` : "—"}
+        {(ticker.last_price ?? ticker.close_price) != null
+          ? `$${Number(ticker.last_price ?? ticker.close_price).toFixed(2)}`
+          : "—"}
       </span>
       <div className="w-14 shrink-0 text-right">
         <PriceChange percent={ticker.change_percent} />
@@ -240,7 +245,7 @@ function WatchlistRow({
 function SectorMovers({ tickers }: { tickers: TickerData[] }) {
   const movers = [...tickers]
     .filter((t) => t.change_percent != null)
-    .sort((a, b) => Math.abs(b.change_percent!) - Math.abs(a.change_percent!))
+    .sort((a, b) => Math.abs(Number(b.change_percent)) - Math.abs(Number(a.change_percent)))
     .slice(0, 5);
 
   if (movers.length === 0) return null;
@@ -335,15 +340,21 @@ export function MarketsTab() {
 
       if (tickerRes.status === "fulfilled" && tickerRes.value.ok) {
         const data = await tickerRes.value.json();
-        setTickers(Array.isArray(data) ? data : []);
+        const rows = data.tickers ?? data;
+        if (Array.isArray(rows)) {
+          setTickers(rows);
+        }
       }
 
       if (annRes.status === "fulfilled" && annRes.value.ok) {
         const data = await annRes.value.json();
-        setAnnouncements(Array.isArray(data) ? data : []);
+        const rows = data.announcements ?? data;
+        if (Array.isArray(rows)) {
+          setAnnouncements(rows);
+        }
       }
-    } catch {
-      // Non-critical — just show empty state
+    } catch (err) {
+      console.error("[MarketsTab] loadData error:", err);
     }
     setLoading(false);
   }, []);
@@ -357,8 +368,9 @@ export function MarketsTab() {
         const res = await fetch(`/api/markets/sparkline/${t.ticker}`);
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data)) {
-            setSparklines((prev) => ({ ...prev, [t.ticker]: data }));
+          const points = data.sparkline ?? data;
+          if (Array.isArray(points)) {
+            setSparklines((prev) => ({ ...prev, [t.ticker]: points }));
           }
         }
       } catch {

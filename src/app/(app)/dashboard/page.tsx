@@ -47,15 +47,28 @@ import { MarketsTab } from "@/components/markets-tab";
    Config
    ────────────────────────────────────────────────────────────────────────── */
 
-const tabConfig = [
+const IS_DEV = process.env.NEXT_PUBLIC_SHOW_DEV_TABS === "true";
+
+const publicTabs = [
   { value: "intelligence", label: "Intelligence", icon: Newspaper },
-  { value: "discovery", label: "Discovery", icon: Compass },
-  { value: "categories", label: "Categories", icon: Cpu },
   { value: "energy", label: "Energy", icon: Zap },
   { value: "markets", label: "Markets", icon: LineChart },
-  { value: "taxonomy", label: "Taxonomy", icon: Network },
-  { value: "events", label: "Events", icon: CalendarDays },
+  { value: "events", label: "Events", icon: CalendarDays, disabled: true },
 ];
+
+const devOnlyTabs = [
+  { value: "discovery", label: "Discovery", icon: Compass },
+  { value: "categories", label: "Categories", icon: Cpu },
+  { value: "taxonomy", label: "Taxonomy", icon: Network },
+];
+
+const tabConfig = IS_DEV
+  ? [
+      publicTabs[0], // Intelligence
+      ...devOnlyTabs,
+      ...publicTabs.slice(1), // Energy, Markets, Events
+    ]
+  : publicTabs;
 
 /* ──────────────────────────────────────────────────────────────────────────
    Animation variants
@@ -164,12 +177,12 @@ export default function DashboardPage() {
       >
         {/* Logo area */}
         <div className="flex h-16 items-center gap-3 border-b border-border/40 px-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-emerald text-white">
             <Globe className="h-5 w-5" />
           </div>
           {!sidebarCollapsed && (
             <span className="font-display text-lg font-semibold tracking-tight text-foreground">
-              ClimatePulse
+              catalyst.study
             </span>
           )}
         </div>
@@ -178,27 +191,41 @@ export default function DashboardPage() {
         <nav className="flex-1 space-y-1 px-2 py-4">
           {tabConfig.map((tab) => {
             const isActive = activeTab === tab.value;
+            const isDisabled = "disabled" in tab && tab.disabled;
             return (
               <button
                 key={tab.value}
+                disabled={isDisabled}
                 onClick={() => {
+                  if (isDisabled) return;
                   setActiveTab(tab.value);
                   log("info", `Switched to tab: ${tab.value}`);
                 }}
                 className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 ${
-                  isActive
-                    ? "bg-accent-emerald/10 text-accent-emerald"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  isDisabled
+                    ? "cursor-not-allowed text-muted-foreground/40"
+                    : isActive
+                      ? "bg-accent-emerald/10 text-accent-emerald"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 } ${sidebarCollapsed ? "justify-center px-0" : ""}`}
-                title={sidebarCollapsed ? tab.label : undefined}
+                title={sidebarCollapsed ? tab.label : isDisabled ? "Coming soon" : undefined}
               >
                 <tab.icon
                   className={`h-[18px] w-[18px] shrink-0 ${
-                    isActive ? "text-accent-emerald" : "text-muted-foreground group-hover:text-foreground"
+                    isDisabled
+                      ? "text-muted-foreground/40"
+                      : isActive
+                        ? "text-accent-emerald"
+                        : "text-muted-foreground group-hover:text-foreground"
                   }`}
                 />
                 {!sidebarCollapsed && <span>{tab.label}</span>}
-                {isActive && !sidebarCollapsed && (
+                {isDisabled && !sidebarCollapsed && (
+                  <Badge variant="secondary" className="ml-auto h-4 rounded px-1 text-[9px] font-normal text-muted-foreground/60">
+                    Soon
+                  </Badge>
+                )}
+                {isActive && !isDisabled && !sidebarCollapsed && (
                   <div className="ml-auto h-1.5 w-1.5 rounded-full bg-accent-emerald" />
                 )}
               </button>
@@ -208,32 +235,34 @@ export default function DashboardPage() {
 
         {/* Bottom controls */}
         <div className="space-y-1 border-t border-border/40 px-2 py-3">
-          {/* Dev button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground ${
-              sidebarCollapsed ? "justify-center px-0" : ""
-            }`}
-            title={sidebarCollapsed ? "Dev Panel" : undefined}
-          >
-            <Terminal className="h-[18px] w-[18px] shrink-0" />
-            {!sidebarCollapsed && (
-              <>
-                <span className="font-mono text-xs">Dev</span>
-                {logs.length > 0 && (
-                  <Badge
-                    variant={errorCount > 0 ? "destructive" : "secondary"}
-                    className="ml-auto h-5 min-w-5 rounded-full px-1.5 text-[10px] font-medium"
-                  >
-                    {logs.length}
-                  </Badge>
-                )}
-              </>
-            )}
-            {sidebarCollapsed && logs.length > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent-emerald" />
-            )}
-          </button>
+          {/* Dev button — only in dev mode */}
+          {IS_DEV && (
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground ${
+                sidebarCollapsed ? "justify-center px-0" : ""
+              }`}
+              title={sidebarCollapsed ? "Dev Panel" : undefined}
+            >
+              <Terminal className="h-[18px] w-[18px] shrink-0" />
+              {!sidebarCollapsed && (
+                <>
+                  <span className="font-mono text-xs">Dev</span>
+                  {logs.length > 0 && (
+                    <Badge
+                      variant={errorCount > 0 ? "destructive" : "secondary"}
+                      className="ml-auto h-5 min-w-5 rounded-full px-1.5 text-[10px] font-medium"
+                    >
+                      {logs.length}
+                    </Badge>
+                  )}
+                </>
+              )}
+              {sidebarCollapsed && logs.length > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent-emerald" />
+              )}
+            </button>
+          )}
 
           {/* Theme toggle */}
           <button
@@ -274,7 +303,7 @@ export default function DashboardPage() {
                 }`}
               >
                 <Avatar className="h-7 w-7 shrink-0">
-                  <AvatarFallback className="bg-emerald-600/10 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                  <AvatarFallback className="bg-accent-emerald/10 text-[11px] font-medium text-accent-emerald">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
@@ -314,10 +343,10 @@ export default function DashboardPage() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile header */}
         <header className="flex h-14 items-center gap-3 border-b border-border/40 bg-background px-4 md:hidden">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-emerald text-white">
             <Globe className="h-4 w-4" />
           </div>
-          <span className="font-display text-base font-semibold tracking-tight">ClimatePulse</span>
+          <span className="font-display text-base font-semibold tracking-tight">catalyst.study</span>
           <div className="flex-1" />
           <Button
             variant="ghost"
@@ -332,7 +361,7 @@ export default function DashboardPage() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <Avatar className="h-6 w-6">
-                  <AvatarFallback className="bg-emerald-600/10 text-[10px] font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                  <AvatarFallback className="bg-accent-emerald/10 text-[10px] font-medium text-accent-emerald">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
@@ -385,22 +414,27 @@ export default function DashboardPage() {
         <nav className="fixed inset-x-0 bottom-0 z-50 flex h-16 items-stretch border-t border-border/40 bg-background/95 backdrop-blur-xl md:hidden">
           {tabConfig.map((tab) => {
             const isActive = activeTab === tab.value;
+            const isDisabled = "disabled" in tab && tab.disabled;
             return (
               <button
                 key={tab.value}
+                disabled={isDisabled}
                 onClick={() => {
+                  if (isDisabled) return;
                   setActiveTab(tab.value);
                   log("info", `Switched to tab: ${tab.value}`);
                 }}
                 className={`flex flex-1 flex-col items-center justify-center gap-1 transition-colors ${
-                  isActive
-                    ? "text-accent-emerald"
-                    : "text-muted-foreground"
+                  isDisabled
+                    ? "cursor-not-allowed text-muted-foreground/30"
+                    : isActive
+                      ? "text-accent-emerald"
+                      : "text-muted-foreground"
                 }`}
               >
                 <tab.icon className="h-5 w-5" />
                 <span className="text-[10px] font-medium leading-none">{tab.label}</span>
-                {isActive && (
+                {isActive && !isDisabled && (
                   <motion.div
                     layoutId="mobile-tab-indicator"
                     className="absolute top-0 h-0.5 w-10 rounded-full bg-accent-emerald"

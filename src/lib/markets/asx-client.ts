@@ -41,7 +41,7 @@ export async function fetchTickerAnnouncements(ticker: string): Promise<{
       `${ASX_BASE}/company/${ticker}/announcements?count=10&market_sensitive=true`,
       {
         signal: AbortSignal.timeout(15000),
-        headers: { "User-Agent": "ClimatePulse/1.0" },
+        headers: { "User-Agent": "catalyst.study/1.0" },
       },
     );
     if (!res.ok) return { announcements: [], error: `HTTP ${res.status}` };
@@ -71,7 +71,7 @@ export async function fetchTickerPrice(
   try {
     const res = await fetch(`${ASX_BASE}/share/${ticker}`, {
       signal: AbortSignal.timeout(10000),
-      headers: { "User-Agent": "ClimatePulse/1.0" },
+      headers: { "User-Agent": "catalyst.study/1.0" },
     });
     if (!res.ok) return null;
     const data = await res.json();

@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Globe, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("demo@climatepulse.io");
+  const [email, setEmail] = useState("demo@catalyst.study");
   const [password, setPassword] = useState("password");
   const [error, setError] = useState("");
   const { login, isLoading } = useAuth();
@@ -38,7 +38,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#FAFAF8] dark:bg-[#0D1B2A] p-4">
+    <div className="flex min-h-screen items-center justify-center bg-surface-0 p-4">
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
@@ -56,15 +56,15 @@ export default function LoginPage() {
             <Globe className="h-7 w-7" />
           </motion.div>
           <h1 className="font-display text-[1.75rem] font-medium tracking-tight text-foreground">
-            ClimatePulse
+            catalyst.study
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Climate Intelligence Platform
+            Climate & Energy Intelligence
           </p>
         </div>
 
         {/* Sign-in card */}
-        <Card className="border-border/40 bg-white shadow-sm dark:bg-[#1B2B3A]">
+        <Card className="border-border/40 bg-white shadow-sm dark:bg-surface-1">
           <CardContent className="pt-7 pb-7 px-7">
             {/* Editorial section label */}
             <p className="mb-6 text-xs font-medium uppercase tracking-widest text-muted-foreground">

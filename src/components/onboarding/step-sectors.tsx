@@ -108,7 +108,7 @@ export function StepSectors({ domains, initialSlugs = [], onNext }: StepSectorsP
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
+    <div className="mx-auto w-full max-w-3xl">
       <div className="mb-8 text-center">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
           What areas do you follow?
@@ -118,7 +118,7 @@ export function StepSectors({ domains, initialSlugs = [], onNext }: StepSectorsP
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         {domains.map((domain, i) => {
           const Icon = DOMAIN_ICONS[domain.slug];
           const isSelected = selectedDomainSlugs.has(domain.slug);
@@ -131,12 +131,12 @@ export function StepSectors({ domains, initialSlugs = [], onNext }: StepSectorsP
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03, duration: 0.25 }}
-              className={`col-span-1 ${isExpanded ? "col-span-2 sm:col-span-3 lg:col-span-4" : ""}`}
+              className={`col-span-1 ${isExpanded ? "col-span-2 sm:col-span-3" : ""}`}
             >
               <button
                 onClick={() => toggleDomain(domain)}
                 disabled={atCap}
-                className={`relative flex w-full items-center gap-2.5 rounded-xl border p-3 text-left transition-all duration-200 ${
+                className={`relative flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-all duration-200 ${
                   isSelected
                     ? "border-accent-emerald bg-accent-emerald/5"
                     : atCap
@@ -157,21 +157,21 @@ export function StepSectors({ domains, initialSlugs = [], onNext }: StepSectorsP
 
                 {Icon && (
                   <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
                       isSelected
                         ? "bg-accent-emerald/15 text-accent-emerald"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-5 w-5" />
                   </div>
                 )}
 
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
+                  <p className="text-sm font-medium leading-tight text-foreground">
                     {domain.name}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {storyHint(domain)}
                   </p>
                 </div>
