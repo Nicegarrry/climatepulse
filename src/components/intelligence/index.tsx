@@ -576,7 +576,6 @@ function DesktopIntelligence({
               </span>
             </div>
           </div>
-          <img src="/logo.svg" alt="Climate Pulse" height={28} style={{ height: 28, width: "auto" }} />
         </div>
 
         <div style={{ margin: "18px 0 22px" }}><WobblyRule /></div>

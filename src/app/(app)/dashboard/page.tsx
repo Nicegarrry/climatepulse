@@ -148,9 +148,16 @@ export default function DashboardPage() {
             marginBottom: 22,
             marginLeft: sidebarOpen ? 12 : 0,
             flexShrink: 0,
+            height: 28,
+            display: "flex",
+            alignItems: "center",
           }}
         >
-          <img src="/leaf only.svg" alt="Climate Pulse" width={28} height={28} />
+          {sidebarOpen ? (
+            <img src="/logo.svg" alt="Climate Pulse" height={28} style={{ height: 28, width: "auto" }} />
+          ) : (
+            <img src="/leaf only.svg" alt="Climate Pulse" width={28} height={28} />
+          )}
         </div>
 
         {/* Nav items */}
