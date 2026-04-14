@@ -262,12 +262,78 @@ function TodaysReadBlock({ text }: { text: string }) {
 function MobileMarketContext({ data }: { data: EnergyDashboardData | null }) {
   if (!data) return null;
 
+  // Inline generation chart for mobile (simplified stacked bars)
+  const intraday = data.intraday;
+  const hasIntraday = intraday && intraday.timestamps.length > 0;
+
   return (
     <>
       <div style={{ padding: "16px 20px 6px" }}>
         <Micro color={COLORS.forest}>Market Context</Micro>
       </div>
       <div style={{ padding: "0 20px 14px" }}>
+        {/* Generation chart */}
+        {hasIntraday && (
+          <div
+            style={{
+              background: COLORS.surface,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: 8,
+              padding: 14,
+              marginBottom: 8,
+            }}
+          >
+            <div style={{ fontSize: 10, color: COLORS.inkMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 6 }}>
+              Generation {"\u2014"} 24h
+            </div>
+            <svg viewBox="0 0 320 60" style={{ width: "100%", height: "auto" }}>
+              {(() => {
+                const ts = intraday.timestamps;
+                const ftReversed = [...intraday.fueltechs].reverse();
+                const stacks = ftReversed.map((ft) => ({
+                  key: ft.key,
+                  color: ft.color,
+                  values: intraday.generation[ft.key] ?? ts.map(() => 0),
+                }));
+                const maxGen = Math.max(
+                  ...ts.map((_, i) => stacks.reduce((sum, s) => sum + s.values[i], 0)),
+                  1
+                );
+                const barW = 320 / ts.length;
+                return ts.map((_, i) => {
+                  let cum = 0;
+                  return (
+                    <g key={i}>
+                      {stacks.map((stack) => {
+                        const val = stack.values[i];
+                        const bh = (val / maxGen) * 50;
+                        const y = 50 - cum - bh;
+                        cum += bh;
+                        if (bh < 0.3) return null;
+                        return <rect key={stack.key} x={i * barW + 0.15} y={y} width={Math.max(barW - 0.3, 0.3)} height={bh} fill={stack.color} opacity={0.8} />;
+                      })}
+                    </g>
+                  );
+                });
+              })()}
+            </svg>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 8px", marginTop: 4 }}>
+              {intraday.fueltechs
+                .filter((ft) => {
+                  const total = (intraday.generation[ft.key] ?? []).reduce((a: number, b: number) => a + b, 0);
+                  const grand = Object.values(intraday.generation).reduce((s, arr) => s + arr.reduce((a: number, b: number) => a + b, 0), 0);
+                  return (total / (grand || 1)) * 100 > 2;
+                })
+                .map((ft) => (
+                  <div key={ft.key} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                    <div style={{ width: 6, height: 3, borderRadius: 1, background: ft.color }} />
+                    <span style={{ fontSize: 9, color: COLORS.inkMuted }}>{ft.label}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+        {/* State prices */}
         <div style={{ display: "flex", gap: 3 }}>
           {data.price_summaries.map((d) => (
             <div
@@ -300,46 +366,82 @@ function MobileMarketContext({ data }: { data: EnergyDashboardData | null }) {
 
 function MobileStoryList({
   stories,
-  onOpenStories,
 }: {
   stories: EditorialStory[];
-  onOpenStories: (idx: number) => void;
 }) {
+  const [expanded, setExpanded] = useState<number | null>(null);
+
   return (
     <>
       <div style={{ padding: "12px 20px 6px" }}>
         <Micro>Today{"\u2019"}s Stories</Micro>
       </div>
-      {stories.map((story, idx) => {
+      {stories.map((story) => {
         const sev = SEVERITY[story.severity] || SEVERITY.watch;
+        const isOpen = expanded === story.id;
         return (
           <div
             key={story.id}
-            onClick={() => onOpenStories(idx)}
+            onClick={() => setExpanded(isOpen ? null : story.id)}
             style={{
               padding: "12px 20px",
               borderBottom: `1px solid ${COLORS.borderLight}`,
               borderLeft: `2px solid ${sev.borderColor}`,
               cursor: "pointer",
+              background: isOpen ? COLORS.paperDark : "transparent",
               transition: "background 150ms ease",
             }}
           >
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 3 }}>
               <Micro color={sev.labelColor}>{story.sector}</Micro>
-              {story.number && (
-                <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.ink }}>{story.number}</span>
-                  <span style={{ fontSize: 9, color: COLORS.inkMuted, marginLeft: 2 }}>{story.unit}</span>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                {story.number && (
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.ink }}>{story.number}</span>
+                    <span style={{ fontSize: 9, color: COLORS.inkMuted, marginLeft: 2 }}>{story.unit}</span>
+                  </span>
+                )}
+                <span style={{ fontSize: 14, color: COLORS.inkFaint, transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 150ms ease", display: "inline-block" }}>
+                  {"\u203A"}
                 </span>
-              )}
+              </div>
             </div>
             <h3 style={{ fontFamily: FONTS.serif, fontSize: 15, fontWeight: 400, color: COLORS.ink, lineHeight: 1.3, margin: 0 }}>
               {story.headline}
             </h3>
             <div style={{ fontSize: 10, color: COLORS.inkFaint, marginTop: 4 }}>
-              {story.sources[0]}
+              {story.url ? (
+                <a href={story.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: COLORS.inkFaint, textDecoration: "none", borderBottom: "1px dotted #D0CCC6" }}>
+                  {story.sources[0]} {"\u2197"}
+                </a>
+              ) : (
+                story.sources[0]
+              )}
               {story.sources.length > 1 && ` +${story.sources.length - 1}`}
             </div>
+            {/* Expanded content */}
+            {isOpen && (
+              <div style={{ marginTop: 10 }}>
+                {story.summary && (
+                  <p style={{ fontSize: 13, fontFamily: FONTS.serif, color: COLORS.inkSec, lineHeight: 1.6, margin: "0 0 8px" }}>
+                    {story.summary}
+                  </p>
+                )}
+                {story.whyItMatters && (
+                  <div style={{ background: COLORS.sageTint, borderLeft: `2px solid ${COLORS.forest}`, padding: "8px 12px", borderRadius: "0 6px 6px 0", marginBottom: 8 }}>
+                    <Micro color={COLORS.forest} mb={3}>Why it matters</Micro>
+                    <p style={{ fontSize: 12, fontFamily: FONTS.serif, color: COLORS.ink, lineHeight: 1.5, margin: 0 }}>
+                      {story.whyItMatters}
+                    </p>
+                  </div>
+                )}
+                {story.url && (
+                  <a href={story.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, color: COLORS.forest, fontWeight: 500, textDecoration: "none", borderBottom: `1px solid ${COLORS.sage}` }}>
+                    Read full article {"\u2197"}
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
@@ -468,7 +570,7 @@ function DesktopIntelligence({
       {/* Right sidebar — Daily Number + Energy data */}
       <aside
         style={{
-          width: 280,
+          width: 320,
           flexShrink: 0,
           borderLeft: `1px solid ${COLORS.border}`,
           background: COLORS.bg,
@@ -518,7 +620,7 @@ function MobileIntelligence({
         <div style={{ padding: "0 20px" }}><WobblyRule /></div>
         <GlowingBriefingCard onStart={() => openBriefing(0)} todaysRead={todaysRead} storyCount={briefing.length} />
         <div style={{ padding: "0 20px" }}><WobblyRule color={COLORS.borderLight} /></div>
-        <MobileStoryList stories={briefing} onOpenStories={openBriefing} />
+        <MobileStoryList stories={briefing} />
         <MobileMarketContext data={energyData} />
         <div style={{ padding: "4px 20px 24px" }}>
           <WobblyRule color={COLORS.borderLight} />

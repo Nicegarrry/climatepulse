@@ -91,7 +91,7 @@ function IntradayChart({
     >
       <div
         style={{
-          fontSize: 9,
+          fontSize: 10,
           color: COLORS.inkMuted,
           textTransform: "uppercase",
           letterSpacing: 0.5,
@@ -182,7 +182,11 @@ function IntradayChart({
 function StatePricesChart({ priceSummaries }: { priceSummaries: PriceSummary[] }) {
   if (priceSummaries.length === 0) return null;
 
-  const maxPrice = Math.max(...priceSummaries.map((p) => p.latest_price ?? 0), 100);
+  // Use max of all max_24h values for scale, or fallback to latest
+  const scaleMax = Math.max(
+    ...priceSummaries.map((p) => p.max_24h ?? p.latest_price ?? 0),
+    100
+  );
 
   return (
     <div
@@ -190,25 +194,29 @@ function StatePricesChart({ priceSummaries }: { priceSummaries: PriceSummary[] }
         background: COLORS.surface,
         border: `1px solid ${COLORS.border}`,
         borderRadius: 8,
-        padding: 12,
+        padding: 14,
         marginBottom: 10,
       }}
     >
       <div
         style={{
-          fontSize: 9,
+          fontSize: 10,
           color: COLORS.inkMuted,
           textTransform: "uppercase",
           letterSpacing: 0.5,
           fontWeight: 600,
-          marginBottom: 8,
+          marginBottom: 10,
         }}
       >
         Wholesale by State {"\u2014"} $/MWh
       </div>
       {priceSummaries.map((p) => {
         const latest = p.latest_price ?? 0;
-        const barPct = Math.min((Math.abs(latest) / maxPrice) * 100, 100);
+        const min24 = p.min_24h ?? latest;
+        const max24 = p.max_24h ?? latest;
+        const latestPct = Math.min((Math.abs(latest) / scaleMax) * 100, 100);
+        const minPct = Math.min((Math.abs(min24) / scaleMax) * 100, 100);
+        const maxPct = Math.min((Math.abs(max24) / scaleMax) * 100, 100);
         const isNegative = latest < 0;
         return (
           <div
@@ -216,76 +224,69 @@ function StatePricesChart({ priceSummaries }: { priceSummaries: PriceSummary[] }
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 5,
-              marginBottom: 5,
+              gap: 6,
+              marginBottom: 7,
             }}
           >
             <span
               style={{
-                fontSize: 10,
+                fontSize: 11,
                 color: COLORS.inkMuted,
-                width: 24,
+                width: 26,
                 fontVariantNumeric: "tabular-nums",
                 fontFamily: FONTS.sans,
               }}
             >
               {p.region}
             </span>
+            {/* Bar with min/max range line */}
             <div
               style={{
                 flex: 1,
-                height: 5,
-                background: COLORS.borderLight,
-                borderRadius: 2,
-                overflow: "hidden",
+                height: 14,
+                position: "relative",
               }}
             >
-              <div
-                style={{
-                  height: "100%",
-                  borderRadius: 2,
-                  width: `${barPct}%`,
-                  background: isNegative ? COLORS.forest : latest > 150 ? COLORS.ink : COLORS.sage,
-                }}
-              />
+              {/* Background track */}
+              <div style={{ position: "absolute", top: 5, left: 0, right: 0, height: 4, background: COLORS.borderLight, borderRadius: 2 }} />
+              {/* Current price bar */}
+              <div style={{ position: "absolute", top: 5, left: 0, height: 4, borderRadius: 2, width: `${latestPct}%`, background: isNegative ? COLORS.forest : latest > 150 ? COLORS.ink : COLORS.sage }} />
+              {/* Min/max range line (thin) */}
+              {min24 !== max24 && (
+                <div style={{ position: "absolute", top: 6, left: `${minPct}%`, width: `${maxPct - minPct}%`, height: 2, background: COLORS.inkFaint, opacity: 0.3, borderRadius: 1 }} />
+              )}
+              {/* Min dot */}
+              {min24 !== latest && (
+                <div style={{ position: "absolute", top: 4, left: `${minPct}%`, width: 3, height: 6, borderRadius: 3, background: COLORS.inkFaint, opacity: 0.4, transform: "translateX(-1.5px)" }} />
+              )}
+              {/* Max dot */}
+              {max24 !== latest && (
+                <div style={{ position: "absolute", top: 4, left: `${maxPct}%`, width: 3, height: 6, borderRadius: 3, background: COLORS.inkFaint, opacity: 0.4, transform: "translateX(-1.5px)" }} />
+              )}
             </div>
             <span
               style={{
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: 500,
                 color: isNegative ? COLORS.forest : COLORS.ink,
-                width: 32,
+                width: 34,
                 textAlign: "right",
                 fontVariantNumeric: "tabular-nums",
               }}
             >
               ${Math.round(latest)}
             </span>
-            {/* Min/max range */}
-            <span
-              style={{
-                fontSize: 8,
-                color: COLORS.inkFaint,
-                width: 48,
-                textAlign: "right",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {p.min_24h != null && p.max_24h != null
-                ? `${Math.round(p.min_24h)}\u2013${Math.round(p.max_24h)}`
-                : ""}
-            </span>
           </div>
         );
       })}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
-        <span style={{ fontSize: 8, color: COLORS.inkFaint }}>
-          Now {"\u00B7"} 24h range
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+        <span style={{ fontSize: 9, color: COLORS.inkFaint }}>
+          Bar = now {"\u00B7"} dots = 24h range
         </span>
-        <span style={{ fontSize: 8, color: COLORS.inkFaint }}>
+        <span style={{ fontSize: 9, color: COLORS.inkFaint, fontVariantNumeric: "tabular-nums" }}>
           Avg ${Math.round(
             priceSummaries.reduce((sum, p) => sum + (p.avg_24h ?? 0), 0) / priceSummaries.length
-          )}/MWh
+          )}
         </span>
       </div>
     </div>
