@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import { useAuth } from "@/lib/auth-context";
 import { useDevLogger } from "@/lib/dev-logger";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,32 +14,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Compass,
-  Cpu,
-  BrainCircuit,
-  CalendarDays,
-  Zap,
-  Network,
-  Newspaper,
-  Globe,
-  Sun,
-  Moon,
-  User,
-  Settings,
-  LogOut,
-  Bug,
-  Terminal,
-  ChevronLeft,
-  ChevronRight,
-  LineChart,
-} from "lucide-react";
+import { COLORS, FONTS, GRAIN, NAV_ITEMS } from "@/lib/design-tokens";
 import { DiscoveryTab } from "@/components/discovery-tab";
 import { CategoriesTab } from "@/components/categories-tab";
 import { EnergyTab } from "@/components/energy-tab";
 import { TaxonomyTab } from "@/components/taxonomy-tab";
-import { IntelligenceTab } from "@/components/intelligence-tab";
 import { MarketsTab } from "@/components/markets-tab";
+import IntelligenceTab from "@/components/intelligence";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
@@ -50,23 +29,22 @@ import { MarketsTab } from "@/components/markets-tab";
 const IS_DEV = process.env.NEXT_PUBLIC_SHOW_DEV_TABS === "true";
 
 const publicTabs = [
-  { value: "intelligence", label: "Intelligence", icon: Newspaper },
-  { value: "energy", label: "Energy", icon: Zap },
-  { value: "markets", label: "Markets", icon: LineChart },
-  { value: "events", label: "Events", icon: CalendarDays, disabled: true },
+  { value: "intelligence", label: "Briefing", icon: "\u25C7" },
+  { value: "energy", label: "Energy", icon: "\u25CE" },
+  { value: "markets", label: "Markets", icon: "\u25A4" },
 ];
 
 const devOnlyTabs = [
-  { value: "discovery", label: "Discovery", icon: Compass },
-  { value: "categories", label: "Categories", icon: Cpu },
-  { value: "taxonomy", label: "Taxonomy", icon: Network },
+  { value: "discovery", label: "Discovery", icon: "\u2197" },
+  { value: "categories", label: "Categories", icon: "\u2261" },
+  { value: "taxonomy", label: "Taxonomy", icon: "\u25A4" },
 ];
 
 const tabConfig = IS_DEV
   ? [
-      publicTabs[0], // Intelligence
+      publicTabs[0],
       ...devOnlyTabs,
-      ...publicTabs.slice(1), // Energy, Markets, Events
+      ...publicTabs.slice(1),
     ]
   : publicTabs;
 
@@ -81,45 +59,11 @@ const tabContentVariants = {
 };
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Empty tab content
-   ────────────────────────────────────────────────────────────────────────── */
-
-function EmptyTabContent({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-}) {
-  return (
-    <motion.div
-      variants={tabContentVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      className="flex flex-col items-center justify-center py-20 text-center"
-    >
-      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-emerald/10">
-        <Icon className="h-7 w-7 text-accent-emerald" />
-      </div>
-      <h3 className="font-display text-lg font-semibold">{title}</h3>
-      <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-        {description}
-      </p>
-    </motion.div>
-  );
-}
-
-/* ──────────────────────────────────────────────────────────────────────────
-   Tab content renderer
+   Tab content renderer (non-Intelligence tabs)
    ────────────────────────────────────────────────────────────────────────── */
 
 function TabContent({ activeTab }: { activeTab: string }) {
   switch (activeTab) {
-    case "intelligence":
-      return <IntelligenceTab />;
     case "discovery":
       return <DiscoveryTab />;
     case "categories":
@@ -130,30 +74,32 @@ function TabContent({ activeTab }: { activeTab: string }) {
       return <MarketsTab />;
     case "taxonomy":
       return <TaxonomyTab />;
-    case "events":
-      return (
-        <EmptyTabContent
-          icon={CalendarDays}
-          title="Events"
-          description="Climate events timeline. Track significant environmental events and their impacts."
-        />
-      );
     default:
       return null;
   }
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Dashboard page — sidebar layout
+   Mobile bottom nav items
+   ────────────────────────────────────────────────────────────────────────── */
+
+const mobileNav = [
+  { icon: "\u25C7", label: "Briefing", value: "intelligence" },
+  { icon: "\u2197", label: "Explore", value: "discovery" },
+  { icon: "\u25CE", label: "Storylines", value: "energy" },
+  { icon: "\u25A4", label: "Weekly", value: "markets" },
+];
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Dashboard page — editorial nav rail layout
    ────────────────────────────────────────────────────────────────────────── */
 
 export default function DashboardPage() {
   const { log, isOpen, setIsOpen, logs } = useDevLogger();
   const { user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("intelligence");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const errorCount = logs.filter((l) => l.level === "error").length;
   const initials = user?.name
@@ -167,283 +113,350 @@ export default function DashboardPage() {
     log("info", "Dashboard loaded");
   }, [log]);
 
+  const isIntelligence = activeTab === "intelligence";
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* ── Desktop sidebar ────────────────────────────────────────── */}
-      <aside
-        className={`hidden md:flex flex-col border-r border-border/40 bg-sidebar transition-all duration-200 ${
-          sidebarCollapsed ? "w-[68px]" : "w-[220px]"
-        }`}
+    <div
+      style={{
+        display: "flex",
+        height: "100vh",
+        background: COLORS.bg,
+        fontFamily: FONTS.sans,
+        overflow: "hidden",
+      }}
+      className="paper-grain"
+    >
+      {/* ── Desktop nav rail ────────────────────────────────────────── */}
+      <nav
+        className="hidden md:flex"
+        style={{
+          width: sidebarOpen ? 150 : 52,
+          flexShrink: 0,
+          borderRight: `1px solid ${COLORS.border}`,
+          flexDirection: "column",
+          alignItems: sidebarOpen ? "stretch" : "center",
+          paddingTop: 18,
+          transition: "width 150ms ease",
+          overflow: "hidden",
+        }}
       >
-        {/* Logo area */}
-        <div className="flex h-16 items-center gap-3 border-b border-border/40 px-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-emerald text-white">
-            <Globe className="h-5 w-5" />
-          </div>
-          {!sidebarCollapsed && (
-            <span className="font-display text-lg font-semibold tracking-tight text-foreground">
-              catalyst.study
-            </span>
-          )}
+        {/* Logo */}
+        <div
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 5,
+            background: COLORS.forest,
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: FONTS.serif,
+            fontSize: 12,
+            fontStyle: "italic",
+            cursor: "pointer",
+            marginBottom: 22,
+            marginLeft: sidebarOpen ? 12 : 0,
+            flexShrink: 0,
+          }}
+        >
+          cp
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-2 py-4">
-          {tabConfig.map((tab) => {
-            const isActive = activeTab === tab.value;
-            const isDisabled = "disabled" in tab && tab.disabled;
-            return (
-              <button
-                key={tab.value}
-                disabled={isDisabled}
-                onClick={() => {
-                  if (isDisabled) return;
-                  setActiveTab(tab.value);
-                  log("info", `Switched to tab: ${tab.value}`);
-                }}
-                className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 ${
-                  isDisabled
-                    ? "cursor-not-allowed text-muted-foreground/40"
-                    : isActive
-                      ? "bg-accent-emerald/10 text-accent-emerald"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                } ${sidebarCollapsed ? "justify-center px-0" : ""}`}
-                title={sidebarCollapsed ? tab.label : isDisabled ? "Coming soon" : undefined}
-              >
-                <tab.icon
-                  className={`h-[18px] w-[18px] shrink-0 ${
-                    isDisabled
-                      ? "text-muted-foreground/40"
-                      : isActive
-                        ? "text-accent-emerald"
-                        : "text-muted-foreground group-hover:text-foreground"
-                  }`}
-                />
-                {!sidebarCollapsed && <span>{tab.label}</span>}
-                {isDisabled && !sidebarCollapsed && (
-                  <Badge variant="secondary" className="ml-auto h-4 rounded px-1 text-[9px] font-normal text-muted-foreground/60">
-                    Soon
+        {/* Nav items */}
+        {tabConfig.map((tab) => {
+          const isActive = activeTab === tab.value;
+          return (
+            <div
+              key={tab.value}
+              onClick={() => {
+                setActiveTab(tab.value);
+                log("info", `Switched to tab: ${tab.value}`);
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 9,
+                padding: sidebarOpen ? "8px 12px" : "0",
+                width: sidebarOpen ? "auto" : 34,
+                height: sidebarOpen ? "auto" : 34,
+                justifyContent: sidebarOpen ? "flex-start" : "center",
+                borderRadius: 6,
+                marginBottom: 2,
+                cursor: "pointer",
+                background: isActive ? COLORS.sageTint : "transparent",
+                color: isActive ? COLORS.forest : COLORS.inkMuted,
+                fontSize: 14,
+                transition: "all 150ms ease",
+              }}
+            >
+              <span style={{ width: 18, textAlign: "center", flexShrink: 0 }}>
+                {tab.icon}
+              </span>
+              {sidebarOpen && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: isActive ? 500 : 400,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {tab.label}
+                </span>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Dev button */}
+        {IS_DEV && (
+          <div
+            onClick={() => setIsOpen(!isOpen)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: sidebarOpen ? "8px 12px" : "0",
+              width: sidebarOpen ? "auto" : 34,
+              height: sidebarOpen ? "auto" : 34,
+              justifyContent: sidebarOpen ? "flex-start" : "center",
+              borderRadius: 6,
+              marginBottom: 2,
+              cursor: "pointer",
+              color: COLORS.inkMuted,
+              fontSize: 12,
+              transition: "all 150ms ease",
+            }}
+          >
+            <span style={{ width: 18, textAlign: "center", flexShrink: 0, fontSize: 14 }}>
+              {"\u2318"}
+            </span>
+            {sidebarOpen && (
+              <span style={{ fontFamily: "monospace", fontSize: 11 }}>
+                Dev
+                {logs.length > 0 && (
+                  <Badge
+                    variant={errorCount > 0 ? "destructive" : "secondary"}
+                    className="ml-2 h-4 min-w-4 rounded px-1 text-[9px]"
+                  >
+                    {logs.length}
                   </Badge>
                 )}
-                {isActive && !isDisabled && !sidebarCollapsed && (
-                  <div className="ml-auto h-1.5 w-1.5 rounded-full bg-accent-emerald" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Bottom controls */}
-        <div className="space-y-1 border-t border-border/40 px-2 py-3">
-          {/* Dev button — only in dev mode */}
-          {IS_DEV && (
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground ${
-                sidebarCollapsed ? "justify-center px-0" : ""
-              }`}
-              title={sidebarCollapsed ? "Dev Panel" : undefined}
-            >
-              <Terminal className="h-[18px] w-[18px] shrink-0" />
-              {!sidebarCollapsed && (
-                <>
-                  <span className="font-mono text-xs">Dev</span>
-                  {logs.length > 0 && (
-                    <Badge
-                      variant={errorCount > 0 ? "destructive" : "secondary"}
-                      className="ml-auto h-5 min-w-5 rounded-full px-1.5 text-[10px] font-medium"
-                    >
-                      {logs.length}
-                    </Badge>
-                  )}
-                </>
-              )}
-              {sidebarCollapsed && logs.length > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent-emerald" />
-              )}
-            </button>
-          )}
-
-          {/* Theme toggle */}
-          <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground ${
-              sidebarCollapsed ? "justify-center px-0" : ""
-            }`}
-            title={sidebarCollapsed ? "Toggle theme" : undefined}
-          >
-            <Sun className="h-[18px] w-[18px] shrink-0 dark:hidden" />
-            <Moon className="hidden h-[18px] w-[18px] shrink-0 dark:block" />
-            {!sidebarCollapsed && <span>Theme</span>}
-          </button>
-
-          {/* Collapse toggle */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground ${
-              sidebarCollapsed ? "justify-center px-0" : ""
-            }`}
-          >
-            {sidebarCollapsed ? (
-              <ChevronRight className="h-[18px] w-[18px] shrink-0" />
-            ) : (
-              <>
-                <ChevronLeft className="h-[18px] w-[18px] shrink-0" />
-                <span>Collapse</span>
-              </>
+              </span>
             )}
-          </button>
+          </div>
+        )}
 
-          {/* User */}
+        {/* Collapse/expand toggle */}
+        <div
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            padding: sidebarOpen ? "8px 12px" : "0",
+            width: sidebarOpen ? "auto" : 34,
+            height: sidebarOpen ? "auto" : 34,
+            justifyContent: sidebarOpen ? "flex-start" : "center",
+            borderRadius: 6,
+            marginBottom: 2,
+            cursor: "pointer",
+            color: COLORS.inkMuted,
+            fontSize: 12,
+            transition: "all 150ms ease",
+          }}
+        >
+          <span style={{ width: 18, textAlign: "center", flexShrink: 0, fontSize: 12, transition: "transform 150ms ease", transform: sidebarOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+            {"\u203A"}
+          </span>
+          {sidebarOpen && <span style={{ fontSize: 11 }}>Collapse</span>}
+        </div>
+
+        {/* User */}
+        <div style={{ padding: sidebarOpen ? "8px 12px" : "8px 0", marginBottom: 12 }}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground ${
-                  sidebarCollapsed ? "justify-center px-0" : ""
-                }`}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  cursor: "pointer",
+                  justifyContent: sidebarOpen ? "flex-start" : "center",
+                }}
               >
-                <Avatar className="h-7 w-7 shrink-0">
-                  <AvatarFallback className="bg-accent-emerald/10 text-[11px] font-medium text-accent-emerald">
+                <Avatar className="h-6 w-6 shrink-0">
+                  <AvatarFallback
+                    style={{
+                      background: COLORS.sageTint,
+                      color: COLORS.forest,
+                      fontSize: 10,
+                      fontWeight: 500,
+                    }}
+                  >
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                {!sidebarCollapsed && (
-                  <span className="truncate text-foreground">{user?.name}</span>
+                {sidebarOpen && (
+                  <span style={{ fontSize: 11, color: COLORS.inkSec, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {user?.name}
+                  </span>
                 )}
-              </button>
+              </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="right" className="w-52">
-              <div className="px-3 py-2">
-                <p className="text-sm font-medium text-foreground">{user?.name}</p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/profile")} className="gap-2 text-sm">
-                <User className="h-4 w-4 text-muted-foreground" />
-                Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/settings")} className="gap-2 text-sm">
-                <Settings className="h-4 w-4 text-muted-foreground" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => { logout(); router.push("/login"); }}
-                className="gap-2 text-sm text-destructive focus:text-destructive"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </aside>
-
-      {/* ── Main content area ──────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile header */}
-        <header className="flex h-14 items-center gap-3 border-b border-border/40 bg-background px-4 md:hidden">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-emerald text-white">
-            <Globe className="h-4 w-4" />
-          </div>
-          <span className="font-display text-base font-semibold tracking-tight">catalyst.study</span>
-          <div className="flex-1" />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            <Sun className="h-4 w-4 dark:hidden" />
-            <Moon className="hidden h-4 w-4 dark:block" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Avatar className="h-6 w-6">
-                  <AvatarFallback className="bg-accent-emerald/10 text-[10px] font-medium text-accent-emerald">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
               <div className="px-3 py-2">
                 <p className="text-sm font-medium">{user?.name}</p>
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push("/profile")} className="gap-2 text-sm">
-                <User className="h-4 w-4 text-muted-foreground" />
                 Profile
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/settings")} className="gap-2 text-sm">
-                <Settings className="h-4 w-4 text-muted-foreground" />
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => { logout(); router.push("/login"); }}
+                onClick={() => {
+                  logout();
+                  router.push("/login");
+                }}
                 className="gap-2 text-sm text-destructive focus:text-destructive"
               >
-                <LogOut className="h-4 w-4" />
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
+      </nav>
+
+      {/* ── Main content area ──────────────────────────────────────── */}
+      <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
+        {/* Mobile header */}
+        <header
+          className="flex md:hidden"
+          style={{
+            height: 44,
+            background: COLORS.surface,
+            borderBottom: `1px solid ${COLORS.border}`,
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 18px",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 4,
+                background: COLORS.forest,
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: FONTS.serif,
+                fontSize: 9,
+                fontStyle: "italic",
+              }}
+            >
+              cp
+            </div>
+            <span style={{ fontSize: 13, fontFamily: FONTS.serif }}>
+              <span style={{ color: COLORS.forest }}>climate</span>
+              <span style={{ color: COLORS.plum }}>pulse</span>
+            </span>
+          </div>
+          <span
+            style={{
+              fontSize: 10,
+              color: COLORS.inkMuted,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            14 Apr 2026
+          </span>
         </header>
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
-          <div className="mx-auto max-w-screen-2xl p-4 sm:p-6 lg:p-8">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                variants={tabContentVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-              >
-                <TabContent activeTab={activeTab} />
-              </motion.div>
-            </AnimatePresence>
-          </div>
+        {/* Content */}
+        <div className="flex flex-1 overflow-hidden">
+          {isIntelligence ? (
+            <IntelligenceTab />
+          ) : (
+            <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
+              <div className="mx-auto max-w-screen-2xl p-4 sm:p-6 lg:p-8">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    variants={tabContentVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                  >
+                    <TabContent activeTab={activeTab} />
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ── Mobile bottom tab bar ──────────────────────────────────── */}
-        <nav className="fixed inset-x-0 bottom-0 z-50 flex h-16 items-stretch border-t border-border/40 bg-background/95 backdrop-blur-xl md:hidden">
-          {tabConfig.map((tab) => {
-            const isActive = activeTab === tab.value;
-            const isDisabled = "disabled" in tab && tab.disabled;
+        {/* ── Mobile bottom nav ────────────────────────────────────── */}
+        <div
+          className="flex md:hidden"
+          style={{
+            height: 50,
+            borderTop: `1px solid ${COLORS.border}`,
+            background: COLORS.surface,
+            alignItems: "center",
+            justifyContent: "space-around",
+            flexShrink: 0,
+          }}
+        >
+          {mobileNav.map((item) => {
+            const isActive = activeTab === item.value;
             return (
-              <button
-                key={tab.value}
-                disabled={isDisabled}
+              <div
+                key={item.value}
                 onClick={() => {
-                  if (isDisabled) return;
-                  setActiveTab(tab.value);
-                  log("info", `Switched to tab: ${tab.value}`);
+                  setActiveTab(item.value);
+                  log("info", `Switched to tab: ${item.value}`);
                 }}
-                className={`flex flex-1 flex-col items-center justify-center gap-1 transition-colors ${
-                  isDisabled
-                    ? "cursor-not-allowed text-muted-foreground/30"
-                    : isActive
-                      ? "text-accent-emerald"
-                      : "text-muted-foreground"
-                }`}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 1,
+                  cursor: "pointer",
+                }}
               >
-                <tab.icon className="h-5 w-5" />
-                <span className="text-[10px] font-medium leading-none">{tab.label}</span>
-                {isActive && !isDisabled && (
-                  <motion.div
-                    layoutId="mobile-tab-indicator"
-                    className="absolute top-0 h-0.5 w-10 rounded-full bg-accent-emerald"
-                  />
-                )}
-              </button>
+                <span
+                  style={{
+                    fontSize: 15,
+                    color: isActive ? COLORS.forest : COLORS.inkMuted,
+                  }}
+                >
+                  {item.icon}
+                </span>
+                <span
+                  style={{
+                    fontSize: 8,
+                    color: isActive ? COLORS.forest : COLORS.inkMuted,
+                    fontWeight: isActive ? 600 : 400,
+                  }}
+                >
+                  {item.label}
+                </span>
+              </div>
             );
           })}
-        </nav>
+        </div>
       </div>
     </div>
   );
