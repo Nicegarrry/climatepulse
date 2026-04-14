@@ -15,13 +15,13 @@ RULES:
 - A secondary_domain is optional. Only assign one if the story genuinely spans two distinct domains. Do not force a secondary.
 - Every story must have exactly one signal_type.
 - Extract any named entities visible in the headline/description. For each, provide a likely_type: company, project, regulation, person, or technology. Do not extract jurisdictions as entities.
-- If the story does not clearly fit any domain, return primary_domain as "uncertain".
-- Be conservative. Choose the single best-fit domain rather than a marginal match.
+- Always choose the single best-fit domain, even if the fit is imperfect. Most climate/energy/sustainability stories belong somewhere — use "workforce-adaptation" as a catch-all for climate science, weather, adaptation, and R&D stories that don't fit elsewhere.
+- Only return primary_domain as "uncertain" if the story has genuinely nothing to do with climate, energy, or sustainability (e.g. celebrity gossip, unrelated sports).
 
 Respond with a JSON array only. No preamble, no markdown fences, no explanation.
 
 Example output for a batch of 2 stories:
 [
-  { "id": "abc-123", "primary_domain": "carbon-emissions", "secondary_domain": "policy-governance", "signal_type": "policy_change", "headline_entities": [{ "name": "EU ETS", "likely_type": "regulation" }] },
+  { "id": "abc-123", "primary_domain": "carbon-emissions", "secondary_domain": "policy", "signal_type": "policy_change", "headline_entities": [{ "name": "EU ETS", "likely_type": "regulation" }] },
   { "id": "def-456", "primary_domain": "energy-generation", "secondary_domain": null, "signal_type": "project_milestone", "headline_entities": [{ "name": "Snowy Hydro", "likely_type": "company" }] }
 ]

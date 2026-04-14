@@ -1,4 +1,4 @@
-### Example 1 — Score: 92 [domain: policy-governance]
+### Example 1 — Score: 92 [domain: policy]
 **Headline**: "Australia Abandons 82% Renewable Target, Sets New 65% Goal for 2030"
 **Signal type**: policy_change
 | Factor | Score |
@@ -40,7 +40,7 @@
 **Composite**: 61.5
 **Note**: Important milestone, but confirmatory rather than surprising.
 
-### Example 4 — Score: 55 [domain: policy-governance]
+### Example 4 — Score: 55 [domain: policy]
 **Headline**: "Australia-Canada Sign Clean Energy Partnership Covering Five Pillars"
 **Signal type**: international
 | Factor | Score |
@@ -68,7 +68,7 @@
 **Composite**: 48.0
 **Note**: Solid background story. Included in briefing but not top 3.
 
-### Example 6 — Score: 38 [domain: policy-governance]
+### Example 6 — Score: 38 [domain: policy]
 **Headline**: "New Community Information Centre Opens for Central-West Orana REZ"
 **Signal type**: community_social
 | Factor | Score |
