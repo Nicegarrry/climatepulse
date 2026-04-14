@@ -465,3 +465,49 @@ export interface DailyBriefing {
   digest: DigestOutput;
   generated_at: string;
 }
+
+// ─── Gamification & Tracking ──────────────────────────────────────────────
+
+export interface StreakData {
+  current_streak: number;
+  longest_streak: number;
+  last_completed_date: string | null;
+  streak_started_date: string | null;
+  briefed_today: boolean;
+}
+
+export interface BriefingCompletionResult {
+  streak: number;
+  longest_streak: number;
+  is_new_record: boolean;
+}
+
+export interface SectorCoverageItem {
+  sector_slug: string;
+  sector_name: string;
+  stories_published: number;
+  stories_read: number;
+}
+
+export interface SectorCoverageData {
+  sectors: SectorCoverageItem[];
+  nudge: {
+    sector_name: string;
+    stories_available: number;
+    last_read_date: string | null;
+  } | null;
+}
+
+export interface WeeklyPulse {
+  week_start: string;
+  stories_read: number;
+  briefings_completed: number;
+  total_reading_time_seconds: number | null;
+  sectors_covered: number;
+  sectors_subscribed: number;
+  current_streak: number;
+  stories_read_percentile: number | null;
+  briefings_completed_percentile: number | null;
+  cohort_size: number | null;
+  cohort_avg_stories: number | null;
+}

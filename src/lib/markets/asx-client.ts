@@ -1,7 +1,7 @@
 import pool from "@/lib/db";
 import type { ASXCurrentPrice, AnnouncementFetchResult, PriceFetchResult } from "./types";
 
-const ASX_BASE = "https://www.asx.com.au/asx/1";
+const ASX_BASE = "https://asx.api.markitdigital.com/asx-research/1.0";
 const FETCH_DELAY_MS = 500;
 
 // Keywords that indicate PDF extraction is worthwhile
@@ -38,7 +38,7 @@ export async function fetchTickerAnnouncements(ticker: string): Promise<{
 }> {
   try {
     const res = await fetch(
-      `${ASX_BASE}/company/${ticker}/announcements?count=10&market_sensitive=true`,
+      `${ASX_BASE}/companies/${ticker}/announcements?count=10&market_sensitive=true`,
       {
         signal: AbortSignal.timeout(15000),
         headers: { "User-Agent": "catalyst.study/1.0" },
@@ -46,14 +46,16 @@ export async function fetchTickerAnnouncements(ticker: string): Promise<{
     );
     if (!res.ok) return { announcements: [], error: `HTTP ${res.status}` };
     const data = await res.json();
-    // ASX returns { data: [{ header, document_date, url, market_sensitive, ... }] }
-    const items = data.data ?? [];
+    // MarkitDigital returns { data: { items: [{ headline, date, documentKey, isPriceSensitive, ... }] } }
+    const items = data.data?.items ?? [];
     return {
       announcements: items.map((item: Record<string, unknown>) => ({
-        title: (item.header as string) ?? "",
-        url: (item.url as string) ?? "",
-        date: (item.document_date as string) ?? new Date().toISOString(),
-        is_market_sensitive: (item.market_sensitive as boolean) ?? false,
+        title: (item.headline as string) ?? "",
+        url: item.documentKey
+          ? `https://www.asx.com.au/asx/statistics/displayAnnouncement.do?display=pdf&idsId=${item.documentKey}`
+          : "",
+        date: (item.date as string) ?? new Date().toISOString(),
+        is_market_sensitive: (item.isPriceSensitive as boolean) ?? false,
       })),
     };
   } catch (err) {
@@ -69,23 +71,22 @@ export async function fetchTickerPrice(
   ticker: string,
 ): Promise<ASXCurrentPrice | null> {
   try {
-    const res = await fetch(`${ASX_BASE}/share/${ticker}`, {
+    const res = await fetch(`${ASX_BASE}/companies/${ticker}/header`, {
       signal: AbortSignal.timeout(10000),
       headers: { "User-Agent": "catalyst.study/1.0" },
     });
     if (!res.ok) return null;
-    const data = await res.json();
+    const json = await res.json();
+    const data = json.data ?? {};
     return {
       ticker,
-      last_price: data.last_price ?? 0,
-      change_price: data.change_price ?? 0,
-      change_percent: data.change_in_percent
-        ? parseFloat(String(data.change_in_percent).replace("%", ""))
-        : 0,
+      last_price: data.priceLast ?? 0,
+      change_price: data.priceChange ?? 0,
+      change_percent: data.priceChangePercent ?? 0,
       volume: data.volume ?? 0,
-      day_high: data.day_high_price ?? 0,
-      day_low: data.day_low_price ?? 0,
-      previous_close: data.previous_close_price ?? 0,
+      day_high: data.priceLast ?? 0,   // header endpoint doesn't provide day high/low
+      day_low: data.priceLast ?? 0,
+      previous_close: (data.priceLast ?? 0) - (data.priceChange ?? 0),
     };
   } catch {
     return null;

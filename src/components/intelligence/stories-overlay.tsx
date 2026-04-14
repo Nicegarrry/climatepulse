@@ -7,28 +7,78 @@ import { SECTOR_SEVERITY_MAP } from "@/lib/mock-editorial";
 import { Micro, SourceTag, SectorArt } from "./primitives";
 
 const DURATION = 15000;
+const MIN_VIEW_SECONDS = 3; // minimum seconds for a story to count as "viewed"
+
+interface StoryViewTiming {
+  storyIndex: number;
+  enteredAt: number;
+  exitedAt?: number;
+  durationSeconds: number;
+  counted: boolean; // met the 3s threshold
+}
+
+export interface BriefingCompletionData {
+  storiesViewed: number; // stories that met 3s threshold
+  totalStories: number;
+  totalDurationSeconds: number;
+  storyTimings: StoryViewTiming[];
+}
 
 export function StoriesOverlay({
   stories,
   startIndex,
   onClose,
+  onComplete,
   phase,
 }: {
   stories: EditorialStory[];
   startIndex: number;
   onClose: () => void;
+  onComplete?: (data: BriefingCompletionData) => void;
   phase: "entering" | "active";
 }) {
   const [current, setCurrent] = useState(startIndex);
   const [progress, setProgress] = useState(0);
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
   const [contentKey, setContentKey] = useState(0);
+  const [showCompletion, setShowCompletion] = useState(false);
   const timerRef = useRef<number | null>(null);
+
+  // View timing tracking
+  const timingsRef = useRef<StoryViewTiming[]>([]);
+  const cardEnteredRef = useRef<number>(Date.now());
+  const briefingStartRef = useRef<number>(Date.now());
+
+  // Record timing when leaving a card
+  const recordTiming = useCallback((storyIdx: number) => {
+    const now = Date.now();
+    const duration = (now - cardEnteredRef.current) / 1000;
+    timingsRef.current.push({
+      storyIndex: storyIdx,
+      enteredAt: cardEnteredRef.current,
+      exitedAt: now,
+      durationSeconds: Math.round(duration),
+      counted: duration >= MIN_VIEW_SECONDS,
+    });
+  }, []);
+
+  // Build completion data
+  const buildCompletionData = useCallback((): BriefingCompletionData => {
+    const timings = timingsRef.current;
+    const viewedCount = timings.filter((t) => t.counted).length;
+    const totalDuration = Math.round((Date.now() - briefingStartRef.current) / 1000);
+    return {
+      storiesViewed: viewedCount,
+      totalStories: stories.length,
+      totalDurationSeconds: totalDuration,
+      storyTimings: timings,
+    };
+  }, [stories.length]);
 
   const story = stories[current];
   const sev =
-    SEVERITY[story.severity] ||
-    SEVERITY[SECTOR_SEVERITY_MAP[story.sector]] ||
+    SEVERITY[story?.severity] ||
+    SEVERITY[SECTOR_SEVERITY_MAP[story?.sector]] ||
     SEVERITY.watch;
 
   const navigate = useCallback(
@@ -36,8 +86,15 @@ export function StoriesOverlay({
       if (timerRef.current) cancelAnimationFrame(timerRef.current);
       const next = current + dir;
       if (next < 0) return;
+
+      // Record timing for the current card
+      recordTiming(current);
+
       if (next >= stories.length) {
-        onClose();
+        // Show completion card instead of closing
+        setShowCompletion(true);
+        const data = buildCompletionData();
+        onComplete?.(data);
         return;
       }
       setSlideDir(dir > 0 ? "left" : "right");
@@ -45,9 +102,10 @@ export function StoriesOverlay({
         setCurrent(next);
         setContentKey((k) => k + 1);
         setSlideDir(null);
+        cardEnteredRef.current = Date.now();
       }, 150);
     },
-    [current, stories.length, onClose]
+    [current, stories.length, onClose, recordTiming, buildCompletionData, onComplete]
   );
 
   const startTimer = useCallback(() => {
@@ -310,30 +368,114 @@ export function StoriesOverlay({
       </div>
 
       {/* Tap zones */}
-      <div
-        onClick={() => navigate(-1)}
+      {!showCompletion && (
+        <>
+          <div
+            onClick={() => navigate(-1)}
+            style={{
+              position: "absolute",
+              top: 50,
+              left: 0,
+              bottom: 0,
+              width: "28%",
+              cursor: "pointer",
+              zIndex: 10,
+            }}
+          />
+          <div
+            onClick={() => navigate(1)}
+            style={{
+              position: "absolute",
+              top: 50,
+              right: 0,
+              bottom: 0,
+              width: "72%",
+              cursor: "pointer",
+              zIndex: 10,
+            }}
+          />
+        </>
+      )}
+
+      {/* Completion card */}
+      {showCompletion && <CompletionCard data={buildCompletionData()} onClose={onClose} />}
+    </div>
+  );
+}
+
+// ─── Completion Card ──────────────────────────────────────────────────────────
+
+function CompletionCard({
+  data,
+  onClose,
+}: {
+  data: BriefingCompletionData;
+  onClose: () => void;
+}) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).toUpperCase();
+
+  const minutes = Math.floor(data.totalDurationSeconds / 60);
+  const seconds = data.totalDurationSeconds % 60;
+  const timeStr = minutes > 0
+    ? `${minutes}m ${seconds}s reading time`
+    : `${seconds}s reading time`;
+
+  // Auto-dismiss after 4 seconds
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 30,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        background: COLORS.bg,
+        cursor: "pointer",
+        animation: "contentEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+      }}
+    >
+      {/* Checkmark */}
+      <span
         style={{
-          position: "absolute",
-          top: 50,
-          left: 0,
-          bottom: 0,
-          width: "28%",
-          cursor: "pointer",
-          zIndex: 10,
+          fontSize: 28,
+          color: COLORS.forest,
+          marginBottom: 20,
+          fontWeight: 300,
         }}
-      />
+      >
+        {"\u2713"}
+      </span>
+
+      {/* BRIEFED label */}
+      <Micro color={COLORS.ink} mb={12}>
+        Briefed {"\u2014"} {dateStr}
+      </Micro>
+
+      {/* Stats */}
       <div
-        onClick={() => navigate(1)}
         style={{
-          position: "absolute",
-          top: 50,
-          right: 0,
-          bottom: 0,
-          width: "72%",
-          cursor: "pointer",
-          zIndex: 10,
+          fontSize: 13,
+          color: COLORS.inkMuted,
+          textAlign: "center",
+          lineHeight: 1.8,
+          fontVariantNumeric: "tabular-nums",
         }}
-      />
+      >
+        <div>{data.storiesViewed} stories {"\u00B7"} {timeStr}</div>
+      </div>
     </div>
   );
 }

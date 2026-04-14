@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Crimson_Pro, Source_Sans_3, JetBrains_Mono } from "next/font/google";
-import { Providers } from "@/components/providers";
+import { Providers, AnalyticsBridge } from "@/components/providers";
 import { AuthProvider } from "@/lib/auth-context";
 import { DevLoggerProvider } from "@/lib/dev-logger";
 import "./globals.css";
@@ -43,7 +43,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <Providers>
           <AuthProvider>
-            <DevLoggerProvider>{children}</DevLoggerProvider>
+            <AnalyticsBridge>
+              <DevLoggerProvider>{children}</DevLoggerProvider>
+            </AnalyticsBridge>
           </AuthProvider>
         </Providers>
       </body>

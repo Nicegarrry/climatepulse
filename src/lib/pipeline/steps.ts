@@ -134,7 +134,7 @@ export async function step3Enrich(): Promise<StepResult> {
   return runStep("enrichment", async () => {
     const { runEnrichmentBatch } = await import("@/lib/enrichment/pipeline");
 
-    const TIME_BUDGET_MS = 8 * 60 * 1000; // 8 minutes
+    const TIME_BUDGET_MS = 20 * 60 * 1000; // 20 minutes
     const deadline = Date.now() + TIME_BUDGET_MS;
 
     let total_processed = 0;

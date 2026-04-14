@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useAnalytics } from "@/lib/analytics/provider";
 import { COLORS, FONTS, SEVERITY } from "@/lib/design-tokens";
 import type { DailyBriefing, DigestHeroStory, DigestCompactStory, ScoredStory } from "@/lib/types";
 import type { EnergyDashboardData } from "@/lib/energy/openelectricity";
@@ -9,7 +10,7 @@ import { WobblyRule, Micro, SourceTag } from "./primitives";
 import { LeadStories } from "./lead-stories";
 import { AlsoToday } from "./also-today";
 import { GlowingBriefingCard } from "./glowing-card";
-import { StoriesOverlay } from "./stories-overlay";
+import { StoriesOverlay, type BriefingCompletionData } from "./stories-overlay";
 import { EnergySidebar } from "./energy-sidebar";
 import type { EditorialStory, DailyNumber as DailyNumberType } from "@/lib/mock-editorial";
 import {
@@ -176,7 +177,7 @@ function DailyNumberSidebar({ data }: { data: DailyNumberType }) {
   );
 }
 
-function DailyNumberMobile({ data }: { data: DailyNumberType }) {
+function DailyNumberMobile({ data, briefedToday, streakCount }: { data: DailyNumberType; briefedToday?: boolean; streakCount?: number }) {
   return (
     <div style={{ padding: "20px 20px 16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
@@ -199,14 +200,28 @@ function DailyNumberMobile({ data }: { data: DailyNumberType }) {
           </div>
           <div style={{ fontSize: 11, color: COLORS.inkSec, marginTop: 3 }}>{data.unit}</div>
         </div>
-        {data.change && (
-          <div style={{ textAlign: "right", paddingBottom: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: COLORS.forest, fontVariantNumeric: "tabular-nums" }}>
-              {data.change}
-            </span>
-            <div style={{ fontSize: 9, color: COLORS.inkMuted, marginTop: 1 }}>{data.changeLabel}</div>
-          </div>
-        )}
+        <div style={{ textAlign: "right", paddingBottom: 4 }}>
+          {briefedToday && (
+            <div style={{ marginBottom: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" as const, color: COLORS.forest }}>
+                Briefed {"\u2713"}
+              </span>
+              {streakCount != null && streakCount >= 3 && (
+                <div style={{ fontSize: 11, color: COLORS.inkMuted, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+                  Day {streakCount}
+                </div>
+              )}
+            </div>
+          )}
+          {data.change && (
+            <>
+              <span style={{ fontSize: 14, fontWeight: 600, color: COLORS.forest, fontVariantNumeric: "tabular-nums" }}>
+                {data.change}
+              </span>
+              <div style={{ fontSize: 9, color: COLORS.inkMuted, marginTop: 1 }}>{data.changeLabel}</div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -594,6 +609,9 @@ function MobileIntelligence({
   dailyNumber,
   todaysRead,
   energyData,
+  onBriefingComplete,
+  briefedToday,
+  streakCount,
 }: {
   leads: EditorialStory[];
   also: EditorialStory[];
@@ -601,7 +619,11 @@ function MobileIntelligence({
   dailyNumber: DailyNumberType;
   todaysRead: string;
   energyData: EnergyDashboardData | null;
+  onBriefingComplete?: (data: BriefingCompletionData) => void;
+  briefedToday?: boolean;
+  streakCount?: number;
 }) {
+  const { track } = useAnalytics();
   const [storiesOpen, setStoriesOpen] = useState(false);
   const [storiesStart, setStoriesStart] = useState(0);
   const [storiesPhase, setStoriesPhase] = useState<"entering" | "active">("entering");
@@ -611,14 +633,19 @@ function MobileIntelligence({
     setStoriesPhase("entering");
     setStoriesOpen(true);
     setTimeout(() => setStoriesPhase("active"), 450);
+    track("briefing.started", {
+      edition_date: new Date().toISOString().slice(0, 10),
+      stories_count: briefing.length,
+      entry_point: "card",
+    });
   };
 
   return (
     <>
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
-        <DailyNumberMobile data={dailyNumber} />
+        <DailyNumberMobile data={dailyNumber} briefedToday={briefedToday} streakCount={streakCount} />
         <div style={{ padding: "0 20px" }}><WobblyRule /></div>
-        <GlowingBriefingCard onStart={() => openBriefing(0)} todaysRead={todaysRead} storyCount={briefing.length} />
+        <GlowingBriefingCard onStart={() => openBriefing(0)} todaysRead={todaysRead} storyCount={briefing.length} briefedToday={briefedToday} streakCount={streakCount} />
         <div style={{ padding: "0 20px" }}><WobblyRule color={COLORS.borderLight} /></div>
         <MobileStoryList stories={briefing} />
         <MobileMarketContext data={energyData} />
@@ -634,6 +661,7 @@ function MobileIntelligence({
           stories={briefing}
           startIndex={storiesStart}
           onClose={() => setStoriesOpen(false)}
+          onComplete={onBriefingComplete}
           phase={storiesPhase}
         />
       )}
