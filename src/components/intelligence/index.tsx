@@ -12,6 +12,9 @@ import { AlsoToday } from "./also-today";
 import { GlowingBriefingCard } from "./glowing-card";
 import { StoriesOverlay, type BriefingCompletionData } from "./stories-overlay";
 import { EnergySidebar } from "./energy-sidebar";
+import { SectorCoverage } from "@/components/sector-coverage";
+import { WeeklyPulseCard } from "@/components/weekly-pulse-card";
+import type { SectorCoverageData, WeeklyPulse } from "@/lib/types";
 import type { EditorialStory, DailyNumber as DailyNumberType } from "@/lib/mock-editorial";
 import {
   LEADS as MOCK_LEADS,
@@ -126,7 +129,7 @@ function compactToEditorial(compact: DigestCompactStory, idx: number, offset: nu
 
 // ─── Daily Number in sidebar ────────────────────────────────────────────────
 
-function DailyNumberSidebar({ data }: { data: DailyNumberType }) {
+function DailyNumberSidebar({ data, briefedToday, streakCount }: { data: DailyNumberType; briefedToday?: boolean; streakCount?: number }) {
   return (
     <div
       style={{
@@ -138,7 +141,21 @@ function DailyNumberSidebar({ data }: { data: DailyNumberType }) {
         marginBottom: 14,
       }}
     >
-      <Micro color={COLORS.plum}>Daily Number</Micro>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <Micro color={COLORS.plum}>Daily Number</Micro>
+        {briefedToday && (
+          <div style={{ textAlign: "right" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" as const, color: COLORS.forest }}>
+              Briefed {"\u2713"}
+            </span>
+            {streakCount != null && streakCount >= 3 && (
+              <div style={{ fontSize: 11, color: COLORS.inkMuted, marginTop: 1, fontVariantNumeric: "tabular-nums" }}>
+                Day {streakCount}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 8 }}>
         <span
           style={{
@@ -401,7 +418,6 @@ function MobileStoryList({
             style={{
               padding: "12px 20px",
               borderBottom: `1px solid ${COLORS.borderLight}`,
-              borderLeft: `2px solid ${sev.borderColor}`,
               cursor: "pointer",
               background: isOpen ? COLORS.paperDark : "transparent",
               transition: "background 150ms ease",
@@ -434,9 +450,16 @@ function MobileStoryList({
               )}
               {story.sources.length > 1 && ` +${story.sources.length - 1}`}
             </div>
-            {/* Expanded content */}
-            {isOpen && (
-              <div style={{ marginTop: 10 }}>
+            {/* Expanded content — animated */}
+            <div
+              style={{
+                maxHeight: isOpen ? 400 : 0,
+                opacity: isOpen ? 1 : 0,
+                overflow: "hidden",
+                transition: "max-height 200ms ease, opacity 150ms ease",
+              }}
+            >
+              <div style={{ paddingTop: 10 }}>
                 {story.summary && (
                   <p style={{ fontSize: 13, fontFamily: FONTS.serif, color: COLORS.inkSec, lineHeight: 1.6, margin: "0 0 8px" }}>
                     {story.summary}
@@ -456,7 +479,7 @@ function MobileStoryList({
                   </a>
                 )}
               </div>
-            )}
+            </div>
           </div>
         );
       })}
@@ -512,12 +535,20 @@ function DesktopIntelligence({
   todaysRead,
   dailyNumber,
   energyData,
+  briefedToday,
+  streakCount,
+  sectorCoverage,
+  weeklyPulse,
 }: {
   leads: EditorialStory[];
   also: EditorialStory[];
   todaysRead: string;
   dailyNumber: DailyNumberType;
   energyData: EnergyDashboardData | null;
+  briefedToday?: boolean;
+  streakCount?: number;
+  sectorCoverage?: SectorCoverageData | null;
+  weeklyPulse?: WeeklyPulse | null;
 }) {
   const totalStories = leads.length + also.length;
   const now = new Date();
@@ -593,7 +624,9 @@ function DesktopIntelligence({
         }}
         className="paper-grain hidden lg:block"
       >
-        <DailyNumberSidebar data={dailyNumber} />
+        <DailyNumberSidebar data={dailyNumber} briefedToday={briefedToday} streakCount={streakCount} />
+        {weeklyPulse && <div style={{ marginBottom: 14 }}><WeeklyPulseCard pulse={weeklyPulse} /></div>}
+        {sectorCoverage && sectorCoverage.sectors.length > 0 && <div style={{ marginBottom: 14 }}><SectorCoverage data={sectorCoverage} /></div>}
         <EnergySidebar data={energyData} />
       </aside>
     </div>
@@ -675,10 +708,15 @@ export { EnergySidebar };
 
 export default function IntelligenceTab() {
   const { user } = useAuth();
+  const { track } = useAnalytics();
   const [briefing, setBriefing] = useState<DailyBriefing | null>(null);
   const [energyData, setEnergyData] = useState<EnergyDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [briefedToday, setBriefedToday] = useState(false);
+  const [streakCount, setStreakCount] = useState(0);
+  const [sectorCoverage, setSectorCoverage] = useState<SectorCoverageData | null>(null);
+  const [weeklyPulse, setWeeklyPulse] = useState<WeeklyPulse | null>(null);
 
   const userId = user?.id || "test-user-1";
 
@@ -686,9 +724,12 @@ export default function IntelligenceTab() {
     setLoading(true);
     setError(null);
     try {
-      const [digestRes, energyRes] = await Promise.allSettled([
+      const [digestRes, energyRes, streakRes, coverageRes, pulseRes] = await Promise.allSettled([
         fetch(`/api/digest/generate?userId=${userId}`),
         fetch("/api/energy/dashboard"),
+        fetch(`/api/analytics/streak?userId=${userId}`),
+        fetch(`/api/analytics/sector-coverage?userId=${userId}`),
+        fetch(`/api/analytics/weekly-pulse?userId=${userId}`),
       ]);
 
       if (digestRes.status === "fulfilled" && digestRes.value.ok) {
@@ -700,6 +741,21 @@ export default function IntelligenceTab() {
       if (energyRes.status === "fulfilled" && energyRes.value.ok) {
         setEnergyData(await energyRes.value.json());
       }
+
+      if (streakRes.status === "fulfilled" && streakRes.value.ok) {
+        const streakData = await streakRes.value.json();
+        setBriefedToday(streakData.briefed_today || false);
+        setStreakCount(streakData.current_streak || 0);
+      }
+
+      if (coverageRes.status === "fulfilled" && coverageRes.value.ok) {
+        setSectorCoverage(await coverageRes.value.json());
+      }
+
+      if (pulseRes.status === "fulfilled" && pulseRes.value.ok) {
+        const pulseData = await pulseRes.value.json();
+        setWeeklyPulse(pulseData.pulse || null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -710,6 +766,48 @@ export default function IntelligenceTab() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Handle briefing completion — post to streak API and update local state
+  const handleBriefingComplete = useCallback(async (data: BriefingCompletionData) => {
+    const editionDate = new Date().toISOString().slice(0, 10);
+
+    track("briefing.completed", {
+      edition_date: editionDate,
+      stories_viewed: data.storiesViewed,
+      total_duration_seconds: data.totalDurationSeconds,
+    });
+
+    for (const timing of data.storyTimings) {
+      if (timing.counted) {
+        track("story.viewed", {
+          story_id: String(timing.storyIndex),
+          position: timing.storyIndex,
+          duration_seconds: timing.durationSeconds,
+        });
+      }
+    }
+
+    try {
+      const res = await fetch("/api/analytics/briefing-complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          editionDate,
+          storiesViewed: data.storiesViewed,
+          totalStories: data.totalStories,
+          totalViewTimeSeconds: data.totalDurationSeconds,
+        }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setBriefedToday(true);
+        setStreakCount(result.streak || 0);
+      }
+    } catch {
+      // Best-effort
+    }
+  }, [userId, track]);
 
   // Transform API data to editorial shapes, or fall back to mocks
   const scoredStories: ScoredStory[] = briefing?.stories || [];
@@ -760,6 +858,10 @@ export default function IntelligenceTab() {
           todaysRead={todaysRead}
           dailyNumber={dailyNumber}
           energyData={energyData}
+          briefedToday={briefedToday}
+          streakCount={streakCount}
+          sectorCoverage={sectorCoverage}
+          weeklyPulse={weeklyPulse}
         />
       </div>
       {/* Mobile */}
@@ -771,6 +873,9 @@ export default function IntelligenceTab() {
           dailyNumber={dailyNumber}
           todaysRead={todaysRead}
           energyData={energyData}
+          onBriefingComplete={handleBriefingComplete}
+          briefedToday={briefedToday}
+          streakCount={streakCount}
         />
       </div>
     </>

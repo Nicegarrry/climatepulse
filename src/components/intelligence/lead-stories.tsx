@@ -10,7 +10,6 @@ export function LeadStories({
 }: {
   stories: EditorialStory[];
 }) {
-  // First story starts expanded
   const [expanded, setExpanded] = useState<number | null>(stories[0]?.id ?? null);
 
   return (
@@ -23,17 +22,27 @@ export function LeadStories({
         return (
           <div
             key={story.id}
+            onClick={() => setExpanded(isOpen ? null : story.id)}
             style={{
-              background: isOpen ? COLORS.paperDark : COLORS.surface,
-              border: `1px solid ${isOpen ? COLORS.border : COLORS.borderLight}`,
-              borderLeft: isLead
-                ? `3px solid ${COLORS.ink}`
-                : `2px solid ${sev.borderColor}`,
-              borderRadius: isLead ? "0 8px 8px 0" : 8,
-              padding: isLead ? "18px 20px 18px 18px" : "14px 20px 14px 16px",
-              marginBottom: 8,
-              marginLeft: isLead ? -4 : 0,
-              transition: "background 150ms ease, border-color 150ms ease",
+              // Hero: tinted bg + top accent. Regular: hairline border
+              background: isLead
+                ? COLORS.paperDark
+                : isOpen
+                  ? COLORS.surface
+                  : COLORS.surface,
+              border: isLead
+                ? "none"
+                : `1px solid ${isOpen ? COLORS.border : COLORS.borderLight}`,
+              borderTop: isLead ? `2px solid ${COLORS.forest}` : undefined,
+              borderRadius: 8,
+              padding: isLead ? "18px 20px" : "14px 20px 14px 16px",
+              marginBottom: 10,
+              cursor: "pointer",
+              // Elevated shadow when expanded (non-lead)
+              boxShadow: !isLead && isOpen
+                ? "0 2px 8px rgba(0,0,0,0.04)"
+                : "none",
+              transition: "background 150ms ease, border-color 150ms ease, box-shadow 150ms ease",
             }}
           >
             {/* Header row */}
@@ -46,67 +55,62 @@ export function LeadStories({
                 marginBottom: 6,
               }}
             >
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {/* Green dot for lead, coloured label for all */}
                 {isLead && (
                   <span
                     style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      letterSpacing: 1.2,
-                      textTransform: "uppercase",
-                      color: COLORS.plum,
+                      width: 6,
+                      height: 6,
+                      borderRadius: 6,
+                      background: COLORS.forest,
+                      display: "inline-block",
+                      flexShrink: 0,
                     }}
-                  >
-                    Lead
+                  />
+                )}
+                <Micro color={isLead ? COLORS.forest : sev.labelColor}>{story.sector}</Micro>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                {story.number && (
+                  <span style={{ fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: COLORS.ink }}>
+                      {story.number}
+                    </span>
+                    <span style={{ fontSize: 10, color: COLORS.inkMuted, marginLeft: 3 }}>
+                      {story.unit}
+                    </span>
                   </span>
                 )}
-                <Micro color={sev.labelColor}>{story.sector}</Micro>
-              </div>
-              {story.number && (
-                <span style={{ fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: COLORS.ink }}>
-                    {story.number}
-                  </span>
-                  <span style={{ fontSize: 10, color: COLORS.inkMuted, marginLeft: 3 }}>
-                    {story.unit}
-                  </span>
+                {/* Expand arrow */}
+                <span
+                  style={{
+                    fontSize: 18,
+                    color: COLORS.inkFaint,
+                    transition: "transform 150ms ease, color 150ms ease",
+                    transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    flexShrink: 0,
+                    lineHeight: 1,
+                  }}
+                >
+                  {"\u203A"}
                 </span>
-              )}
+              </div>
             </div>
 
-            {/* Headline + expand toggle row */}
-            <div
-              onClick={() => setExpanded(isOpen ? null : story.id)}
-              style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}
+            {/* Headline */}
+            <h3
+              style={{
+                fontFamily: FONTS.serif,
+                fontSize: isLead ? 20 : 15,
+                fontWeight: 400,
+                color: COLORS.ink,
+                lineHeight: 1.3,
+                margin: 0,
+              }}
             >
-              <h3
-                style={{
-                  fontFamily: FONTS.serif,
-                  fontSize: isLead ? 20 : 15,
-                  fontWeight: 400,
-                  color: COLORS.ink,
-                  lineHeight: 1.3,
-                  margin: 0,
-                  flex: 1,
-                }}
-              >
-                {story.headline}
-              </h3>
-              {/* Expand arrow — visible on right */}
-              <span
-                style={{
-                  fontSize: 18,
-                  color: COLORS.inkFaint,
-                  transition: "transform 150ms ease, color 150ms ease",
-                  transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
-                  flexShrink: 0,
-                  marginTop: 2,
-                  lineHeight: 1,
-                }}
-              >
-                {"\u203A"}
-              </span>
-            </div>
+              {story.headline}
+            </h3>
 
             {/* Source line (always visible) */}
             <div style={{ marginTop: 4, fontSize: 10, color: COLORS.inkFaint }}>
@@ -126,9 +130,16 @@ export function LeadStories({
               {story.sources.length > 1 && ` +${story.sources.length - 1}`}
             </div>
 
-            {/* Expanded content */}
-            {isOpen && (
-              <div style={{ marginTop: 12 }}>
+            {/* Expanded content — animated */}
+            <div
+              style={{
+                maxHeight: isOpen ? 600 : 0,
+                opacity: isOpen ? 1 : 0,
+                overflow: "hidden",
+                transition: "max-height 200ms ease, opacity 150ms ease",
+              }}
+            >
+              <div style={{ paddingTop: 12 }}>
                 {story.summary && (
                   <p
                     style={{
@@ -190,6 +201,7 @@ export function LeadStories({
                     href={story.url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                       display: "inline-block",
                       fontSize: 11,
@@ -204,7 +216,7 @@ export function LeadStories({
                   </a>
                 )}
               </div>
-            )}
+            </div>
           </div>
         );
       })}
