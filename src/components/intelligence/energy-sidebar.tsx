@@ -261,16 +261,32 @@ function StatePricesChart({ priceSummaries }: { priceSummaries: PriceSummary[] }
             >
               ${Math.round(latest)}
             </span>
+            {/* Min/max range */}
+            <span
+              style={{
+                fontSize: 8,
+                color: COLORS.inkFaint,
+                width: 48,
+                textAlign: "right",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {p.min_24h != null && p.max_24h != null
+                ? `${Math.round(p.min_24h)}\u2013${Math.round(p.max_24h)}`
+                : ""}
+            </span>
           </div>
         );
       })}
-      {/* Avg line */}
-      <div style={{ fontSize: 9, color: COLORS.inkFaint, marginTop: 4 }}>
-        24h avg: $
-        {Math.round(
-          priceSummaries.reduce((sum, p) => sum + (p.avg_24h ?? 0), 0) / priceSummaries.length
-        )}
-        /MWh
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
+        <span style={{ fontSize: 8, color: COLORS.inkFaint }}>
+          Now {"\u00B7"} 24h range
+        </span>
+        <span style={{ fontSize: 8, color: COLORS.inkFaint }}>
+          Avg ${Math.round(
+            priceSummaries.reduce((sum, p) => sum + (p.avg_24h ?? 0), 0) / priceSummaries.length
+          )}/MWh
+        </span>
       </div>
     </div>
   );
@@ -366,7 +382,7 @@ function GenerationMix({
 export function EnergySidebar({ data }: { data: EnergyDashboardData | null }) {
   if (!data) {
     return (
-      <div style={{ padding: "26px 14px" }}>
+      <div>
         <Micro color={COLORS.forest}>Energy Snapshot</Micro>
         <p style={{ fontSize: 11, color: COLORS.inkMuted, marginTop: 10 }}>Loading energy data...</p>
       </div>
@@ -374,7 +390,7 @@ export function EnergySidebar({ data }: { data: EnergyDashboardData | null }) {
   }
 
   return (
-    <div style={{ padding: "26px 14px" }}>
+    <div>
       <Micro color={COLORS.forest}>Energy Snapshot</Micro>
 
       {/* Intraday generation + price */}

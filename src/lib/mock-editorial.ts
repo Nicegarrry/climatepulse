@@ -17,6 +17,10 @@ export interface EditorialStory {
   unit?: string;
   trend?: string;
   isLead?: boolean;
+  url?: string;
+  signalType?: string;
+  connectedStoryline?: { title: string; context: string } | null;
+  entitiesMentioned?: string[];
 }
 
 export interface DailyNumber {

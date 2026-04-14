@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { COLORS, FONTS, SEVERITY } from "@/lib/design-tokens";
-import type { DailyBriefing, DigestHeroStory, DigestCompactStory } from "@/lib/types";
+import type { DailyBriefing, DigestHeroStory, DigestCompactStory, ScoredStory } from "@/lib/types";
 import type { EnergyDashboardData } from "@/lib/energy/openelectricity";
 import { WobblyRule, Micro, SourceTag } from "./primitives";
 import { LeadStories } from "./lead-stories";
@@ -18,16 +18,77 @@ import {
   BRIEFING as MOCK_BRIEFING,
   DAILY_NUMBER as MOCK_DAILY_NUMBER,
   TODAYS_READ as MOCK_TODAYS_READ,
-  MARKET_CONTEXT,
 } from "@/lib/mock-editorial";
+
+// ─── Domain label resolution (from old intelligence-tab) ────────────────────
+
+const DOMAIN_LABELS: Record<string, string> = {
+  "carbon-emissions": "CARBON & EMISSIONS",
+  "energy-storage": "ENERGY STORAGE",
+  "energy-generation": "ENERGY GENERATION",
+  "energy-grid": "GRID & TRANSMISSION",
+  "transport": "TRANSPORT",
+  "industry": "INDUSTRY",
+  "agriculture": "AGRICULTURE",
+  "built-environment": "BUILT ENVIRONMENT",
+  "critical-minerals": "CRITICAL MINERALS",
+  "finance": "CLIMATE FINANCE",
+  "policy": "POLICY & REGULATION",
+  "workforce-adaptation": "WORKFORCE",
+};
+
+function resolveSector(
+  hero: DigestHeroStory | DigestCompactStory,
+  scoredStories: ScoredStory[]
+): string {
+  // Try to match to a ScoredStory by headline to get the domain
+  const matched = scoredStories.find((s) => s.title === hero.headline);
+  if (matched?.primary_domain) {
+    return DOMAIN_LABELS[matched.primary_domain] || matched.primary_domain.toUpperCase().replace(/-/g, " ");
+  }
+  // Fallback: use micro_sectors if available (hero stories only)
+  if ("micro_sectors" in hero && hero.micro_sectors?.length > 0) {
+    const ms = hero.micro_sectors[0];
+    // Try to find a matching domain from the microsector slug
+    for (const [domain, label] of Object.entries(DOMAIN_LABELS)) {
+      if (ms.includes(domain.split("-")[0])) return label;
+    }
+    return ms.toUpperCase().replace(/-/g, " ");
+  }
+  // Fallback: use signal type or matched story data
+  if (matched?.signal_type) {
+    const SIGNAL_LABELS: Record<string, string> = {
+      market_move: "MARKET",
+      policy_change: "POLICY",
+      project_milestone: "PROJECT",
+      corporate_action: "CORPORATE",
+      technology_advance: "TECHNOLOGY",
+      international: "INTERNATIONAL",
+      enforcement: "ENFORCEMENT",
+      personnel: "PERSONNEL",
+      community_social: "COMMUNITY",
+    };
+    return SIGNAL_LABELS[matched.signal_type] || "GENERAL";
+  }
+  return "GENERAL";
+}
+
+function resolveSeverity(idx: number, scoredStory?: ScoredStory): "alert" | "watch" | "ready" | "clear" {
+  if (idx === 0) return "alert";
+  if (scoredStory && scoredStory.inherent_score > 70) return "alert";
+  if (scoredStory && scoredStory.inherent_score > 40) return "watch";
+  if (idx < 3) return "watch";
+  return "ready";
+}
 
 // ─── Transform API data to editorial shapes ─────────────────────────────────
 
-function heroToEditorial(hero: DigestHeroStory, idx: number): EditorialStory {
+function heroToEditorial(hero: DigestHeroStory, idx: number, scoredStories: ScoredStory[]): EditorialStory {
+  const matched = scoredStories.find((s) => s.title === hero.headline);
   return {
     id: idx + 1,
-    sector: hero.micro_sectors?.[0]?.toUpperCase().replace(/-/g, " ") || "GENERAL",
-    severity: idx === 0 ? "alert" : "watch",
+    sector: resolveSector(hero, scoredStories),
+    severity: resolveSeverity(idx, matched),
     headline: hero.headline,
     summary: hero.expert_take,
     body: hero.expert_take,
@@ -38,14 +99,18 @@ function heroToEditorial(hero: DigestHeroStory, idx: number): EditorialStory {
     unit: hero.key_metric?.unit,
     trend: hero.key_metric?.delta || undefined,
     isLead: idx === 0,
+    url: hero.url,
+    connectedStoryline: hero.connected_storyline,
+    entitiesMentioned: hero.entities_mentioned,
   };
 }
 
-function compactToEditorial(compact: DigestCompactStory, idx: number, offset: number): EditorialStory {
+function compactToEditorial(compact: DigestCompactStory, idx: number, offset: number, scoredStories: ScoredStory[]): EditorialStory {
+  const matched = scoredStories.find((s) => s.title === compact.headline);
   return {
     id: offset + idx + 1,
-    sector: "GENERAL",
-    severity: "ready",
+    sector: resolveSector(compact, scoredStories),
+    severity: resolveSeverity(offset + idx, matched),
     headline: compact.headline,
     summary: compact.one_line_take,
     body: compact.one_line_take,
@@ -54,24 +119,22 @@ function compactToEditorial(compact: DigestCompactStory, idx: number, offset: nu
     sourceTypes: [],
     number: compact.key_metric?.value,
     unit: compact.key_metric?.unit,
+    url: compact.url,
   };
 }
 
-// ─── Daily Number component ─────────────────────────────────────────────────
+// ─── Daily Number in sidebar ────────────────────────────────────────────────
 
-function DailyNumberDisplay({ data }: { data: DailyNumberType }) {
+function DailyNumberSidebar({ data }: { data: DailyNumberType }) {
   return (
     <div
       style={{
-        borderTop: `2px solid ${COLORS.plum}`,
         background: COLORS.surface,
         border: `1px solid ${COLORS.border}`,
-        borderTopWidth: 2,
-        borderTopColor: COLORS.plum,
+        borderTop: `2px solid ${COLORS.plum}`,
         borderRadius: 8,
-        padding: "18px 22px",
-        flex: "0 0 215px",
-        marginTop: -4,
+        padding: "16px 18px",
+        marginBottom: 14,
       }}
     >
       <Micro color={COLORS.plum}>Daily Number</Micro>
@@ -79,40 +142,36 @@ function DailyNumberDisplay({ data }: { data: DailyNumberType }) {
         <span
           style={{
             fontFamily: FONTS.serif,
-            fontSize: 46,
+            fontSize: 36,
             fontWeight: 300,
             color: COLORS.plum,
-            letterSpacing: -1.5,
+            letterSpacing: -1,
             lineHeight: 1,
             fontVariantNumeric: "tabular-nums",
           }}
         >
           {data.value}
         </span>
-        <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.plumMid }}>{data.unit}</span>
       </div>
-      <div style={{ fontSize: 12, color: COLORS.inkSec, marginTop: 5 }}>{data.label}</div>
-      <div
-        style={{
-          marginTop: 10,
-          paddingTop: 8,
-          borderTop: `1px solid ${COLORS.borderLight}`,
-          display: "flex",
-          alignItems: "baseline",
-          gap: 6,
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.forest, fontVariantNumeric: "tabular-nums" }}>
-          {data.change}
-        </span>
-        <span style={{ fontSize: 10, color: COLORS.inkMuted }}>{data.changeLabel}</span>
-      </div>
-      {data.context && (
-        <p style={{ fontSize: 10, color: COLORS.inkMuted, lineHeight: 1.5, margin: "5px 0 0" }}>{data.context}</p>
+      <div style={{ fontSize: 11, color: COLORS.inkSec, marginTop: 4 }}>{data.unit}</div>
+      <div style={{ fontSize: 11, color: COLORS.inkMuted, marginTop: 2, lineHeight: 1.5 }}>{data.label}</div>
+      {data.change && (
+        <div
+          style={{
+            marginTop: 8,
+            paddingTop: 6,
+            borderTop: `1px solid ${COLORS.borderLight}`,
+            display: "flex",
+            alignItems: "baseline",
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.forest, fontVariantNumeric: "tabular-nums" }}>
+            {data.change}
+          </span>
+          <span style={{ fontSize: 9, color: COLORS.inkMuted }}>{data.changeLabel}</span>
+        </div>
       )}
-      <div style={{ marginTop: 8 }}>
-        <SourceTag name={data.source} type="data" />
-      </div>
     </div>
   );
 }
@@ -127,50 +186,73 @@ function DailyNumberMobile({ data }: { data: DailyNumberType }) {
             <span
               style={{
                 fontFamily: FONTS.serif,
-                fontSize: 42,
+                fontSize: 36,
                 fontWeight: 300,
                 color: COLORS.plum,
-                letterSpacing: -1.5,
+                letterSpacing: -1,
                 lineHeight: 1,
                 fontVariantNumeric: "tabular-nums",
               }}
             >
               {data.value}
             </span>
-            <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.plumMid }}>{data.unit}</span>
           </div>
-          <div style={{ fontSize: 12, color: COLORS.inkSec, marginTop: 4 }}>{data.label}</div>
+          <div style={{ fontSize: 11, color: COLORS.inkSec, marginTop: 3 }}>{data.unit}</div>
         </div>
-        <div style={{ textAlign: "right", paddingBottom: 4 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: COLORS.forest, fontVariantNumeric: "tabular-nums" }}>
-            {data.change}
-          </span>
-          <div style={{ fontSize: 9, color: COLORS.inkMuted, marginTop: 1 }}>{data.changeLabel}</div>
-        </div>
+        {data.change && (
+          <div style={{ textAlign: "right", paddingBottom: 4 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: COLORS.forest, fontVariantNumeric: "tabular-nums" }}>
+              {data.change}
+            </span>
+            <div style={{ fontSize: 9, color: COLORS.inkMuted, marginTop: 1 }}>{data.changeLabel}</div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Today's Read (sans-serif, no italic) ───────────────────────────────────
+// ─── Today's Read (formatted with bullet points) ────────────────────────────
 
 function TodaysReadBlock({ text }: { text: string }) {
+  // Split narrative into sentences and present as scannable bullet points
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  // Take first 4 sentences as key points
+  const points = sentences.slice(0, 4).map((s) => s.trim());
+
   return (
-    <div style={{ flex: 1, paddingTop: 4 }}>
-      <Micro color={COLORS.forest} mb={8}>
+    <div style={{ marginBottom: 26 }}>
+      <Micro color={COLORS.forest} mb={10}>
         Today{"\u2019"}s Read
       </Micro>
-      <p
-        style={{
-          fontFamily: FONTS.sans,
-          fontSize: 14,
-          color: COLORS.inkSec,
-          lineHeight: 1.65,
-          margin: 0,
-        }}
-      >
-        {text}
-      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {points.map((point, i) => (
+          <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: 5,
+                background: i === 0 ? COLORS.forest : COLORS.sage,
+                marginTop: 6,
+                flexShrink: 0,
+              }}
+            />
+            <p
+              style={{
+                fontFamily: FONTS.sans,
+                fontSize: 13,
+                color: COLORS.inkSec,
+                lineHeight: 1.6,
+                margin: 0,
+                fontWeight: i === 0 ? 600 : 400,
+              }}
+            >
+              {point}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -186,30 +268,6 @@ function MobileMarketContext({ data }: { data: EnergyDashboardData | null }) {
         <Micro color={COLORS.forest}>Market Context</Micro>
       </div>
       <div style={{ padding: "0 20px 14px" }}>
-        {/* Price cards */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-          {data.price_summaries.slice(0, 2).map((p) => (
-            <div
-              key={p.region}
-              style={{
-                flex: 1,
-                background: COLORS.surface,
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: 8,
-                padding: "8px 10px",
-              }}
-            >
-              <div style={{ fontSize: 8, color: COLORS.inkMuted, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 3 }}>
-                {p.region}
-              </div>
-              <span style={{ fontSize: 16, fontWeight: 600, color: COLORS.ink, fontVariantNumeric: "tabular-nums" }}>
-                ${Math.round(p.latest_price ?? 0)}
-              </span>
-              <span style={{ fontSize: 9, color: COLORS.inkMuted }}>/MWh</span>
-            </div>
-          ))}
-        </div>
-        {/* State prices row */}
         <div style={{ display: "flex", gap: 3 }}>
           {data.price_summaries.map((d) => (
             <div
@@ -330,19 +388,18 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 }
 
 // ─── Desktop Layout ─────────────────────────────────────────────────────────
-// Single scroll context — main + sidebar scroll together
 
 function DesktopIntelligence({
   leads,
   also,
-  dailyNumber,
   todaysRead,
+  dailyNumber,
   energyData,
 }: {
   leads: EditorialStory[];
   also: EditorialStory[];
-  dailyNumber: DailyNumberType;
   todaysRead: string;
+  dailyNumber: DailyNumberType;
   energyData: EnergyDashboardData | null;
 }) {
   const totalStories = leads.length + also.length;
@@ -357,7 +414,7 @@ function DesktopIntelligence({
   return (
     <div style={{ flex: 1, overflowY: "auto", display: "flex" }}>
       {/* Editorial column */}
-      <main style={{ flex: 1, padding: "26px 32px 60px", maxWidth: 860, minWidth: 0 }}>
+      <main style={{ flex: 1, padding: "26px 32px 60px", minWidth: 0 }}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
@@ -379,11 +436,8 @@ function DesktopIntelligence({
 
         <div style={{ margin: "18px 0 22px" }}><WobblyRule /></div>
 
-        {/* Today's Read + Daily Number (number on right) */}
-        <div style={{ display: "flex", gap: 20, marginBottom: 26, alignItems: "flex-start" }}>
-          <TodaysReadBlock text={todaysRead} />
-          <DailyNumberDisplay data={dailyNumber} />
-        </div>
+        {/* Today's Read — full width */}
+        <TodaysReadBlock text={todaysRead} />
 
         {/* Lead Stories */}
         <div style={{ marginBottom: 6 }}><Micro>Lead Stories</Micro></div>
@@ -411,16 +465,18 @@ function DesktopIntelligence({
         </div>
       </main>
 
-      {/* Energy sidebar — scrolls WITH main content */}
+      {/* Right sidebar — Daily Number + Energy data */}
       <aside
         style={{
-          width: 260,
+          width: 280,
           flexShrink: 0,
           borderLeft: `1px solid ${COLORS.border}`,
           background: COLORS.bg,
+          padding: "26px 16px",
         }}
         className="paper-grain hidden lg:block"
       >
+        <DailyNumberSidebar data={dailyNumber} />
         <EnergySidebar data={energyData} />
       </aside>
     </div>
@@ -526,6 +582,7 @@ export default function IntelligenceTab() {
   }, [fetchData]);
 
   // Transform API data to editorial shapes, or fall back to mocks
+  const scoredStories: ScoredStory[] = briefing?.stories || [];
   let leads: EditorialStory[];
   let also: EditorialStory[];
   let allStories: EditorialStory[];
@@ -534,19 +591,22 @@ export default function IntelligenceTab() {
 
   if (briefing?.digest) {
     const d = briefing.digest;
-    leads = (d.hero_stories || []).map(heroToEditorial);
-    also = (d.compact_stories || []).map((c, i) => compactToEditorial(c, i, leads.length));
+    leads = (d.hero_stories || []).map((h, i) => heroToEditorial(h, i, scoredStories));
+    also = (d.compact_stories || []).map((c, i) => compactToEditorial(c, i, leads.length, scoredStories));
+
+    // Deduplicate: remove any compact story whose headline appears in leads
+    const leadHeadlines = new Set(leads.map((l) => l.headline));
+    also = also.filter((a) => !leadHeadlines.has(a.headline));
+
     allStories = [...leads, ...also];
-    // Parse the value to separate number from unit (e.g. "€74 billion" → value="€74", unit="billion")
-    const rawValue = d.daily_number?.value || MOCK_DAILY_NUMBER.value;
-    const rawLabel = d.daily_number?.label || "";
+
     dailyNumber = {
-      value: rawValue,
-      unit: rawLabel,
+      value: d.daily_number?.value || MOCK_DAILY_NUMBER.value,
+      unit: d.daily_number?.label || "",
       label: d.daily_number?.context || MOCK_DAILY_NUMBER.label,
       change: d.daily_number?.trend || "",
       changeLabel: "vs.\u200930-day avg",
-      source: "AEMO",
+      source: "AI analysis",
     };
     todaysRead = d.narrative || MOCK_TODAYS_READ;
   } else {
@@ -567,8 +627,8 @@ export default function IntelligenceTab() {
         <DesktopIntelligence
           leads={leads}
           also={also}
-          dailyNumber={dailyNumber}
           todaysRead={todaysRead}
+          dailyNumber={dailyNumber}
           energyData={energyData}
         />
       </div>
