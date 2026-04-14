@@ -68,6 +68,14 @@
   --color-plum-mid: #6B4A6B;
   --color-paper-dark: #F5F3F0;
   --color-border-light: #F0EEEA;
+
+  /* Aliases — used across components */
+  --color-accent-emerald: #1E4D2B;
+  --color-accent-amber: #B8860B;
+  --color-surface-0: var(--color-background);
+  --color-surface-1: #FFFFFF;
+  --color-status-success: #22863a;
+  --color-status-error: #C94444;
 }
 
 /* ==========================================================================

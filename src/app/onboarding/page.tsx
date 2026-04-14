@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Globe } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { StepRole } from "@/components/onboarding/step-role";
 import { StepSectors } from "@/components/onboarding/step-sectors";
@@ -119,11 +120,9 @@ export default function OnboardingPage() {
           </button>
         ) : (
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent-emerald text-white">
-              <Globe className="h-3.5 w-3.5" />
-            </div>
-            <span className="font-display text-base font-semibold tracking-tight text-foreground">
-              catalyst.study
+            <Image src="/leaf only.svg" alt="Climate Pulse" width={28} height={28} />
+            <span className="font-display text-base font-semibold tracking-tight text-plum">
+              climate pulse
             </span>
           </div>
         )}

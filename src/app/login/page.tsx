@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Globe, Loader2 } from "lucide-react";
+import Image from "next/image";
+import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("demo@catalyst.study");
@@ -38,7 +39,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-0 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
@@ -51,20 +52,17 @@ export default function LoginPage() {
             initial={{ scale: 0.85, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.5, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
-            className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-emerald text-white"
+            className="mx-auto mb-4"
           >
-            <Globe className="h-7 w-7" />
+            <Image src="/logo.svg" alt="Climate Pulse" width={280} height={120} className="mx-auto" />
           </motion.div>
-          <h1 className="font-display text-[1.75rem] font-medium tracking-tight text-foreground">
-            catalyst.study
-          </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Climate & Energy Intelligence
           </p>
         </div>
 
         {/* Sign-in card */}
-        <Card className="border-border/40 bg-white shadow-sm dark:bg-surface-1">
+        <Card className="border-border/40 bg-white shadow-sm">
           <CardContent className="pt-7 pb-7 px-7">
             {/* Editorial section label */}
             <p className="mb-6 text-xs font-medium uppercase tracking-widest text-muted-foreground">
@@ -108,7 +106,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full h-10 bg-accent-emerald hover:bg-accent-emerald/90 text-white"
+                className="w-full h-10 bg-forest hover:bg-forest/90 text-white"
                 disabled={isLoading}
               >
                 {isLoading ? (

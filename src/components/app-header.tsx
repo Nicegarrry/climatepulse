@@ -14,8 +14,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Image from "next/image";
 import {
-  Globe,
   Sun,
   Moon,
   User,
@@ -51,11 +51,9 @@ export function AppHeader() {
           onClick={() => router.push("/dashboard")}
           className="flex items-center gap-2.5 transition-opacity duration-150 hover:opacity-80"
         >
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent-emerald text-white">
-            <Globe className="h-3.5 w-3.5" />
-          </div>
-          <span className="hidden font-display text-base font-semibold tracking-tight text-foreground sm:block">
-            catalyst.study
+          <Image src="/leaf only.svg" alt="Climate Pulse" width={28} height={28} />
+          <span className="hidden font-display text-base font-semibold tracking-tight text-plum sm:block">
+            climate pulse
           </span>
         </button>
 

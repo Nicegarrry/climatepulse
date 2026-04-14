@@ -30,10 +30,12 @@ export function LeadStories({
                 : isOpen
                   ? COLORS.surface
                   : COLORS.surface,
-              border: isLead
-                ? "none"
+              borderTop: isLead
+                ? `2px solid ${COLORS.forest}`
                 : `1px solid ${isOpen ? COLORS.border : COLORS.borderLight}`,
-              borderTop: isLead ? `2px solid ${COLORS.forest}` : undefined,
+              borderRight: isLead ? "none" : `1px solid ${isOpen ? COLORS.border : COLORS.borderLight}`,
+              borderBottom: isLead ? "none" : `1px solid ${isOpen ? COLORS.border : COLORS.borderLight}`,
+              borderLeft: isLead ? "none" : `1px solid ${isOpen ? COLORS.border : COLORS.borderLight}`,
               borderRadius: 8,
               padding: isLead ? "18px 20px" : "14px 20px 14px 16px",
               marginBottom: 10,
