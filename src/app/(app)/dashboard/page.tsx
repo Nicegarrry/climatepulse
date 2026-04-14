@@ -144,24 +144,13 @@ export default function DashboardPage() {
         <div
           onClick={() => setSidebarOpen(!sidebarOpen)}
           style={{
-            width: 26,
-            height: 26,
-            borderRadius: 5,
-            background: COLORS.forest,
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: FONTS.serif,
-            fontSize: 12,
-            fontStyle: "italic",
             cursor: "pointer",
             marginBottom: 22,
             marginLeft: sidebarOpen ? 12 : 0,
             flexShrink: 0,
           }}
         >
-          cp
+          <img src="/leaf only.svg" alt="Climate Pulse" width={28} height={28} />
         </div>
 
         {/* Nav items */}
@@ -351,27 +340,8 @@ export default function DashboardPage() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: 4,
-                background: COLORS.forest,
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontFamily: FONTS.serif,
-                fontSize: 9,
-                fontStyle: "italic",
-              }}
-            >
-              cp
-            </div>
-            <span style={{ fontSize: 13, fontFamily: FONTS.serif }}>
-              <span style={{ color: COLORS.forest }}>climate</span>
-              <span style={{ color: COLORS.plum }}>pulse</span>
-            </span>
+            <img src="/leaf only.svg" alt="Climate Pulse" width={22} height={22} />
+            <img src="/logo.svg" alt="Climate Pulse" height={22} style={{ height: 22, width: "auto" }} />
           </div>
           <span
             style={{
