@@ -39,6 +39,7 @@ export const RSS_SOURCES: RSSSource[] = [
   { name: "Climate Home News", feedUrl: "https://www.climatechangenews.com/feed/", tier: 1 },
   { name: "Ember Climate", feedUrl: "https://ember-climate.org/feed/", tier: 1 },
   { name: "DeSmog", feedUrl: "https://www.desmog.com/feed/", tier: 1 },
+  { name: "ESG Today", feedUrl: "https://www.esgtoday.com/feed/", tier: 1 },
   // Tier 2 — government, institutional, research
   // DCCEEW Australia: 403 — government WAF blocks server-side fetching. Disabled 2026-03-31.
   // { name: "DCCEEW Australia", feedUrl: "https://www.dcceew.gov.au/about/news/stay-informed/rss", tier: 2 },
@@ -61,6 +62,17 @@ export const RSS_SOURCES: RSSSource[] = [
   { name: "ScienceDaily Renewables", feedUrl: "https://www.sciencedaily.com/rss/earth_climate/renewable_energy.xml", tier: 2 },
   { name: "Climate Council Australia", feedUrl: "https://www.climatecouncil.org.au/feed/", tier: 2 },
   { name: "Bellona", feedUrl: "https://bellona.org/feed", tier: 2 },
+  { name: "The Energyst", feedUrl: "https://theenergyst.com/feed/", tier: 2 },
+  { name: "Net Zero Australia", feedUrl: "https://netzeroaustralia.net.au/feed/", tier: 2 },
+  // Podcasts — ingested as RSS, show notes/descriptions flow into raw_articles
+  { name: "Cleaning Up (Podcast)", feedUrl: "https://feeds.simplecast.com/j3au6_cC", tier: 2 },
+  { name: "Zero: The Climate Race (Podcast)", feedUrl: "https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/37c6caa7-d377-4c08-b479-af9d012ed5ad/a7faefb0-28ec-4b1d-85f3-af9d012ed5c9/podcast.rss", tier: 2 },
+  { name: "Energy Insiders (Podcast)", feedUrl: "https://feeds.soundcloud.com/users/soundcloud:users:190464940/sounds.rss", tier: 2 },
+  { name: "Catalyst (Podcast)", feedUrl: "https://feeds.megaphone.fm/catalyst", tier: 2 },
+  { name: "Redefining Energy (Podcast)", feedUrl: "https://www.spreaker.com/show/3170008/episodes/feed", tier: 2 },
+  { name: "Columbia Energy Exchange (Podcast)", feedUrl: "https://columbiaenergyexchange.libsyn.com/rss", tier: 2 },
+  { name: "Interchange Recharged (Podcast)", feedUrl: "https://rss.art19.com/the-interchange", tier: 2 },
+  { name: "Inevitable: Climate Tech (Podcast)", feedUrl: "https://feeds.simplecast.com/XFfCG1w8", tier: 2 },
 ];
 
 export const SCRAPE_TARGETS: ScrapeTarget[] = [

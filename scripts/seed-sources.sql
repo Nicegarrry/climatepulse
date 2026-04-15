@@ -19,7 +19,8 @@ INSERT INTO sources (name, feed_url, source_type, tier) VALUES
   ('Carbon Tracker', 'https://carbontracker.org/feed/', 'rss', 1),
   ('Climate Home News', 'https://www.climatechangenews.com/feed/', 'rss', 1),
   ('Ember Climate', 'https://ember-climate.org/feed/', 'rss', 1),
-  ('DeSmog', 'https://www.desmog.com/feed/', 'rss', 1)
+  ('DeSmog', 'https://www.desmog.com/feed/', 'rss', 1),
+  ('ESG Today', 'https://www.esgtoday.com/feed/', 'rss', 1)
 ON CONFLICT (name) DO NOTHING;
 
 -- Seed RSS sources (Tier 2)
@@ -37,7 +38,19 @@ INSERT INTO sources (name, feed_url, source_type, tier) VALUES
   ('CEFC Media', 'https://www.cefc.com.au/media/media-releases/feed/', 'rss', 2),
   ('World Resources Institute', 'https://www.wri.org/feed', 'rss', 2),
   ('Climate Council Australia', 'https://www.climatecouncil.org.au/feed/', 'rss', 2),
-  ('Bellona', 'https://bellona.org/feed', 'rss', 2)
+  ('Bellona', 'https://bellona.org/feed', 'rss', 2),
+  ('The Fifth Estate', 'https://thefifthestate.com.au/feed/', 'rss', 2),
+  ('ScienceDaily Renewables', 'https://www.sciencedaily.com/rss/earth_climate/renewable_energy.xml', 'rss', 2),
+  ('The Energyst', 'https://theenergyst.com/feed/', 'rss', 2),
+  ('Net Zero Australia', 'https://netzeroaustralia.net.au/feed/', 'rss', 2),
+  ('Cleaning Up (Podcast)', 'https://feeds.simplecast.com/j3au6_cC', 'rss', 2),
+  ('Zero: The Climate Race (Podcast)', 'https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/37c6caa7-d377-4c08-b479-af9d012ed5ad/a7faefb0-28ec-4b1d-85f3-af9d012ed5c9/podcast.rss', 'rss', 2),
+  ('Energy Insiders (Podcast)', 'https://feeds.soundcloud.com/users/soundcloud:users:190464940/sounds.rss', 'rss', 2),
+  ('Catalyst (Podcast)', 'https://feeds.megaphone.fm/catalyst', 'rss', 2),
+  ('Redefining Energy (Podcast)', 'https://www.spreaker.com/show/3170008/episodes/feed', 'rss', 2),
+  ('Columbia Energy Exchange (Podcast)', 'https://columbiaenergyexchange.libsyn.com/rss', 'rss', 2),
+  ('Interchange Recharged (Podcast)', 'https://rss.art19.com/the-interchange', 'rss', 2),
+  ('Inevitable: Climate Tech (Podcast)', 'https://feeds.simplecast.com/XFfCG1w8', 'rss', 2)
 ON CONFLICT (name) DO NOTHING;
 
 -- Seed scrape sources (Tier 3)
