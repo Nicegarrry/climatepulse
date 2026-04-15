@@ -7,6 +7,10 @@
     {
       "path": "/api/analytics/weekly-pulse/generate",
       "schedule": "0 20 * * 0"
+    },
+    {
+      "path": "/api/weekly/generate",
+      "schedule": "0 4 * * 5"
     }
   ]
 }

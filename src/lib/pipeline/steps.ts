@@ -1,6 +1,7 @@
 // src/lib/pipeline/steps.ts
 
 import type { StepResult } from "./types";
+import type { DigestOutput } from "@/lib/types";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -251,5 +252,86 @@ export async function step4Digest(): Promise<StepResult> {
     }
 
     return { users_found: users.length, successes, failures, details };
+  });
+}
+
+// ─── Step 5: Podcast Generation ────────────────────────────────────────────
+
+export async function step5Podcast(): Promise<StepResult> {
+  return runStep("podcast", async () => {
+    const pool = (await import("@/lib/db")).default;
+
+    const today = new Date().toISOString().split("T")[0];
+
+    // Check if podcast already exists for today
+    const existing = await pool.query(
+      `SELECT id FROM podcast_episodes WHERE briefing_date = $1 AND user_id IS NULL`,
+      [today]
+    );
+    if (existing.rows.length > 0) {
+      return { status: "skipped", reason: "podcast already exists for today" };
+    }
+
+    // Fetch today's briefing (digest + scored stories with full text)
+    const briefingResult = await pool.query(
+      `SELECT digest, stories FROM daily_briefings WHERE date = $1 ORDER BY generated_at DESC LIMIT 1`,
+      [today]
+    );
+    if (briefingResult.rows.length === 0) {
+      return { status: "skipped", reason: "no briefing found for today" };
+    }
+
+    const digest = briefingResult.rows[0].digest as DigestOutput;
+    const stories = briefingResult.rows[0].stories ?? [];
+
+    // Fetch NEM summary
+    let nemSummary: string | undefined;
+    try {
+      const { fetchEnergyDashboard } = await import("@/lib/energy/openelectricity");
+      const nem = await fetchEnergyDashboard();
+      nemSummary = `Renewables: ${nem.renewable_pct_today.toFixed(1)}% of generation today. 7-day average: ${nem.renewable_pct_7d.toFixed(1)}%. Total generation (7d): ${nem.total_generation_gwh_7d.toFixed(0)} GWh.`;
+      if (nem.price_summaries?.length > 0) {
+        const prices = nem.price_summaries
+          .filter(p => p.avg_24h != null)
+          .map(p => `${p.region} $${p.avg_24h!.toFixed(0)}`)
+          .join(", ");
+        nemSummary += ` Spot prices (24h avg): ${prices}/MWh.`;
+      }
+    } catch {
+      // NEM data is optional
+    }
+
+    // Generate script with full context
+    const { generatePodcastScript } = await import("@/lib/podcast/script-generator");
+    const script = await generatePodcastScript({ digest, stories, nemSummary });
+
+    // Synthesize audio
+    const { synthesizePodcast } = await import("@/lib/podcast/tts-synthesizer");
+    const { audioBuffer, durationSeconds, format } = await synthesizePodcast(script);
+
+    // Store audio file
+    const { storePodcastAudio, savePodcastEpisode } = await import("@/lib/podcast/storage");
+    const audioUrl = await storePodcastAudio(audioBuffer, today, format);
+
+    // Persist metadata
+    await savePodcastEpisode({
+      briefing_date: today,
+      user_id: null,
+      script,
+      audio_url: audioUrl,
+      audio_duration_seconds: durationSeconds,
+      audio_size_bytes: audioBuffer.length,
+      audio_format: format,
+      model_tts: "gemini-2.5-flash-preview-tts",
+      model_script: "claude-sonnet-4-20250514",
+      generated_at: new Date().toISOString(),
+    });
+
+    return {
+      duration_seconds: durationSeconds,
+      file_size_bytes: audioBuffer.length,
+      format,
+      word_count: script.word_count,
+    };
   });
 }

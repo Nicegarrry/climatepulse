@@ -52,9 +52,29 @@ The goal is to validate that we can: (1) ingest climate/energy news from RSS + s
 - Prompt templates in prompts/ directory, definitions in prompts/definitions/, calibration in prompts/scoring/
 - pipeline_version column enables safe re-enrichment of existing articles (?reenrich=true)
 
-**Phase 3 — Digest Generation (future)**
+**Phase 3 — Daily Digest Generation**
 - Claude Sonnet generates personalised digest per user
 - Cap at 15 articles total sent to Sonnet
+
+**Phase 3b — Daily Podcast ("ClimatePulse Daily")**
+- ~5 min two-speaker audio podcast generated after digest
+- Pipeline step 5: digest → Claude Sonnet script → Gemini TTS → WAV storage
+- Script: Claude Sonnet converts DigestOutput + full article text + NEM data into conversational script
+- TTS: Gemini `gemini-2.5-flash-preview-tts` with multi-speaker (Aoede=host, Charon=analyst)
+- Voices: Female host "Sarah" (qualitative, sceptical) + Male analyst "James" (data-driven, precise)
+- NEM check-in every episode with real OpenElectricity data (renewable %, state spot prices)
+- Storage: local `public/podcasts/` in dev, Vercel Blob in production
+- Generate locally: `npx tsx scripts/generate-podcast.ts [date]`
+- v1 is global (one episode for all users); per-user custom podcasts deferred to premium tier
+- DB table: `podcast_episodes` (schema in `scripts/migrate-podcast.sql`)
+
+**Phase 4 — Weekly Digest ("The Weekly Pulse")**
+- Friday 3pm: Auto-generate intelligence report from week's enriched articles
+- Theme clustering via taxonomy overlap (group by domain + shared entities + microsectors)
+- Gemini Flash for cluster label refinement (~$0.01/week)
+- Human reviews report, writes editorial commentary, curates stories
+- Publish triggers: email blast (Resend), 48h banner on Intelligence tab, LinkedIn draft
+- Cost target: ~$0.03/week
 
 ### Taxonomy (108 Micro-Sectors)
 
@@ -96,6 +116,10 @@ Hand-authored causal links between domains (e.g., "EU ETS price → Australian o
 - `enrichment_runs` — cost/performance tracking
 - `category_migration_map` — old 20 categories → new microsector slugs
 
+### Weekly Digest Tables
+- `weekly_reports` — auto-generated intelligence reports (theme clusters, sentiment, numbers)
+- `weekly_digests` — human-curated editorial digests (headline, narrative, curated stories, distribution tracking)
+
 ### Migrations
 - `scripts/migrate.sql` — Phase 1 schema
 - `scripts/migrate-enrichment.sql` — Enrichment tables, enums, extensions
@@ -109,6 +133,7 @@ Hand-authored causal links between domains (e.g., "EU ETS price → Australian o
 4. **Energy** — Live Australian NEM data from OpenElectricity
 5. **Taxonomy** — Manage taxonomy tree, entity registry, signal/sentiment overview, transmission channels, run enrichment
 6. **Events** — Future: climate events timeline
+7. **Weekly** — "The Weekly Pulse" editorial digest: auto-generated intelligence report (theme clusters, sentiment, numbers), human-curated editorial commentary, curated story roundup, archive view, email via Resend, LinkedIn draft
 
 ## Key Principles
 
@@ -165,7 +190,10 @@ climatepulse/
 │   ├── migrate-enrichment.sql   # Enrichment schema
 │   ├── migrate-two-stage.sql    # Two-stage pipeline columns + indexes
 │   ├── seed-taxonomy.sql        # 108 microsectors + domains + tags
-│   └── seed-sources.sql         # Initial source seeding
+│   ├── seed-sources.sql         # Initial source seeding
+│   ├── migrate-weekly-digest.sql # Weekly reports + digests tables
+│   ├── migrate-podcast.sql      # Podcast episodes table
+│   └── generate-podcast.ts      # Standalone podcast generation script
 ├── src/
 │   ��── app/
 │   │   ├── layout.tsx
@@ -181,7 +209,8 @@ climatepulse/
 │   │       ├─�� entities/            # Entity registry CRUD
 │   │       ├── channels/            # Transmission channel CRUD
 │   │       ├── energy/              # NEM energy data
-│   │       └── digest/              # Digest generation (Claude Sonnet)
+│   │       ├── digest/              # Digest generation (Claude Sonnet)
+│   │       └── podcast/             # Podcast generation + retrieval
 │   ├── lib/
 │   │   ├── db.ts                    # PostgreSQL pool
 │   │   ├── types.ts                 # All TypeScript interfaces (incl. personalisation + digest)
@@ -203,10 +232,23 @@ climatepulse/
 │   │   │   ├── poller.ts, scraper.ts, fulltext.ts
 │   │   │   ├── newsapi-ai.ts, newsapi-org.ts
 │   │   │   └── news-queries.ts
-│   ��   └── energy/
-│   │       └── openelectricity.ts
+│   │   ├── energy/
+│   │   │   └── openelectricity.ts
+│   │   ├── podcast/
+│   │   │   ├── script-generator.ts  # Claude Sonnet → two-speaker script
+│   │   │   ├── tts-synthesizer.ts   # Gemini TTS multi-speaker → WAV
+│   │   │   └── storage.ts           # Vercel Blob / local file storage
+│   │   └── weekly/
+│   │       ├── theme-clusterer.ts   # Taxonomy-based article clustering
+│   │       └── email-sender.ts      # Resend email delivery
 │   └── components/
-│       ├── intelligence-tab.tsx     # v1 Daily briefing UI (Daily Number, Narrative, Hero/Compact stories)
+│       ├── intelligence/            # Daily briefing (folder with subcomponents)
+│       ├── weekly/                  # Weekly digest tab
+│       │   ├── index.tsx            # Main component, data fetching, layout
+│       │   ├── current-digest.tsx   # Digest reading view
+│       │   ├── digest-archive.tsx   # Past editions list
+│       │   ├── weekly-number.tsx    # Number of the Week card
+│       │   └── banner.tsx           # Time-limited banner for Intelligence tab
 │       ├── discovery-tab.tsx
 │       ├── categories-tab.tsx       # Dual view: classic + enriched
 │       ├── energy-tab.tsx

@@ -464,6 +464,7 @@ export interface DailyBriefing {
   stories: ScoredStory[];
   digest: DigestOutput;
   generated_at: string;
+  articles_analysed?: number;
 }
 
 // ─── Gamification & Tracking ──────────────────────────────────────────────
@@ -510,4 +511,116 @@ export interface WeeklyPulse {
   briefings_completed_percentile: number | null;
   cohort_size: number | null;
   cohort_avg_stories: number | null;
+}
+
+// ─── Podcast ──────────────────────────────────────────────────────────────────
+
+export interface PodcastTurn {
+  speaker: "host" | "analyst";
+  text: string;
+}
+
+export interface PodcastScript {
+  title: string;
+  turns: PodcastTurn[];
+  estimated_duration_seconds: number;
+  word_count: number;
+}
+
+export interface PodcastEpisode {
+  id: string;
+  briefing_date: string;
+  user_id: string | null;
+  script: PodcastScript;
+  audio_url: string;
+  audio_duration_seconds: number | null;
+  audio_size_bytes: number | null;
+  audio_format: string;
+  generated_at: string;
+}
+
+// ─── Weekly Digest ───────────────────────────────────────────────────────────
+
+export interface WeeklyThemeCluster {
+  cluster_id: string;
+  label: string;
+  domain: string;
+  articles: {
+    id: string;
+    title: string;
+    source: string;
+    url: string;
+    significance: number;
+  }[];
+  entity_overlap: string[];
+  sentiment_agg: { positive: number; negative: number; neutral: number; mixed: number };
+  key_numbers: { value: string; unit: string; context: string }[];
+}
+
+export interface WeeklyReport {
+  id: string;
+  week_start: string;
+  week_end: string;
+  status: "draft" | "ready" | "superseded";
+  theme_clusters: WeeklyThemeCluster[];
+  top_numbers: {
+    value: string;
+    unit: string;
+    context: string;
+    source_article_id: string;
+    delta?: string;
+  }[];
+  sentiment_summary: {
+    overall: string;
+    by_domain: Record<string, Record<string, number>>;
+  };
+  storyline_updates: {
+    storyline_id: number;
+    title: string;
+    article_count: number;
+    latest_development: string;
+  }[];
+  transmission_activity: {
+    channel_label: string;
+    triggered_count: number;
+    example_article_ids: string[];
+  }[];
+  article_ids_included: string[];
+  model_used: string;
+  generated_at: string;
+}
+
+export interface WeeklyCuratedStory {
+  article_id?: string;
+  headline: string;
+  source: string;
+  url: string;
+  editor_take: string;
+  severity: "alert" | "watch" | "ready" | "clear";
+  sector: string;
+  key_metric?: { value: string; unit: string; delta?: string };
+}
+
+export interface WeeklyDigest {
+  id: string;
+  report_id: string | null;
+  week_start: string;
+  week_end: string;
+  status: "draft" | "published" | "archived";
+  headline: string;
+  editor_narrative: string;
+  weekly_number: {
+    value: string;
+    unit: string;
+    label: string;
+    context: string;
+    trend: string | null;
+  } | null;
+  curated_stories: WeeklyCuratedStory[];
+  theme_commentary: { theme_label: string; commentary: string }[] | null;
+  outlook: string | null;
+  published_at: string | null;
+  banner_expires_at: string | null;
+  linkedin_draft: string | null;
+  created_at: string;
 }

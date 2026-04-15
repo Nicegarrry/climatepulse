@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useAnalytics } from "@/lib/analytics/provider";
 import { COLORS, FONTS, SEVERITY } from "@/lib/design-tokens";
-import type { DailyBriefing, DigestHeroStory, DigestCompactStory, ScoredStory } from "@/lib/types";
+import type { DailyBriefing, DigestHeroStory, DigestCompactStory, ScoredStory, PodcastEpisode } from "@/lib/types";
 import type { EnergyDashboardData } from "@/lib/energy/openelectricity";
 import { WobblyRule, Micro, SourceTag } from "./primitives";
 import { LeadStories } from "./lead-stories";
@@ -14,6 +14,7 @@ import { StoriesOverlay, type BriefingCompletionData } from "./stories-overlay";
 import { EnergySidebar } from "./energy-sidebar";
 import { SectorCoverage } from "@/components/sector-coverage";
 import { WeeklyPulseCard } from "@/components/weekly-pulse-card";
+import { PodcastPlayer } from "./podcast-player";
 import type { SectorCoverageData, WeeklyPulse } from "@/lib/types";
 import type { EditorialStory, DailyNumber as DailyNumberType } from "@/lib/mock-editorial";
 import {
@@ -246,7 +247,7 @@ function DailyNumberMobile({ data, briefedToday, streakCount }: { data: DailyNum
 
 // ─── Today's Read (formatted with bullet points) ────────────────────────────
 
-function TodaysReadBlock({ text }: { text: string }) {
+function TodaysReadBlock({ text, articlesAnalysed }: { text: string; articlesAnalysed?: number }) {
   // Split narrative into sentences and present as scannable bullet points
   const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
   // Take first 4 sentences as key points
@@ -257,6 +258,19 @@ function TodaysReadBlock({ text }: { text: string }) {
       <Micro color={COLORS.forest} mb={10}>
         Today{"\u2019"}s Read
       </Micro>
+      {articlesAnalysed != null && articlesAnalysed > 0 && (
+        <p
+          style={{
+            fontFamily: FONTS.sans,
+            fontSize: 12,
+            color: COLORS.inkMuted,
+            margin: "0 0 10px 0",
+            lineHeight: 1.4,
+          }}
+        >
+          Based on {articlesAnalysed} articles analysed overnight
+        </p>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {points.map((point, i) => (
           <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -539,6 +553,8 @@ function DesktopIntelligence({
   streakCount,
   sectorCoverage,
   weeklyPulse,
+  podcastEpisode,
+  articlesAnalysed,
 }: {
   leads: EditorialStory[];
   also: EditorialStory[];
@@ -549,6 +565,8 @@ function DesktopIntelligence({
   streakCount?: number;
   sectorCoverage?: SectorCoverageData | null;
   weeklyPulse?: WeeklyPulse | null;
+  podcastEpisode?: PodcastEpisode | null;
+  articlesAnalysed?: number;
 }) {
   const totalStories = leads.length + also.length;
   const now = new Date();
@@ -580,8 +598,15 @@ function DesktopIntelligence({
 
         <div style={{ margin: "18px 0 22px" }}><WobblyRule /></div>
 
+        {/* Podcast player */}
+        {podcastEpisode && (
+          <div style={{ marginBottom: 16 }}>
+            <PodcastPlayer episode={podcastEpisode} />
+          </div>
+        )}
+
         {/* Today's Read — full width */}
-        <TodaysReadBlock text={todaysRead} />
+        <TodaysReadBlock text={todaysRead} articlesAnalysed={articlesAnalysed} />
 
         {/* Lead Stories */}
         <div style={{ marginBottom: 6 }}><Micro>Lead Stories</Micro></div>
@@ -641,6 +666,8 @@ function MobileIntelligence({
   onBriefingComplete,
   briefedToday,
   streakCount,
+  podcastEpisode,
+  articlesAnalysed,
 }: {
   leads: EditorialStory[];
   also: EditorialStory[];
@@ -651,6 +678,8 @@ function MobileIntelligence({
   onBriefingComplete?: (data: BriefingCompletionData) => void;
   briefedToday?: boolean;
   streakCount?: number;
+  podcastEpisode?: PodcastEpisode | null;
+  articlesAnalysed?: number;
 }) {
   const { track } = useAnalytics();
   const [storiesOpen, setStoriesOpen] = useState(false);
@@ -674,7 +703,12 @@ function MobileIntelligence({
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
         <DailyNumberMobile data={dailyNumber} briefedToday={briefedToday} streakCount={streakCount} />
         <div style={{ padding: "0 20px" }}><WobblyRule /></div>
-        <GlowingBriefingCard onStart={() => openBriefing(0)} todaysRead={todaysRead} storyCount={briefing.length} briefedToday={briefedToday} streakCount={streakCount} />
+        <GlowingBriefingCard onStart={() => openBriefing(0)} todaysRead={todaysRead} storyCount={briefing.length} briefedToday={briefedToday} streakCount={streakCount} articlesAnalysed={articlesAnalysed} />
+        {podcastEpisode && (
+          <div style={{ padding: "8px 20px 0" }}>
+            <PodcastPlayer episode={podcastEpisode} compact />
+          </div>
+        )}
         <div style={{ padding: "0 20px" }}><WobblyRule color={COLORS.borderLight} /></div>
         <MobileStoryList stories={briefing} />
         <MobileMarketContext data={energyData} />
@@ -713,6 +747,7 @@ export default function IntelligenceTab() {
   const [streakCount, setStreakCount] = useState(0);
   const [sectorCoverage, setSectorCoverage] = useState<SectorCoverageData | null>(null);
   const [weeklyPulse, setWeeklyPulse] = useState<WeeklyPulse | null>(null);
+  const [podcastEpisode, setPodcastEpisode] = useState<PodcastEpisode | null>(null);
 
   const userId = user?.id || "test-user-1";
 
@@ -720,12 +755,13 @@ export default function IntelligenceTab() {
     setLoading(true);
     setError(null);
     try {
-      const [digestRes, energyRes, streakRes, coverageRes, pulseRes] = await Promise.allSettled([
+      const [digestRes, energyRes, streakRes, coverageRes, pulseRes, podcastRes] = await Promise.allSettled([
         fetch(`/api/digest/generate?userId=${userId}`),
         fetch("/api/energy/dashboard"),
         fetch(`/api/analytics/streak?userId=${userId}`),
         fetch(`/api/analytics/sector-coverage?userId=${userId}`),
         fetch(`/api/analytics/weekly-pulse?userId=${userId}`),
+        fetch("/api/podcast"),
       ]);
 
       if (digestRes.status === "fulfilled" && digestRes.value.ok) {
@@ -751,6 +787,10 @@ export default function IntelligenceTab() {
       if (pulseRes.status === "fulfilled" && pulseRes.value.ok) {
         const pulseData = await pulseRes.value.json();
         setWeeklyPulse(pulseData.pulse || null);
+      }
+
+      if (podcastRes.status === "fulfilled" && podcastRes.value.ok) {
+        setPodcastEpisode(await podcastRes.value.json());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -858,6 +898,8 @@ export default function IntelligenceTab() {
           streakCount={streakCount}
           sectorCoverage={sectorCoverage}
           weeklyPulse={weeklyPulse}
+          podcastEpisode={podcastEpisode}
+          articlesAnalysed={briefing?.articles_analysed}
         />
       </div>
       {/* Mobile */}
@@ -872,6 +914,8 @@ export default function IntelligenceTab() {
           onBriefingComplete={handleBriefingComplete}
           briefedToday={briefedToday}
           streakCount={streakCount}
+          podcastEpisode={podcastEpisode}
+          articlesAnalysed={briefing?.articles_analysed}
         />
       </div>
     </>

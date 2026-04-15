@@ -9,12 +9,14 @@ export function GlowingBriefingCard({
   storyCount,
   briefedToday,
   streakCount,
+  articlesAnalysed,
 }: {
   onStart: () => void;
   todaysRead: string;
   storyCount: number;
   briefedToday?: boolean;
   streakCount?: number;
+  articlesAnalysed?: number;
 }) {
   return (
     <div style={{ padding: "14px 16px 18px" }}>
@@ -69,6 +71,19 @@ export function GlowingBriefingCard({
         <Micro color={COLORS.forest} mb={8}>
           Today{"\u2019"}s Read
         </Micro>
+        {articlesAnalysed != null && articlesAnalysed > 0 && (
+          <p
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 12,
+              color: COLORS.inkMuted,
+              margin: "0 0 8px",
+              lineHeight: 1.4,
+            }}
+          >
+            Based on {articlesAnalysed} articles analysed overnight
+          </p>
+        )}
         <p
           style={{
             fontFamily: FONTS.sans,

@@ -20,6 +20,7 @@ import { CategoriesTab } from "@/components/categories-tab";
 import { EnergyTab } from "@/components/energy-tab";
 import { TaxonomyTab } from "@/components/taxonomy-tab";
 import { MarketsTab } from "@/components/markets-tab";
+import WeeklyTab from "@/components/weekly";
 import IntelligenceTab from "@/components/intelligence";
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -32,6 +33,7 @@ const publicTabs = [
   { value: "intelligence", label: "Briefing", icon: "\u25C7" },
   { value: "energy", label: "Energy", icon: "\u25CE" },
   { value: "markets", label: "Markets", icon: "\u25A4" },
+  { value: "weekly", label: "Weekly", icon: "\u25C8" },
 ];
 
 const devOnlyTabs = [
@@ -72,6 +74,8 @@ function TabContent({ activeTab }: { activeTab: string }) {
       return <EnergyTab />;
     case "markets":
       return <MarketsTab />;
+    case "weekly":
+      return <WeeklyTab />;
     case "taxonomy":
       return <TaxonomyTab />;
     default:
@@ -87,7 +91,7 @@ const mobileNav = [
   { icon: "\u25C7", label: "Briefing", value: "intelligence" },
   { icon: "\u2197", label: "Explore", value: "discovery" },
   { icon: "\u25CE", label: "Storylines", value: "energy" },
-  { icon: "\u25A4", label: "Weekly", value: "markets" },
+  { icon: "\u25C8", label: "Weekly", value: "weekly" },
 ];
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -114,6 +118,7 @@ export default function DashboardPage() {
   }, [log]);
 
   const isIntelligence = activeTab === "intelligence";
+  const isWeekly = activeTab === "weekly";
 
   return (
     <div
@@ -148,13 +153,14 @@ export default function DashboardPage() {
             marginBottom: 22,
             marginLeft: sidebarOpen ? 12 : 0,
             flexShrink: 0,
-            height: 28,
+            height: sidebarOpen ? 56 : 28,
             display: "flex",
             alignItems: "center",
+            transition: "height 150ms ease",
           }}
         >
           {sidebarOpen ? (
-            <img src="/logo.svg" alt="Climate Pulse" height={28} style={{ height: 28, width: "auto" }} />
+            <img src="/logo.svg" alt="Climate Pulse" height={56} style={{ height: 56, width: "auto" }} />
           ) : (
             <img src="/leaf only.svg" alt="Climate Pulse" width={28} height={28} />
           )}
@@ -365,6 +371,8 @@ export default function DashboardPage() {
         <div className="flex flex-1 overflow-hidden">
           {isIntelligence ? (
             <IntelligenceTab />
+          ) : isWeekly ? (
+            <WeeklyTab />
           ) : (
             <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
               <div className="mx-auto max-w-screen-2xl p-4 sm:p-6 lg:p-8">

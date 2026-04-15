@@ -39,6 +39,9 @@ export async function fetchAndExtract(url: string): Promise<string | null> {
     ".entry-content",
     ".story-content",
     "[itemprop='articleBody']",
+    ".prose",              // Canary Media, CTVC (Ghost CMS)
+    ".gutenberg-simple",   // Bellona
+    ".mainC",              // Carbon Brief
     "article",
     "main",
     ".content",
@@ -49,8 +52,13 @@ export async function fetchAndExtract(url: string): Promise<string | null> {
   for (const sel of selectors) {
     const el = $(sel).first();
     if (el.length) {
-      text = el.text();
-      break;
+      const candidate = el.text().replace(/\s+/g, " ").trim();
+      if (candidate.split(/\s+/).length >= 100) {
+        text = candidate;
+        break;
+      }
+      // Keep first match as fallback, but try better selectors
+      if (!text) text = candidate;
     }
   }
 

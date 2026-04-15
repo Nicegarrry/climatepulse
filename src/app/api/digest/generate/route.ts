@@ -383,6 +383,7 @@ export async function POST(req: NextRequest) {
 
     let stories: ScoredStory[];
     let digest: DigestOutput;
+    let articlesAnalysed: number | undefined;
 
     if (useMock) {
       // Return mock data for UI development
@@ -394,6 +395,7 @@ export async function POST(req: NextRequest) {
     } else {
       // Fetch real data and generate
       const enriched = await fetchRecentEnrichedArticles();
+      articlesAnalysed = enriched.length;
 
       if (enriched.length === 0) {
         return NextResponse.json(
@@ -465,6 +467,7 @@ export async function POST(req: NextRequest) {
       stories,
       digest,
       generated_at: now,
+      articles_analysed: articlesAnalysed,
     };
 
     // Persist to daily_briefings (upsert — regenerating overwrites same day)
@@ -513,6 +516,16 @@ export async function GET(req: NextRequest) {
 
     if (result.rows.length > 0) {
       const row = result.rows[0];
+      // Quick count of articles analysed in the same window
+      let articlesCount: number | undefined;
+      try {
+        const countResult = await pool.query(
+          `SELECT COUNT(*) FROM enriched_articles ea
+           JOIN raw_articles ra ON ra.id = ea.raw_article_id
+           WHERE ra.published_at >= NOW() - INTERVAL '32 hours'`
+        );
+        articlesCount = parseInt(countResult.rows[0].count, 10);
+      } catch { /* non-critical */ }
       return NextResponse.json({
         id: row.id,
         user_id: row.user_id,
@@ -520,6 +533,7 @@ export async function GET(req: NextRequest) {
         stories: row.stories,
         digest: row.digest,
         generated_at: row.generated_at,
+        articles_analysed: articlesCount,
       } as DailyBriefing);
     }
   } catch {

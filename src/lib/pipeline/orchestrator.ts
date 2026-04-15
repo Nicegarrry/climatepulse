@@ -1,7 +1,7 @@
 // src/lib/pipeline/orchestrator.ts
 
 import pool from "@/lib/db";
-import { step1Ingest, step2FullText, step3Enrich, step4Digest } from "./steps";
+import { step1Ingest, step2FullText, step3Enrich, step4Digest, step5Podcast } from "./steps";
 import type { StepResult, PipelineRunResult, PipelineTrigger, StepName } from "./types";
 
 const STEP_FUNCTIONS: Record<StepName, () => Promise<StepResult>> = {
@@ -9,9 +9,10 @@ const STEP_FUNCTIONS: Record<StepName, () => Promise<StepResult>> = {
   fulltext: step2FullText,
   enrichment: step3Enrich,
   digest: step4Digest,
+  podcast: step5Podcast,
 };
 
-const STEP_ORDER: StepName[] = ["ingest", "fulltext", "enrichment", "digest"];
+const STEP_ORDER: StepName[] = ["ingest", "fulltext", "enrichment", "digest", "podcast"];
 
 export async function runPipeline(opts?: {
   trigger?: PipelineTrigger;

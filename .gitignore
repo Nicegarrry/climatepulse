@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# generated podcast audio
+/public/podcasts/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
