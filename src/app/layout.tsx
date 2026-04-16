@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Crimson_Pro, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import { Providers, AnalyticsBridge } from "@/components/providers";
 import { AuthProvider } from "@/lib/auth-context";
@@ -25,8 +25,30 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "climatepulse",
+  title: "Climate Pulse",
   description: "Climate & energy intelligence platform",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Climate Pulse",
+  },
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#1E4D2B",
 };
 
 export default function RootLayout({
