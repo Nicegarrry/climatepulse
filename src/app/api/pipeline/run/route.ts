@@ -10,7 +10,7 @@ export const maxDuration = 800;
 
 const VALID_STEPS: StepName[] = ["ingest", "fulltext", "enrichment", "digest"];
 
-export async function POST(req: NextRequest) {
+async function handle(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
   if (!isCron) {
@@ -42,4 +42,12 @@ export async function POST(req: NextRequest) {
 
   const httpStatus = result.status === "failed" ? 500 : 200;
   return NextResponse.json(result, { status: httpStatus });
+}
+
+export async function GET(req: NextRequest) {
+  return handle(req);
+}
+
+export async function POST(req: NextRequest) {
+  return handle(req);
 }

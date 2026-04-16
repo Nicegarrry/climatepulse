@@ -200,6 +200,12 @@ The Profile page additionally renders `SavedBoard` — the user's personal archi
 - DO NOT classify Newsroom items at microsector granularity — Newsroom is domain-only by design. Deep microsector + entity work happens in the nightly Stage-1/Stage-2 pipeline
 - Newsroom `user_id` columns are `TEXT` (matches `user_profiles.id`), not UUID — every new table that joins to the user must use TEXT
 
+## Git Workflow
+
+- **Small fixes → commit straight to `main` and push.** Typo fixes, single-file bug fixes (missing handler, wrong URL, env typo), one-line config tweaks, docs updates. No branch, no PR — the faster path is worth it since prod auto-deploys from `main` and small fixes are easy to revert.
+- **Major changes → ask first: branch + PR, or main?** New features, migrations, anything touching multiple subsystems, risky refactors, or anything that would take more than one commit to revert cleanly. Default assumption is branch + PR; confirm with the user before merging to `main`.
+- If uncertain whether something counts as "small," ask.
+
 ## Supabase × Vercel linking (prod)
 
 Supabase is linked to Vercel via the **Vercel Marketplace Supabase integration** (`vercel.com/marketplace/supabase`), not manual env-var copy-paste. The integration auto-provisions `DATABASE_URL` (transaction pooler, correctly SSL-configured), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` in the Vercel project, and keeps them in sync when you rotate keys in Supabase. This is the path to reach for first whenever a web project needs Supabase in prod — it sidesteps the SSL cert-chain and pooler-URL footguns that manual setup hits.
