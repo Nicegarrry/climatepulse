@@ -76,6 +76,30 @@ The validated pipeline: (1) ingest climate/energy news from RSS + scrapers, (2) 
 - Publish triggers: email blast (Resend), 48h banner on Intelligence tab, LinkedIn draft
 - Cost target: ~$0.03/week
 
+**Phase 5 — Newsroom (Tab: "Newsroom")**
+- Live wire feed, complementary to the curated morning briefing
+- Runs every 30 min during Sydney business hours (Mon–Fri 06:00–20:00 local)
+- Vercel Cron hits `/api/newsroom/ingest` twice in UTC to cover both AEST and AEDT; runtime `Intl`-based guard in `src/lib/newsroom/business-hours.ts` gates the actual work
+- Ingestion: RSS + NewsAPI.org + NewsAPI.ai + **Google News RSS search** (no API key) in parallel; all write into `raw_articles` via the existing `ON CONFLICT (article_url)` dedup
+- Cross-source dedup: 3-layer (URL uniqueness → SHA-1 `title_hash` partial-unique index → pg_trgm soft-match that sets `duplicate_of_id` without deleting rows)
+- Classifier: Gemini Flash-lite batches of 15 (concurrency 3), deliberately lighter than Stage-1 enrichment — only domain (one of the 12) + urgency 1–5 + one-sentence teaser (≤160 chars). Prompt: `prompts/newsroom-classify-system.md`. Response schema enforced via `SchemaType`
+- Storage: separate `newsroom_items` table, FK to `raw_articles`; the nightly Stage-1/Stage-2 enrichment can still pick up the same `raw_articles` rows independently
+- Cost target: <$0.50/week at projected volume (≈1 cent per 30-min run)
+- UI: wire-feed density (no cards, no shadows, hairline dividers only; Crimson Pro 15px headline + Source Sans 3 11–13px metadata; urgency rendered as plum bullets in the right gutter for 4–5, nothing for 1–3). All 12 domains filterable as small-caps `SectorTag` chips.
+- Feedback loop (influences next morning's briefing):
+  - Implicit read (`read`/`expand`) — +3 per, capped +6
+  - Thumbs up — +10; thumbs down — −15
+  - Save — +18, also stored in `user_saved_articles`
+  - Softer entity propagation — +5 engaged / +9 saved, once per story, via shared entity names between a Newsroom item and an enriched briefing story (bridges the UUID gap since they're separate DB rows)
+  - All boosts clamped by existing `BOOST_CAP=35 / BOOST_FLOOR=-10` in `src/lib/personalisation.ts`
+  - Wired through `computeBoosts()` (signature extended with optional `interactions`) and `selectBriefingStories()`; fetched once per digest run via `getInteractionSummary(userId)` in `src/lib/newsroom/interactions.ts`
+- Push notifications: urgency-5 only, opt-in
+  - Service worker: `public/sw.js` (push handler only; no offline caching to avoid future WS5 conflicts)
+  - Contract in `src/lib/newsroom/types.ts::NewsroomPushPayload`
+  - Fanout in `src/lib/newsroom/fanout.ts` filters opted-in subscribers by sector overlap, rate-limits to 3 sends/user/hour, tracks failures in `user_push_subscriptions.failure_count`, purges at 5, audits every attempt to `newsroom_push_log`
+  - Gracefully no-ops if `VAPID_*` env vars aren't set
+- Saved articles archive: dense CSS-grid clippings board on the Profile page (`src/components/newsroom/SavedBoard.tsx`); typographic search, sector filter, saved_at cursor pagination
+
 ### Taxonomy (108 Micro-Sectors)
 
 Three-level hierarchy stored in the database (editable via Taxonomy tab):
@@ -120,20 +144,36 @@ Hand-authored causal links between domains (e.g., "EU ETS price → Australian o
 - `weekly_reports` — auto-generated intelligence reports (theme clusters, sentiment, numbers)
 - `weekly_digests` — human-curated editorial digests (headline, narrative, curated stories, distribution tracking)
 
+### Newsroom Tables
+- `newsroom_items` — lightly-classified wire items (FK to `raw_articles`, `primary_domain`, `urgency`, `teaser`, `duplicate_of_id`, `editor_override` JSONB for future WS4 controls)
+- `user_saved_articles` — user archive; FK to `raw_articles` + nullable FK to `newsroom_items`; unique on `(user_id, raw_article_id)`; GIN index on `note` for search
+- `user_newsroom_interactions` — append-only log of `read|expand|thumbs_up|thumbs_down|save|unsave` per user; powers the briefing-bump hook and preserves calibration history
+- `user_push_subscriptions` — web-push subscriptions with `failure_count` tombstoning at 5
+- `newsroom_push_log` — audit trail of every urgency-5 push attempt (`sent|rate_limited|failed|expired`)
+- `newsroom_runs` — cost/duration telemetry mirroring `enrichment_runs`
+- `raw_articles.title_hash` — SHA-1(first 16 hex) of normalised title; partial-unique index blocks cross-source duplicates
+
 ### Migrations
 - `scripts/migrate.sql` — Phase 1 schema
 - `scripts/migrate-enrichment.sql` — Enrichment tables, enums, extensions
 - `scripts/seed-taxonomy.sql` — 12 domains, 75 sectors, 103 microsectors, 5 tags
+- `scripts/migrate-newsroom.sql` — Newsroom tables, `title_hash` column, notification_prefs JSONB backfill
 
 ## Dashboard Tabs
 
-1. **Intelligence** — v1 Daily briefing: personalised digest with Daily Number, narrative synthesis, hero stories (expert analysis), compact stories (accordion), cross-story connections. Uses mock data by default; calls Claude Sonnet when ANTHROPIC_API_KEY is set.
-2. **Discovery** — Phase 1: Article ingestion, source health, full text testing
-3. **Categories** — Phase 2: Dual view (Classic 20-cat / Enriched with taxonomy drill-down)
-4. **Energy** — Live Australian NEM data from OpenElectricity
-5. **Taxonomy** — Manage taxonomy tree, entity registry, signal/sentiment overview, transmission channels, run enrichment
-6. **Events** — Future: climate events timeline
-7. **Weekly** — "The Weekly Pulse" editorial digest: auto-generated intelligence report (theme clusters, sentiment, numbers), human-curated editorial commentary, curated story roundup, archive view, email via Resend, LinkedIn draft
+Tabs are role-gated via `getTabsForRole()` in `src/app/(app)/dashboard/page.tsx` — `readerTabs`, `editorTabs`, `adminTabs`. All readers see: Briefing, Newsroom, Energy, Markets, Weekly. Editors add: Editor. Admins add: Discovery, Categories, Taxonomy.
+
+1. **Intelligence** ("Briefing", reader) — v1 Daily briefing: personalised digest with Daily Number, narrative synthesis, hero stories (expert analysis), compact stories (accordion), cross-story connections. Uses mock data by default; calls Claude Sonnet when ANTHROPIC_API_KEY is set.
+2. **Newsroom** (reader) — Phase 5: live wire-feed timeline, 30-min refresh cadence, per-user sector + urgency filtering, thumbs/save feedback loop that bumps items in the next briefing, urgency-5 push opt-in.
+3. **Energy** (reader) — Live Australian NEM data from OpenElectricity
+4. **Markets** (reader) — Commodity + equity ticker coverage
+5. **Weekly** (reader) — "The Weekly Pulse" editorial digest: auto-generated intelligence report (theme clusters, sentiment, numbers), human-curated editorial commentary, curated story roundup, archive view, email via Resend, LinkedIn draft
+6. **Editor** (editor+) — Weekly digest workflow: curate stories, write commentary, publish
+7. **Discovery** (admin) — Phase 1: Article ingestion, source health, full text testing
+8. **Categories** (admin) — Phase 2: Dual view (Classic 20-cat / Enriched with taxonomy drill-down)
+9. **Taxonomy** (admin) — Manage taxonomy tree, entity registry, signal/sentiment overview, transmission channels, run enrichment
+
+The Profile page additionally renders `SavedBoard` — the user's personal archive of saved Newsroom items as a dense clippings board.
 
 ## Key Principles
 
@@ -154,18 +194,45 @@ Hand-authored causal links between domains (e.g., "EU ETS price → Australian o
 - DO NOT drop categorised_articles — it's the historical record and classic view fallback
 - DO NOT hardcode taxonomy — it lives in the database, loaded via taxonomy-cache.ts
 - RSS feeds can change URLs without notice — source health monitoring is built-in
+- DO NOT write NOW() or other volatile functions into partial-index predicates — Postgres requires IMMUTABLE predicates (we hit this in `migrate-newsroom.sql` and fell back to `WHERE title_hash IS NOT NULL`)
+- DO NOT push notifications for anything under urgency 5 — preserves signal value and avoids notification fatigue. Fanout enforces a hard 3/user/hour rate limit on top of that.
+- DO NOT add offline-caching logic to `public/sw.js` without coordination — it is deliberately limited to push handling so it can coexist with any future caching SW
+- DO NOT classify Newsroom items at microsector granularity — Newsroom is domain-only by design. Deep microsector + entity work happens in the nightly Stage-1/Stage-2 pipeline
+- Newsroom `user_id` columns are `TEXT` (matches `user_profiles.id`), not UUID — every new table that joins to the user must use TEXT
+
+## Supabase × Vercel linking (prod)
+
+Supabase is linked to Vercel via the **Vercel Marketplace Supabase integration** (`vercel.com/marketplace/supabase`), not manual env-var copy-paste. The integration auto-provisions `DATABASE_URL` (transaction pooler, correctly SSL-configured), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` in the Vercel project, and keeps them in sync when you rotate keys in Supabase. This is the path to reach for first whenever a web project needs Supabase in prod — it sidesteps the SSL cert-chain and pooler-URL footguns that manual setup hits.
+
+The SSL-strip workaround in `src/lib/db.ts` is still in place as a belt-and-braces layer (so any future URL with `?sslmode=require` still works), but the integration-provisioned URL doesn't need it.
 
 ## Environment Variables
 
 ```
-DATABASE_URL=            # PostgreSQL connection string
-GOOGLE_AI_API_KEY=       # Gemini 2.5 Flash for enrichment
-NEWSAPI_AI_KEY=          # EventRegistry API
-NEWSAPI_ORG_KEY=         # NewsAPI.org (backup)
-OPENELECTRICITY_API_KEY= # Australian NEM energy data
-ANTHROPIC_API_KEY=       # Claude Sonnet for digest generation
-RESEND_API_KEY=          # Future: email delivery
+# ─── Data + AI (manual in Vercel) ────────────────────────────────────────
+GOOGLE_AI_API_KEY=                  # Gemini 2.5 Flash for enrichment + Newsroom
+NEWSAPI_AI_KEY=                     # EventRegistry API
+NEWSAPI_ORG_KEY=                    # NewsAPI.org (backup)
+OPENELECTRICITY_API_KEY=            # Australian NEM energy data
+ANTHROPIC_API_KEY=                  # Claude Sonnet for digest generation
+RESEND_API_KEY=                     # Email delivery
+
+# ─── Supabase (auto-provisioned by the Marketplace integration) ─────────
+DATABASE_URL=                       # PostgreSQL transaction-pooler URL
+NEXT_PUBLIC_SUPABASE_URL=           # Public — Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=      # Public — anon key for client auth
+SUPABASE_SERVICE_ROLE_KEY=          # Server-only — bypasses RLS, never expose
+
+# ─── Cron + Push (Newsroom) ──────────────────────────────────────────────
+CRON_SECRET=                        # Bearer token required by /api/**/ingest cron routes
+VAPID_PUBLIC_KEY=                   # Web-push VAPID public key (server-side)
+VAPID_PRIVATE_KEY=                  # Web-push VAPID private key
+VAPID_SUBJECT=                      # mailto:ops@climatepulse.app
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=       # Public — same value as VAPID_PUBLIC_KEY, exposed for browser subscribe
+NEXT_PUBLIC_APP_URL=                # e.g. https://climatepulse.app (used in push payload `url`)
 ```
+
+Newsroom gracefully no-ops on push when the VAPID vars are missing, so the feature still works in dev without them — only the urgency-5 notification dispatch is skipped (the intent is logged to `newsroom_push_log` for audit either way).
 
 ## File Structure
 
@@ -174,9 +241,13 @@ climatepulse/
 ├── CLAUDE.md
 ├── package.json
 ├── docker-compose.yml           # PostgreSQL 16
+├── public/
+│   ├── manifest.json            # PWA manifest
+│   └── sw.js                    # Minimal service worker (Newsroom push only)
 ├── prompts/
 │   ├── stage1-system.md         # Stage 1 domain classification prompt
 │   ├── stage2-system.md         # Stage 2 enrichment + scoring prompt
+│   ├── newsroom-classify-system.md  # Newsroom classifier (domain + urgency + teaser)
 │   ├── definitions/
 │   │   ├── domains.md           # 12 domain definitions
 │   │   ├── micro-sectors.md     # 108 microsector definitions (include/exclude)
@@ -189,6 +260,7 @@ climatepulse/
 │   ├── migrate.sql              # Phase 1 schema
 │   ├── migrate-enrichment.sql   # Enrichment schema
 │   ├── migrate-two-stage.sql    # Two-stage pipeline columns + indexes
+│   ├── migrate-newsroom.sql     # Newsroom tables, title_hash, push/saved/interactions
 │   ├── seed-taxonomy.sql        # 108 microsectors + domains + tags
 │   ├── seed-sources.sql         # Initial source seeding
 │   ├── migrate-weekly-digest.sql # Weekly reports + digests tables
@@ -210,7 +282,17 @@ climatepulse/
 │   │       ├── channels/            # Transmission channel CRUD
 │   │       ├── energy/              # NEM energy data
 │   │       ├── digest/              # Digest generation (Claude Sonnet)
-│   │       └── podcast/             # Podcast generation + retrieval
+│   │       ├── podcast/             # Podcast generation + retrieval
+│   │       └── newsroom/            # Newsroom API
+│   │           ├── ingest/          # Cron entry (GET|POST, CRON_SECRET)
+│   │           ├── feed/            # Paginated user feed
+│   │           ├── interact/        # POST {raw_article_id, type}
+│   │           ├── save/            # POST/DELETE save toggle
+│   │           ├── saved/           # GET user archive
+│   │           ├── prefs/           # PATCH/GET notification prefs
+│   │           └── push/
+│   │               ├── subscribe/   # POST — persist PushSubscription
+│   │               └── unsubscribe/ # POST — remove subscription
 │   ├── lib/
 │   │   ├── db.ts                    # PostgreSQL pool
 │   │   ├── types.ts                 # All TypeScript interfaces (incl. personalisation + digest)
@@ -238,6 +320,16 @@ climatepulse/
 │   │   │   ├── script-generator.ts  # Claude Sonnet → two-speaker script
 │   │   │   ├── tts-synthesizer.ts   # Gemini TTS multi-speaker → WAV
 │   │   │   └── storage.ts           # Vercel Blob / local file storage
+│   │   ├── newsroom/
+│   │   │   ├── run.ts               # Orchestrator: poll → dedup → classify → fanout
+│   │   │   ├── google-news-fetch.ts # Keyless Google News RSS search
+│   │   │   ├── dedup.ts             # title_hash + pg_trgm soft dedup
+│   │   │   ├── classifier.ts        # Gemini batch: domain + urgency + teaser
+│   │   │   ├── business-hours.ts    # Intl-based Sydney business-hours guard
+│   │   │   ├── feed-queries.ts      # fetchFeed + fetchSaved
+│   │   │   ├── interactions.ts      # getInteractionSummary for briefing bump
+│   │   │   ├── fanout.ts            # Urgency-5 web-push dispatch
+│   │   │   └── types.ts             # NewsroomItem, Urgency, InteractionSummary
 │   │   └── weekly/
 │   │       ├── theme-clusterer.ts   # Taxonomy-based article clustering
 │   │       └── email-sender.ts      # Resend email delivery
@@ -249,6 +341,17 @@ climatepulse/
 │       │   ├── digest-archive.tsx   # Past editions list
 │       │   ├── weekly-number.tsx    # Number of the Week card
 │       │   └── banner.tsx           # Time-limited banner for Intelligence tab
+│       ├── newsroom/                # Newsroom wire-feed tab + saved archive
+│       │   ├── NewsroomTab.tsx      # Tab shell: header + feed + PushOptIn
+│       │   ├── FeedHeader.tsx       # Urgency slider + sector chips + refresh
+│       │   ├── FeedList.tsx         # Infinite-scroll list with sentinel
+│       │   ├── FeedRow.tsx          # Single wire row (timestamp | headline | sector+urgency)
+│       │   ├── SectorTag.tsx        # Small-caps tag with hairline underline
+│       │   ├── UrgencyGlyph.tsx     # 0–2 plum bullets for urgency ≥4
+│       │   ├── QuickActions.tsx     # Thumbs + save buttons (keyboard: j/k/s/t)
+│       │   ├── PushOptIn.tsx        # Urgency-5 push opt-in card
+│       │   ├── SavedBoard.tsx       # Profile-page clippings grid
+│       │   └── SavedClipping.tsx    # Single clipping cell
 │       ├── discovery-tab.tsx
 │       ├── categories-tab.tsx       # Dual view: classic + enriched
 │       ├── energy-tab.tsx
