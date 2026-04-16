@@ -121,6 +121,7 @@ scripts/migrate-weekly-pulse.sql
 scripts/migrate-two-stage.sql
 scripts/migrate-entity-redesign.sql
 scripts/migrate-user-profiles.sql
+scripts/migrate-onboarding.sql
 scripts/migrate-analytics.sql
 scripts/migrate-streaks.sql
 scripts/migrate-reports.sql
@@ -134,7 +135,7 @@ scripts/migrate-notifications.sql
 scripts/migrate-newsroom.sql
 ```
 
-**Skip `migrate-onboarding.sql`** — it only seeds 5 hardcoded test users with fake IDs that don't map to real Supabase auth users.
+**Run `migrate-onboarding.sql`** — besides seeding 5 demo users, it adds the `onboarded_at` column that `/api/user/profile` selects. Skipping it causes every profile GET to 500 and breaks the onboarding flow. Delete the demo users afterwards (see "Clean up test data" below).
 
 ### Option B: CLI via psql (use the DIRECT connection, port 5432)
 
@@ -153,6 +154,7 @@ for f in \
   scripts/migrate-two-stage.sql \
   scripts/migrate-entity-redesign.sql \
   scripts/migrate-user-profiles.sql \
+  scripts/migrate-onboarding.sql \
   scripts/migrate-analytics.sql \
   scripts/migrate-streaks.sql \
   scripts/migrate-reports.sql \
@@ -170,10 +172,11 @@ done
 ```
 
 ### Clean up test data
-`migrate-user-profiles.sql` seeds a single row for `test-user-1` (Alex Chen). Delete it after migrations:
+`migrate-user-profiles.sql` seeds `test-user-1` (Alex Chen). `migrate-onboarding.sql` reseeds `test-user-1` through `test-user-5` with richer profiles. Delete them all after migrations so they don't appear in prod analytics:
 
 ```sql
-DELETE FROM user_profiles WHERE id = 'test-user-1';
+DELETE FROM daily_briefings WHERE user_id LIKE 'test-user-%';
+DELETE FROM user_profiles WHERE id LIKE 'test-user-%';
 ```
 
 **Note on DATABASE_URL for the app:** For Vercel, use the **Transaction pooler** URL (port 6543) — this is different from the migration URL. The pooler is required for serverless functions. Only use the direct connection (port 5432) for one-off migrations and admin queries.
