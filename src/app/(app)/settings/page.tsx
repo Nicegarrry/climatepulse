@@ -1,18 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { useDevLogger } from "@/lib/dev-logger";
+import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { StepSectors } from "@/components/onboarding/step-sectors";
-import { ROLE_ICONS, DOMAIN_ICONS } from "@/lib/domain-icons";
+import { ROLE_ICONS } from "@/lib/domain-icons";
 import { ROLE_LENS_OPTIONS } from "@/lib/types";
 import type { UserProfile, BriefingDepth, RoleLens } from "@/lib/types";
 import {
@@ -22,14 +21,12 @@ import {
   User,
   Newspaper,
   BookOpen,
-  Bell,
   Info,
   Lock,
   Clock,
   Zap,
   MapPin,
-  Pencil,
-  Check,
+  LogOut,
   Loader2,
 } from "lucide-react";
 
@@ -113,10 +110,26 @@ const DEPTH_OPTIONS: { id: BriefingDepth; label: string; desc: string; stories: 
   { id: "deep", label: "Deep", desc: "Comprehensive coverage", stories: "8–12 stories", icon: BookOpen },
 ];
 
+// ─── Notification preferences ─────────────────────────────────────────────
+
+type NotificationPrefs = {
+  daily_briefing: boolean;
+  weekly_digest: boolean;
+  high_priority_alerts: boolean;
+  entity_updates: boolean;
+};
+
+const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  daily_briefing: true,
+  weekly_digest: true,
+  high_priority_alerts: false,
+  entity_updates: false,
+};
+
 // ─── Main settings page ───────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const { user, updateUser } = useAuth();
+  const { user } = useAuth();
   const { log } = useDevLogger();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -125,19 +138,30 @@ export default function SettingsPage() {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [taxonomy, setTaxonomy] = useState<TaxonomyDomain[]>([]);
 
-  // Notifications (local state for now)
-  const [notifBriefing, setNotifBriefing] = useState(true);
-  const [notifHighPriority, setNotifHighPriority] = useState(true);
-  const [notifEntity, setNotifEntity] = useState(true);
+  // Notification preferences — persisted to user_profiles.notification_prefs
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
 
-  const userId = user?.id || "test-user-1";
+  // "Sign out of all devices" state
+  const [signingOutAll, setSigningOutAll] = useState(false);
 
-  // Fetch profile
+  const userId = user?.id;
+
+  // Fetch profile (includes notification_prefs)
   const fetchProfile = useCallback(async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`/api/user/profile?userId=${userId}`);
       const data = await res.json();
       setProfile(data);
+      if (data?.notification_prefs && typeof data.notification_prefs === "object") {
+        setNotifPrefs({
+          ...DEFAULT_NOTIFICATION_PREFS,
+          ...(data.notification_prefs as Partial<NotificationPrefs>),
+        });
+      }
     } catch (err) {
       console.error("Failed to load profile:", err);
     } finally {
@@ -170,6 +194,44 @@ export default function SettingsPage() {
       console.error("Save failed:", err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Toggle a single notification pref with optimistic UI + rollback on failure
+  const toggleNotif = async (key: keyof NotificationPrefs, value: boolean) => {
+    const previous = notifPrefs;
+    const next: NotificationPrefs = { ...notifPrefs, [key]: value };
+    setNotifPrefs(next); // optimistic
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, notification_prefs: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      log("info", "Notification pref updated", { key, value });
+    } catch (err) {
+      console.error("Notification pref save failed:", err);
+      log("warn", "Notification pref save failed — rolling back", { key, err: String(err) });
+      setNotifPrefs(previous); // rollback
+    }
+  };
+
+  // Sign out of every active Supabase session across all devices
+  const signOutEverywhere = async () => {
+    if (signingOutAll) return;
+    setSigningOutAll(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signOut({ scope: "global" });
+      if (error) throw error;
+      log("info", "Signed out of all devices");
+      // onAuthStateChange listener in AuthProvider will redirect via logout flow
+      window.location.href = "/login";
+    } catch (err) {
+      console.error("Global sign out failed:", err);
+      log("warn", "Global sign out failed", { err: String(err) });
+      setSigningOutAll(false);
     }
   };
 
@@ -460,27 +522,77 @@ export default function SettingsPage() {
           <CardContent className="p-6">
             <SectionLabel>Notifications</SectionLabel>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <Label className="text-sm font-medium">Daily briefing ready</Label>
                   <p className="text-xs text-muted-foreground">Notified when your morning briefing is generated</p>
                 </div>
-                <Switch checked={notifBriefing} onCheckedChange={setNotifBriefing} />
+                <Switch
+                  checked={notifPrefs.daily_briefing}
+                  onCheckedChange={(v) => toggleNotif("daily_briefing", v)}
+                />
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Weekly digest</Label>
+                  <p className="text-xs text-muted-foreground">The Weekly Pulse email on Sunday evenings</p>
+                </div>
+                <Switch
+                  checked={notifPrefs.weekly_digest}
+                  onCheckedChange={(v) => toggleNotif("weekly_digest", v)}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <Label className="text-sm font-medium">High-priority alerts (75+)</Label>
                   <p className="text-xs text-muted-foreground">Breaking stories with significance score above 75</p>
                 </div>
-                <Switch checked={notifHighPriority} onCheckedChange={setNotifHighPriority} />
+                <Switch
+                  checked={notifPrefs.high_priority_alerts}
+                  onCheckedChange={(v) => toggleNotif("high_priority_alerts", v)}
+                />
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <Label className="text-sm font-medium">Followed entity alerts</Label>
                   <p className="text-xs text-muted-foreground">When a followed entity appears in a new story</p>
                 </div>
-                <Switch checked={notifEntity} onCheckedChange={setNotifEntity} />
+                <Switch
+                  checked={notifPrefs.entity_updates}
+                  onCheckedChange={(v) => toggleNotif("entity_updates", v)}
+                />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Account */}
+        <Card className="border-border/40 bg-card/50">
+          <CardContent className="p-6">
+            <SectionLabel>Account</SectionLabel>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label className="text-sm font-medium">Sign out of all devices</Label>
+                <p className="text-xs text-muted-foreground">
+                  Ends every active session, including this one
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={signOutEverywhere}
+                disabled={signingOutAll}
+                className="shrink-0"
+              >
+                {signingOutAll ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <LogOut className="mr-1.5 h-3.5 w-3.5" />
+                    Sign out everywhere
+                  </>
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>
