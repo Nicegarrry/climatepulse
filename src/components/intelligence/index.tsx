@@ -15,6 +15,7 @@ import { EnergySidebar } from "./energy-sidebar";
 import { SectorCoverage } from "@/components/sector-coverage";
 import { WeeklyPulseCard } from "@/components/weekly-pulse-card";
 import { PodcastPlayer } from "./podcast-player";
+import { ResearchPanel } from "./research-panel";
 import type { SectorCoverageData, WeeklyPulse } from "@/lib/types";
 import type { EditorialStory, DailyNumber as DailyNumberType } from "@/lib/mock-editorial";
 import {
@@ -621,6 +622,11 @@ function DesktopIntelligence({
             <AlsoToday stories={also} />
           </>
         )}
+
+        {/* Research Panel */}
+        <div style={{ marginTop: 28 }}>
+          <ResearchPanel />
+        </div>
 
         {/* Footer */}
         <div style={{ marginTop: 28 }}><WobblyRule color={COLORS.borderLight} /></div>

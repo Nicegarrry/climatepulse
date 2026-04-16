@@ -9,6 +9,8 @@
     "db:migrate": "docker exec -i climatepulse-db-1 psql -U climatepulse -d climatepulse < scripts/migrate.sql",
     "db:seed": "docker exec -i climatepulse-db-1 psql -U climatepulse -d climatepulse < scripts/seed-sources.sql",
     "db:setup": "npm run db:migrate && npm run db:seed",
+    "db:migrate:intelligence": "docker exec -i climatepulse-db-1 psql -U climatepulse -d climatepulse < scripts/migrate-intelligence.sql",
+    "embeddings:backfill": "npx tsx scripts/backfill-embeddings.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

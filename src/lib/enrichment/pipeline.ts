@@ -6,6 +6,7 @@ import { enrichArticle, computeComposite } from "@/lib/enrichment/stage2-enriche
 import { resolveEntities, promoteEligibleEntities, markDormantEntities, archiveStaleCandidates } from "@/lib/enrichment/entity-resolver";
 import { getAllMicrosectors } from "@/lib/enrichment/taxonomy-cache";
 import { discoverStorylines } from "@/lib/enrichment/storyline-discovery";
+import { embedAndStoreArticle } from "@/lib/intelligence/embedder";
 import type {
   RawArticle,
   Stage1Result,
@@ -255,6 +256,14 @@ export async function runEnrichmentBatch(
                  context = EXCLUDED.context`,
               [enrichedId, resolved.entityId, resolved.role, entityMention.context || null]
             );
+          }
+
+          // Step 4b: Generate and store embedding for RAG retrieval
+          try {
+            await embedAndStoreArticle(enrichedId);
+          } catch (embedErr) {
+            console.warn(`Embedding failed for article ${enrichedId}:`, embedErr);
+            // Non-fatal: article is still enriched, just not yet searchable via vector
           }
 
           processed++;

@@ -85,6 +85,14 @@ export async function savePodcastEpisode(episode: {
     ]
   );
 
+  // Embed the podcast transcript into the RAG corpus (own editorial, feedback loop)
+  try {
+    const { embedPodcastEpisode } = await import("@/lib/intelligence/embedder");
+    await embedPodcastEpisode(id);
+  } catch (embedErr) {
+    console.warn("Failed to embed podcast episode:", embedErr);
+  }
+
   return {
     id,
     ...episode,
