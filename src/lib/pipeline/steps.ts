@@ -135,7 +135,9 @@ export async function step3Enrich(): Promise<StepResult> {
   return runStep("enrichment", async () => {
     const { runEnrichmentBatch } = await import("@/lib/enrichment/pipeline");
 
-    const TIME_BUDGET_MS = 20 * 60 * 1000; // 20 minutes
+    // 12 minutes — Vercel Pro serverless cap is 800s (~13m 20s); this leaves headroom
+    // for the in-flight Gemini batch to finish before the function is killed.
+    const TIME_BUDGET_MS = 12 * 60 * 1000;
     const deadline = Date.now() + TIME_BUDGET_MS;
 
     let total_processed = 0;

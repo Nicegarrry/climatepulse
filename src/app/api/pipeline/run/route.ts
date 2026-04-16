@@ -8,7 +8,7 @@ import type { StepName } from "@/lib/pipeline/types";
 // Vercel Pro caps Serverless Functions at 800s (~13m 20s). Full pipeline runs within that.
 export const maxDuration = 800;
 
-const VALID_STEPS: StepName[] = ["ingest", "fulltext", "enrichment", "digest"];
+const VALID_STEPS: StepName[] = ["ingest", "fulltext", "enrichment", "digest", "podcast"];
 
 async function handle(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
