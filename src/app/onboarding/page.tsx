@@ -77,13 +77,19 @@ export default function OnboardingPage() {
   ) => {
     setIsSubmitting(true);
     try {
-      const userId = user?.id || "test-user-1";
+      if (!user?.id) {
+        console.error("Onboarding: no authenticated user");
+        setIsSubmitting(false);
+        return;
+      }
 
       await fetch("/api/user/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId,
+          userId: user.id,
+          email: user.email,
+          name: user.name || user.email.split("@")[0],
           role_lens: roleLens,
           primary_sectors: microsectorSlugs,
           jurisdictions,

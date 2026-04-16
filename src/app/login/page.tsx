@@ -1,41 +1,66 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
-import { useDevLogger } from "@/lib/dev-logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft, Mail } from "lucide-react";
+
+type LoginState =
+  | { step: "email" }
+  | { step: "sent"; email: string };
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("demo@catalyst.study");
-  const [password, setPassword] = useState("password");
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<LoginState>({ step: "email" });
   const [error, setError] = useState("");
-  const { login, isLoading } = useAuth();
-  const { log } = useDevLogger();
-  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const { login } = useAuth();
+
+  // Cooldown timer for resend button
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setInterval(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearInterval(id);
+  }, [resendCooldown]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    log("info", "Login attempt", { email });
+    setSubmitting(true);
 
-    const success = await login(email, password);
-    if (success) {
-      log("info", "Login successful", { email });
-      // Check onboarding status — auth context login fetches the profile
-      // and sets onboardedAt. The (app) layout will redirect to /onboarding
-      // if needed, but we can also check here for immediate redirect.
-      router.push("/dashboard");
+    const result = await login(email);
+    setSubmitting(false);
+
+    if (result.ok) {
+      setState({ step: "sent", email });
+      setResendCooldown(60);
     } else {
-      log("warn", "Login failed", { email });
-      setError("Invalid credentials");
+      setError(result.error || "Could not send magic link. Please try again.");
     }
+  }
+
+  async function handleResend() {
+    if (resendCooldown > 0 || state.step !== "sent") return;
+    setError("");
+    setSubmitting(true);
+    const result = await login(state.email);
+    setSubmitting(false);
+    if (result.ok) {
+      setResendCooldown(60);
+    } else {
+      setError(result.error || "Could not resend. Try again shortly.");
+    }
+  }
+
+  function goBack() {
+    setState({ step: "email" });
+    setError("");
   }
 
   return (
@@ -61,70 +86,127 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Sign-in card */}
+        {/* Auth card */}
         <Card className="border-border/40 bg-white shadow-sm">
           <CardContent className="pt-7 pb-7 px-7">
-            {/* Editorial section label */}
-            <p className="mb-6 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-              Sign In
-            </p>
+            <AnimatePresence mode="wait">
+              {state.step === "email" ? (
+                <motion.div
+                  key="email-form"
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 8 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                    Sign In
+                  </p>
+                  <p className="mb-6 text-sm text-muted-foreground">
+                    Enter your email to receive a magic link.
+                  </p>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-medium text-muted-foreground">
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  autoFocus
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs font-medium text-muted-foreground">
-                  Password
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
-                  required
-                  className="h-10"
-                />
-              </div>
+                  <form onSubmit={handleSubmit} className="space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-xs font-medium text-muted-foreground">
+                        Email
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        required
+                        autoFocus
+                        autoComplete="email"
+                        className="h-10"
+                      />
+                    </div>
 
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
+                    {error && <p className="text-sm text-destructive">{error}</p>}
+
+                    <Button
+                      type="submit"
+                      className="w-full h-10 bg-forest hover:bg-forest/90 text-white"
+                      disabled={submitting || !email}
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        "Continue with email"
+                      )}
+                    </Button>
+                  </form>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="sent-state"
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -8 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="mb-5 flex items-center justify-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-forest/10">
+                      <Mail className="h-6 w-6 text-forest" />
+                    </div>
+                  </div>
+                  <p className="mb-2 text-center text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                    Check your email
+                  </p>
+                  <p className="mb-5 text-center text-sm text-foreground">
+                    We sent a magic link to
+                  </p>
+                  <p className="mb-6 text-center text-sm font-medium text-forest">
+                    {state.email}
+                  </p>
+                  <p className="mb-6 text-center text-xs text-muted-foreground">
+                    Click the link in your email to sign in. You can close this window.
+                  </p>
+
+                  {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+
+                  <div className="space-y-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-10"
+                      onClick={handleResend}
+                      disabled={submitting || resendCooldown > 0}
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Resending...
+                        </>
+                      ) : resendCooldown > 0 ? (
+                        `Resend in ${resendCooldown}s`
+                      ) : (
+                        "Resend magic link"
+                      )}
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={goBack}
+                      className="flex w-full items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ArrowLeft className="h-3 w-3" />
+                      Use a different email
+                    </button>
+                  </div>
+                </motion.div>
               )}
-
-              <Button
-                type="submit"
-                className="w-full h-10 bg-forest hover:bg-forest/90 text-white"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  "Sign In"
-                )}
-              </Button>
-            </form>
-
-            <p className="mt-5 text-center text-xs text-muted-foreground">
-              Demo: any email/password works
-            </p>
+            </AnimatePresence>
           </CardContent>
         </Card>
+
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          Climate Pulse {"\u00B7"} Invite only
+        </p>
       </motion.div>
     </div>
   );

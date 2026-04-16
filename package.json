@@ -17,7 +17,10 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@heroicons/react": "^2.2.0",
     "@openelectricity/client": "^0.4.0",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.103.1",
     "@vercel/blob": "^2.3.3",
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",

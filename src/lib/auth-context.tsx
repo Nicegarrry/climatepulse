@@ -1,97 +1,155 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-interface User {
+// ─── Types ─────────────────────────────────────────────────────────────────
+
+export type UserRole = "reader" | "editor" | "admin";
+
+export interface AuthUser {
   id: string;
   email: string;
   name: string;
-  avatar?: string;
-  onboardedAt?: string | null;
+  role: UserRole;
+  onboardedAt: string | null;
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  switchUser: (userId: string) => Promise<void>;
-  updateUser: (updates: Partial<User>) => void;
+  login: (email: string) => Promise<{ ok: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  updateUser: (updates: Partial<AuthUser>) => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+// ─── Helpers ───────────────────────────────────────────────────────────────
 
-  const fetchProfile = async (userId: string): Promise<User | null> => {
-    try {
-      const res = await fetch(`/api/user/profile?userId=${userId}`);
-      if (!res.ok) return null;
-      const profile = await res.json();
+async function fetchProfile(supabaseUser: SupabaseUser): Promise<AuthUser | null> {
+  try {
+    const res = await fetch(`/api/user/profile?userId=${supabaseUser.id}`);
+    if (!res.ok) {
+      // Profile doesn't exist yet — return minimal user so onboarding can trigger
       return {
-        id: profile.id,
-        email: profile.email,
-        name: profile.name,
-        onboardedAt: profile.onboarded_at ?? null,
-      };
-    } catch {
-      return null;
-    }
-  };
-
-  const login = useCallback(async (email: string, _password: string) => {
-    setIsLoading(true);
-    // Simulate network delay
-    await new Promise((r) => setTimeout(r, 400));
-
-    // Try to find a matching test user by email, else default to test-user-1
-    const profile = await fetchProfile("test-user-1");
-    if (profile) {
-      // Check if any test user matches the email
-      for (const id of ["test-user-1", "test-user-2", "test-user-3", "test-user-4", "test-user-5"]) {
-        const p = await fetchProfile(id);
-        if (p && p.email === email) {
-          setUser(p);
-          setIsLoading(false);
-          return true;
-        }
-      }
-      // Default: log in as test-user-1 with the provided email
-      setUser({ ...profile, email });
-    } else {
-      // Fallback if DB is down
-      setUser({
-        id: "test-user-1",
-        email,
-        name: "Alex Chen",
+        id: supabaseUser.id,
+        email: supabaseUser.email ?? "",
+        name: (supabaseUser.user_metadata?.name as string) ?? "",
+        role: "reader",
         onboardedAt: null,
-      });
+      };
     }
-    setIsLoading(false);
-    return true;
+    const profile = await res.json();
+    return {
+      id: profile.id ?? supabaseUser.id,
+      email: profile.email ?? supabaseUser.email ?? "",
+      name: profile.name ?? "",
+      role: (profile.user_role as UserRole) ?? "reader",
+      onboardedAt: profile.onboarded_at ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─── Provider ──────────────────────────────────────────────────────────────
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+
+  // Initial session check + auth state listener
+  useEffect(() => {
+    const supabase = createClient();
+    let mounted = true;
+
+    // Check existing session on mount
+    (async () => {
+      try {
+        const {
+          data: { user: supabaseUser },
+        } = await supabase.auth.getUser();
+
+        if (!mounted) return;
+
+        if (supabaseUser) {
+          const profile = await fetchProfile(supabaseUser);
+          if (mounted) setUser(profile);
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.warn("Auth initialisation error:", err);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    })();
+
+    // Listen for auth state changes (sign in, sign out, token refresh)
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      if (event === "SIGNED_IN" && session?.user) {
+        const profile = await fetchProfile(session.user);
+        if (mounted) setUser(profile);
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+      } else if (event === "USER_UPDATED" && session?.user) {
+        const profile = await fetchProfile(session.user);
+        if (mounted) setUser(profile);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
   }, []);
 
-  const logout = useCallback(() => {
+  const login = useCallback(async (email: string): Promise<{ ok: boolean; error?: string }> => {
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: true };
+  }, []);
+
+  const logout = useCallback(async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
     setUser(null);
-  }, []);
+    router.push("/login");
+  }, [router]);
 
-  const switchUser = useCallback(async (userId: string) => {
-    setIsLoading(true);
-    const profile = await fetchProfile(userId);
-    if (profile) {
-      setUser(profile);
-    }
-    setIsLoading(false);
-  }, []);
-
-  const updateUser = useCallback((updates: Partial<User>) => {
+  const updateUser = useCallback((updates: Partial<AuthUser>) => {
     setUser((prev) => (prev ? { ...prev, ...updates } : null));
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    if (supabaseUser) {
+      const profile = await fetchProfile(supabaseUser);
+      setUser(profile);
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, switchUser, updateUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
