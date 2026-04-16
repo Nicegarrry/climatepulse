@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = request.nextUrl;
     const ticker = searchParams.get("ticker");

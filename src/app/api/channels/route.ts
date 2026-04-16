@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const result = await pool.query(`
       SELECT tc.*,
         sd.name as source_domain_name, td.name as target_domain_name
@@ -24,6 +30,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await request.json();
     const { source_domain_id, target_domain_id, label, description, mechanism, strength } = body;
 

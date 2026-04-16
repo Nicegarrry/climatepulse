@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 /**
  * GET /api/enrichment/sentiment-trends
@@ -7,6 +8,11 @@ import pool from "@/lib/db";
  */
 export async function GET(request: Request) {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const { searchParams } = new URL(request.url);
     const days = Math.min(180, Math.max(7, parseInt(searchParams.get("days") || "60")));
     const granularity = searchParams.get("granularity") === "daily" ? "day" : "week";

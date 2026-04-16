@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth("admin");
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const { searchParams } = req.nextUrl;
   const hours = parseInt(searchParams.get("hours") || "24", 10);
   const source = searchParams.get("source");

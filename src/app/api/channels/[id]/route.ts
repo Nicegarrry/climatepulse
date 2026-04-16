@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { source_domain_id, target_domain_id, label, description, mechanism, strength } = body;
@@ -74,6 +80,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const { id } = await params;
 
     const result = await pool.query(

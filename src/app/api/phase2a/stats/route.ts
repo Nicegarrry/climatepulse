@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET() {
+  const auth = await requireAuth("admin");
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const [totalRes, uncatRes, distRes, avgRes] = await Promise.all([
     pool.query("SELECT COUNT(*) as count FROM categorised_articles"),
     pool.query(

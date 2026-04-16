@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
-
-const TEST_USER_ID = "test-user-1";
+import { requireAuth } from "@/lib/supabase/server";
 
 // ─── POST — record implicit signal ────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await req.json();
     const { type, story_id, metadata } = body;
 
@@ -30,7 +34,7 @@ export async function POST(req: NextRequest) {
          ),
          updated_at = NOW()
          WHERE id = $4`,
-        [`{${story_id}}`, story_id, timestamp, TEST_USER_ID]
+        [`{${story_id}}`, story_id, timestamp, auth.user.id]
       );
     } else if (type === "ring_tap") {
       await pool.query(
@@ -42,7 +46,7 @@ export async function POST(req: NextRequest) {
          ),
          updated_at = NOW()
          WHERE id = $4`,
-        [`{${story_id}}`, story_id, timestamp, TEST_USER_ID]
+        [`{${story_id}}`, story_id, timestamp, auth.user.id]
       );
     } else if (type === "source_click") {
       // Future: track link clicks for engagement analysis

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const { searchParams } = new URL(request.url);
     const sectorId = searchParams.get("sector_id");
 
@@ -29,6 +35,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await request.json();
     const { sector_id, slug, name, description, keywords } = body;
 

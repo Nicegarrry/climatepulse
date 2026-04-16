@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_MODEL } from "@/lib/ai-models";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -12,6 +13,11 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
  */
 export async function POST() {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     // Step 1: Find domain pairs that co-occur in articles but don't have existing channels
     const { rows: coOccurrences } = await pool.query(`
       WITH domain_pairs AS (

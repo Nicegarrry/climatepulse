@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 function getLastWeekStart(): string {
   const now = new Date();
@@ -16,8 +17,17 @@ function getLastWeekEnd(weekStart: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get("authorization");
+    const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+    if (!isCron) {
+      const auth = await requireAuth("admin");
+      if ("error" in auth) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+      }
+    }
+
     const weekStart = getLastWeekStart();
     const weekEnd = getLastWeekEnd(weekStart);
 

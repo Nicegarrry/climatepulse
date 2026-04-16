@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "50")));
@@ -63,6 +69,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await request.json();
     const { canonical_name, entity_type, aliases, status } = body;
 

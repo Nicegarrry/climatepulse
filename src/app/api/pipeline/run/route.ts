@@ -1,6 +1,7 @@
 // src/app/api/pipeline/run/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/supabase/server";
 import { runPipeline } from "@/lib/pipeline/orchestrator";
 import type { StepName } from "@/lib/pipeline/types";
 
@@ -10,8 +11,14 @@ export const maxDuration = 900;
 const VALID_STEPS: StepName[] = ["ingest", "fulltext", "enrichment", "digest"];
 
 export async function POST(req: NextRequest) {
-  // TODO(deploy): Add CRON_SECRET auth check before deploying to production
-  // See docs/BACKLOG.md for details
+  const authHeader = req.headers.get("authorization");
+  const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+  if (!isCron) {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+  }
 
   const singleStep = req.nextUrl.searchParams.get("step") as StepName | null;
   const dry = req.nextUrl.searchParams.get("dry") === "true";

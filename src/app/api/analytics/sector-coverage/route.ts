@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const userId = req.nextUrl.searchParams.get("userId");
   if (!userId) {
     return NextResponse.json({ error: "userId required" }, { status: 400 });
+  }
+  if (userId !== auth.user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {

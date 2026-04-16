@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 // GET /api/weekly/reports?limit=10
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const limit = Math.min(
     parseInt(req.nextUrl.searchParams.get("limit") || "10", 10),
     50

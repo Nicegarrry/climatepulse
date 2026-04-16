@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 interface IncomingEvent {
   event_name: string;
@@ -10,6 +11,11 @@ interface IncomingEvent {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await req.json();
     const { userId, events } = body as {
       userId: string;
@@ -21,6 +27,9 @@ export async function POST(req: NextRequest) {
         { error: "userId and events[] required" },
         { status: 400 }
       );
+    }
+    if (userId !== auth.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Batch insert using a single multi-row INSERT

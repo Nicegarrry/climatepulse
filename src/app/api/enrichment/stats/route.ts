@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const [
       enrichedRes, unenrichedRes, domainRes, signalRes, sentimentRes,
       entityRes, costRes, significanceRes, pipelineVersionRes

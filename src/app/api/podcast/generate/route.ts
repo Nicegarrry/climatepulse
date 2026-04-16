@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 import type { DigestOutput } from "@/lib/types";
 
 export const maxDuration = 300; // Script gen (~15s) + TTS (~2-3 min for 5-min episode)
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get("authorization");
+    const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+    if (!isCron) {
+      const auth = await requireAuth("admin");
+      if ("error" in auth) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+      }
+    }
+
     const body = await req.json().catch(() => ({}));
     const useMock = body.mock === true;
     const date = body.date ?? new Date().toISOString().split("T")[0];

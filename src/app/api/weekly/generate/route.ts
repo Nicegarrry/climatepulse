@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_MODEL } from "@/lib/ai-models";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 import { fetchWeekArticles, clusterArticles } from "@/lib/weekly/theme-clusterer";
 import type { WeeklyThemeCluster } from "@/lib/types";
 
@@ -199,6 +200,15 @@ function buildSentimentSummary(clusters: WeeklyThemeCluster[]) {
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get("authorization");
+    const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+    if (!isCron) {
+      const auth = await requireAuth("admin");
+      if ("error" in auth) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+      }
+    }
+
     const weekStartParam = req.nextUrl.searchParams.get("weekStart");
     const { weekStart, weekEnd } = weekStartParam
       ? { weekStart: weekStartParam, weekEnd: (() => {
@@ -275,6 +285,14 @@ export async function POST(req: NextRequest) {
 
     console.log(`Weekly report ${reportId}: saved with ${clusters.length} clusters, ${topNumbers.length} numbers`);
 
+    // Embed weekly report into RAG corpus (own editorial, feedback loop)
+    try {
+      const { embedWeeklyReport } = await import("@/lib/intelligence/embedder");
+      await embedWeeklyReport(reportId);
+    } catch (embedErr) {
+      console.warn("Failed to embed weekly report:", embedErr);
+    }
+
     return NextResponse.json({
       id: reportId,
       weekStart,
@@ -296,6 +314,11 @@ export async function POST(req: NextRequest) {
 
 // GET returns the most recent report
 export async function GET() {
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { rows } = await pool.query(
       "SELECT * FROM weekly_reports ORDER BY week_start DESC LIMIT 1"

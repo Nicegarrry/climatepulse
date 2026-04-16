@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OpenElectricityClient } from "@openelectricity/client";
 import type { DataInterval } from "@openelectricity/client";
+import { requireAuth } from "@/lib/supabase/server";
 
 function ftLabel(name: string): string {
   const base = name.replace(/^(energy|power)_/, "");
@@ -29,6 +30,11 @@ const SKIP = new Set(["battery", "battery_charging", "pumps"]);
 export const maxDuration = 30;
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const apiKey = process.env.OPENELECTRICITY_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "OPENELECTRICITY_API_KEY not set" }, { status: 500 });

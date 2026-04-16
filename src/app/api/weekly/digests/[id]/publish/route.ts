@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_MODEL } from "@/lib/ai-models";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 import { sendWeeklyDigestEmail } from "@/lib/weekly/email-sender";
 
 export const maxDuration = 60;
@@ -11,6 +12,11 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth("editor");
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const { id } = await params;
 
   try {

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const result = await pool.query(`
       SELECT
         d.id as domain_id, d.slug as domain_slug, d.name as domain_name, d.description as domain_desc, d.sort_order as domain_sort,

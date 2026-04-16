@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/supabase/server";
 import { pollAllFeeds } from "@/lib/discovery/poller";
 import { scrapeAllTargets } from "@/lib/discovery/scraper";
 import type { DiscoveryRunResult } from "@/lib/types";
@@ -6,6 +7,11 @@ import type { DiscoveryRunResult } from "@/lib/types";
 export const maxDuration = 120;
 
 export async function POST() {
+  const auth = await requireAuth("admin");
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const start = Date.now();
 
   const [pollResult, scrapeResult] = await Promise.all([

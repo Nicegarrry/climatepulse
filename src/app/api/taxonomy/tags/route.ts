@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const result = await pool.query("SELECT * FROM taxonomy_tags ORDER BY name");
     return NextResponse.json(result.rows);
   } catch (error) {
@@ -16,6 +22,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth("admin");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await request.json();
     const { slug, name, description } = body;
 

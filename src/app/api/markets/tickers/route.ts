@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET() {
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { rows } = await pool.query(`
       SELECT t.*, p.close_price, p.change_percent, p.volume, p.day_high, p.day_low, p.trade_date

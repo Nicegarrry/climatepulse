@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ ticker: string }> },
 ) {
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { ticker } = await params;
 

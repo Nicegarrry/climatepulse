@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 export async function GET() {
+  const auth = await requireAuth("admin");
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const [totalRes, last24hRes, bySourceRes, byHourRes, sourcesRes] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int AS count FROM raw_articles`),
     pool.query(`SELECT COUNT(*)::int AS count FROM raw_articles WHERE fetched_at > NOW() - INTERVAL '24 hours'`),

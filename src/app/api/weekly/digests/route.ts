@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 // GET /api/weekly/digests?status=published&limit=10
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const status = req.nextUrl.searchParams.get("status") || "published";
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get("limit") || "10", 10), 50);
 
@@ -28,6 +34,11 @@ export async function GET(req: NextRequest) {
 // POST /api/weekly/digests — create or upsert a digest
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth("editor");
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await req.json();
     const {
       week_start,
@@ -84,6 +95,14 @@ export async function POST(req: NextRequest) {
         outlook || null,
       ]
     );
+
+    // Embed weekly digest into RAG corpus (own editorial, feedback loop)
+    try {
+      const { embedWeeklyDigest } = await import("@/lib/intelligence/embedder");
+      await embedWeeklyDigest(rows[0].id);
+    } catch (embedErr) {
+      console.warn("Failed to embed weekly digest:", embedErr);
+    }
 
     return NextResponse.json({ digest: rows[0] }, { status: 201 });
   } catch (err) {

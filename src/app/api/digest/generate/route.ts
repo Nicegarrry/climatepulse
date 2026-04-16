@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 import { selectBriefingStories, DEPTH_RANGES } from "@/lib/personalisation";
 import { getTaxonomyTree } from "@/lib/enrichment/taxonomy-cache";
 import { MOCK_USER_PROFILE, MOCK_DIGEST } from "@/lib/mock-digest";
+import { getInteractionSummary } from "@/lib/newsroom/interactions";
 import type {
   UserProfile,
   ScoredStory,
@@ -374,6 +376,16 @@ async function fetchUserProfile(userId: string): Promise<UserProfile> {
 
 export async function POST(req: NextRequest) {
   try {
+    // Manual trigger requires admin OR cron secret
+    const authHeader = req.headers.get("authorization");
+    const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+    if (!isCron) {
+      const auth = await requireAuth("admin");
+      if ("error" in auth) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+      }
+    }
+
     const body = await req.json().catch(() => ({}));
     const useMock = body.mock === true;
     const userId = body.userId || "test-user-1";
@@ -404,9 +416,21 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Load taxonomy tree for domain→microsector expansion
-      const taxonomyTree = await getTaxonomyTree();
-      stories = selectBriefingStories(enriched, profile, taxonomyTree);
+      // Load taxonomy tree for domain→microsector expansion + Newsroom
+      // interaction summary so the briefing-bump hook can apply boosts.
+      const [taxonomyTree, interactionSummary] = await Promise.all([
+        getTaxonomyTree(),
+        getInteractionSummary(profile.id).catch((err) => {
+          console.warn("[digest] failed to load interaction summary:", err);
+          return undefined;
+        }),
+      ]);
+      stories = selectBriefingStories(
+        enriched,
+        profile,
+        taxonomyTree,
+        interactionSummary
+      );
 
       if (stories.length === 0) {
         return NextResponse.json(
@@ -482,6 +506,14 @@ export async function POST(req: NextRequest) {
            generated_at = EXCLUDED.generated_at`,
         [briefingId, profile.id, today, JSON.stringify(stories), JSON.stringify(digest), now]
       );
+
+      // Embed the digest into the RAG corpus (own editorial output, feedback loop)
+      try {
+        const { embedDailyDigest } = await import("@/lib/intelligence/embedder");
+        await embedDailyDigest(briefingId);
+      } catch (embedErr) {
+        console.warn("Failed to embed daily digest:", embedErr);
+      }
     } catch (persistErr) {
       // Non-fatal — briefing still returned even if persistence fails
       console.warn("Failed to persist briefing:", persistErr);
@@ -500,7 +532,17 @@ export async function POST(req: NextRequest) {
 // ─── GET handler (return mock for easy testing) ────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get("userId") || "test-user-1";
+  const auth = await requireAuth();
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const requestedUserId = req.nextUrl.searchParams.get("userId");
+  // Users can only fetch their own briefing
+  if (requestedUserId && requestedUserId !== auth.user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const userId = requestedUserId || auth.user.id;
 
   // Check for today's persisted briefing for this user
   try {

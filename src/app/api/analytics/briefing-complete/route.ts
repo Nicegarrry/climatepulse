@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { requireAuth } from "@/lib/supabase/server";
 
 function subtractDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -17,6 +18,11 @@ function getISOWeekStart(dateStr: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if ("error" in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await req.json();
     const { userId, editionDate, storiesViewed, totalStories, totalViewTimeSeconds } = body as {
       userId: string;
@@ -28,6 +34,9 @@ export async function POST(req: NextRequest) {
 
     if (!userId || !editionDate) {
       return NextResponse.json({ error: "userId and editionDate required" }, { status: 400 });
+    }
+    if (userId !== auth.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // 1. Insert completion (upsert — idempotent)
