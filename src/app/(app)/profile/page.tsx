@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Mail, Clock, Check, Loader2 } from "lucide-react";
+import { SavedBoard } from "@/components/newsroom/SavedBoard";
 
 const fadeUp = {
   initial: { opacity: 0, y: 16 },
@@ -231,6 +232,9 @@ export default function ProfilePage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Saved articles archive — clippings board */}
+        <SavedBoard />
       </motion.div>
     </div>
   );

@@ -755,9 +755,10 @@ export default function IntelligenceTab() {
   const [weeklyPulse, setWeeklyPulse] = useState<WeeklyPulse | null>(null);
   const [podcastEpisode, setPodcastEpisode] = useState<PodcastEpisode | null>(null);
 
-  const userId = user?.id || "test-user-1";
+  const userId = user?.id;
 
   const fetchData = useCallback(async () => {
+    if (!userId) return;
     setLoading(true);
     setError(null);
     try {

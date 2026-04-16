@@ -6,6 +6,7 @@ import type {
   TaxonomyTreeNode,
 } from "./types";
 import { expandToMicrosectorSlugs } from "./expand-sectors";
+import type { InteractionSummary } from "./newsroom/types";
 
 // ─── Boost Constants ───────────────────────────────────────────────────────
 
@@ -37,7 +38,8 @@ interface BoostEntry {
 function computeBoosts(
   story: EnrichedArticle,
   profile: UserProfile,
-  expandedSectors: Set<string>
+  expandedSectors: Set<string>,
+  interactions?: InteractionSummary
 ): BoostEntry[] {
   const boosts: BoostEntry[] = [];
   const inherentScore = Number(story.significance_composite) || 50;
@@ -161,6 +163,48 @@ function computeBoosts(
     }
   }
 
+  // ── Newsroom interaction boost ───────────────────────────────────────
+  // Direct: same article previously surfaced via Newsroom → boost based
+  // on the strongest signal the user gave it.
+  // Soft: entity overlap (the same wire item won't be the same DB row as
+  // the enriched briefing story, so we propagate via shared entities).
+  if (interactions) {
+    const direct = story.raw_article_id
+      ? interactions.byArticle.get(story.raw_article_id)
+      : undefined;
+    if (direct) {
+      if (direct.saved)
+        boosts.push({ condition: "Saved previously", boost: 18 });
+      if (direct.thumbs === 1)
+        boosts.push({ condition: "Thumbs up", boost: 10 });
+      if (direct.thumbs === -1)
+        boosts.push({ condition: "Thumbs down", boost: -15 });
+      const readBoost = Math.min(direct.reads * 3, 6);
+      if (readBoost > 0)
+        boosts.push({ condition: `Read ${direct.reads}×`, boost: readBoost });
+    }
+
+    // Softer entity propagation. Cap at one matched entity per story to
+    // avoid stacking; saves win over thumbs.
+    if (story.entities && story.entities.length > 0) {
+      let entityBoosted = false;
+      for (const e of story.entities) {
+        if (entityBoosted) break;
+        const key = e.name?.toLowerCase().trim();
+        if (!key || key.length < 3) continue;
+        const ent = interactions.byEntity.get(key);
+        if (!ent) continue;
+        if (ent.saves > 0) {
+          boosts.push({ condition: `Entity saved: ${e.name}`, boost: 9 });
+          entityBoosted = true;
+        } else if (ent.positive > ent.negative) {
+          boosts.push({ condition: `Entity engaged: ${e.name}`, boost: 5 });
+          entityBoosted = true;
+        }
+      }
+    }
+  }
+
   return boosts;
 }
 
@@ -169,10 +213,11 @@ function computeBoosts(
 export function computePersonalScore(
   story: EnrichedArticle,
   profile: UserProfile,
-  expandedSectors: Set<string>
+  expandedSectors: Set<string>,
+  interactions?: InteractionSummary
 ): ScoredStory {
   const inherentScore = Number(story.significance_composite) || 50;
-  const boosts = computeBoosts(story, profile, expandedSectors);
+  const boosts = computeBoosts(story, profile, expandedSectors, interactions);
 
   const rawBoost = boosts.reduce((sum, b) => sum + b.boost, 0);
   const cappedBoost = Math.max(BOOST_FLOOR, Math.min(rawBoost, BOOST_CAP));
@@ -215,7 +260,8 @@ export function computePersonalScore(
 export function selectBriefingStories(
   stories: EnrichedArticle[],
   profile: UserProfile,
-  taxonomyTree?: TaxonomyTreeNode[]
+  taxonomyTree?: TaxonomyTreeNode[],
+  interactions?: InteractionSummary
 ): ScoredStory[] {
   // 0. Expand user's primary_sectors to microsector slugs
   const expandedSectors = taxonomyTree
@@ -233,8 +279,11 @@ export function selectBriefingStories(
   }
   const deduped = Array.from(titleMap.values());
 
-  // 2. Score all stories
-  const scored = deduped.map((s) => computePersonalScore(s, profile, expandedSectors));
+  // 2. Score all stories (Newsroom interaction history strengthens or
+  //    weakens the boost — see computeBoosts for the per-signal weights).
+  const scored = deduped.map((s) =>
+    computePersonalScore(s, profile, expandedSectors, interactions)
+  );
 
   // 3. Breaking news always included (inherent >= 90)
   const breaking = scored.filter(
