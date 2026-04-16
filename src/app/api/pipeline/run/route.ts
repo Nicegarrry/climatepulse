@@ -5,8 +5,8 @@ import { requireAuth } from "@/lib/supabase/server";
 import { runPipeline } from "@/lib/pipeline/orchestrator";
 import type { StepName } from "@/lib/pipeline/types";
 
-// Allow up to 15 minutes for the full pipeline
-export const maxDuration = 900;
+// Vercel Pro caps Serverless Functions at 800s (~13m 20s). Full pipeline runs within that.
+export const maxDuration = 800;
 
 const VALID_STEPS: StepName[] = ["ingest", "fulltext", "enrichment", "digest"];
 

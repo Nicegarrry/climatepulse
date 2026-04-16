@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import { COLORS } from "@/lib/design-tokens";
 import { FeedHeader } from "./FeedHeader";
 import { FeedList } from "./FeedList";
+import { PushOptIn } from "./PushOptIn";
 import type { NewsroomFeedRow } from "@/lib/newsroom/types";
 
 const PAGE_SIZE = 60;
@@ -122,6 +123,11 @@ export function NewsroomTab() {
         onChangeSectors={setSectors}
         onRefresh={() => load("reset")}
       />
+      {userId && (
+        <div style={{ padding: "10px 16px 0 16px" }}>
+          <PushOptIn />
+        </div>
+      )}
       <FeedList
         items={items}
         authedUserId={userId}

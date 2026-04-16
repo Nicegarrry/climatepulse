@@ -4,9 +4,9 @@ AI-powered daily climate, energy & sustainability intelligence digest. Adapts th
 
 ## Project Context
 
-This is a **local development testing environment** — not a production app. We are building and testing each phase of the data pipeline independently, with a simple visual frontend to inspect results at each stage. Each phase is a separate tab in a tabbed SaaS shell.
+**Moving to production (2026-04-17).** The pipeline phases have been validated locally and the app is being deployed to Vercel Pro. Each phase remains a separate tab in the tabbed SaaS shell for inspection and admin use. New work should assume production constraints (real users, real costs, RLS on, secrets-safe env vars).
 
-The goal is to validate that we can: (1) ingest climate/energy news from RSS + scrapers, (2) enrich articles with granular taxonomy + entity tagging + sentiment, (3) prioritise within categories, and (4) generate a smart digest — before building the real product.
+The validated pipeline: (1) ingest climate/energy news from RSS + scrapers, (2) enrich articles with granular taxonomy + entity tagging + sentiment, (3) prioritise within categories, and (4) generate a smart digest.
 
 ## Stack
 
@@ -16,8 +16,8 @@ The goal is to validate that we can: (1) ingest climate/energy news from RSS + s
 - **Database**: PostgreSQL 16 via `pg` driver (Docker Compose, no ORM)
 - **AI (Triage/Enrichment)**: Gemini 2.5 Flash via Google AI API — chosen for cost
 - **AI (Digest Generation)**: Claude Sonnet via Anthropic API
-- **Email**: Resend (future)
-- **Hosting (future)**: Railway (backend), Vercel (frontend)
+- **Email**: Resend
+- **Hosting**: Vercel Pro (Next.js app + cron jobs); Supabase for auth + Postgres in prod
 
 ## Architecture
 
@@ -150,7 +150,7 @@ Hand-authored causal links between domains (e.g., "EU ETS price → Australian o
 
 - DO NOT use NewsAPI.org free tier for production — it blocks server-side calls
 - DO NOT send more than 15 articles to Sonnet digest regardless of sector count
-- DO NOT build auth, payments, or user management during testing — hardcode a test user
+- Auth is real: Supabase magic links (`signInWithOtp` in `src/lib/auth-context.tsx`, login UI in `src/app/login/page.tsx`). Server routes gate access via `requireAuth()` in `src/lib/supabase/server.ts`. Never reintroduce hardcoded test users.
 - DO NOT drop categorised_articles — it's the historical record and classic view fallback
 - DO NOT hardcode taxonomy — it lives in the database, loaded via taxonomy-cache.ts
 - RSS feeds can change URLs without notice — source health monitoring is built-in

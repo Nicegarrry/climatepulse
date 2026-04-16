@@ -35,11 +35,10 @@ async function ensurePushClient(): Promise<PushModule | null> {
   }
 
   try {
-    // Dynamic import so the package isn't required at build time before
-    // it's installed. The package is added in step 10. The eslint/ts ignore
-    // is intentional — the optional dep is documented in package.json once
-    // we wire push notifications.
-    // @ts-expect-error -- web-push is added as an optional dependency in step 10
+    // Dynamic import keeps the runtime dependency optional — if the package
+    // isn't installed (e.g. minimal env), we silently disable push instead
+    // of crashing. Now that web-push is in package.json, the import
+    // succeeds in normal envs.
     const mod = (await import("web-push").catch(() => null)) as unknown as {
       default?: PushModule;
     } | null;

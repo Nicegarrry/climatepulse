@@ -121,7 +121,6 @@ scripts/migrate-weekly-pulse.sql
 scripts/migrate-two-stage.sql
 scripts/migrate-entity-redesign.sql
 scripts/migrate-user-profiles.sql
-scripts/migrate-onboarding.sql
 scripts/migrate-analytics.sql
 scripts/migrate-streaks.sql
 scripts/migrate-reports.sql
@@ -132,17 +131,52 @@ scripts/migrate-weekly-digest.sql
 scripts/migrate-podcast.sql
 scripts/migrate-roles.sql
 scripts/migrate-notifications.sql
+scripts/migrate-newsroom.sql
 ```
 
-### Option B: CLI via psql
+**Skip `migrate-onboarding.sql`** — it only seeds 5 hardcoded test users with fake IDs that don't map to real Supabase auth users.
+
+### Option B: CLI via psql (use the DIRECT connection, port 5432)
+
+Get the direct connection string from Supabase: Settings → Database → Connection string → URI tab (NOT the Transaction pooler — use the direct connection for DDL).
+
 ```bash
-export DB_URL="postgresql://postgres.xxx:PASSWORD@aws-0-region.pooler.supabase.com:6543/postgres"
-for f in scripts/migrate*.sql scripts/seed-*.sql; do
-  psql "$DB_URL" -f "$f"
+export DB_URL="postgresql://postgres:PASSWORD@db.xxx.supabase.co:5432/postgres"
+
+for f in \
+  scripts/migrate.sql \
+  scripts/migrate-enrichment.sql \
+  scripts/seed-taxonomy.sql \
+  scripts/seed-sources.sql \
+  scripts/migrate-pipeline.sql \
+  scripts/migrate-weekly-pulse.sql \
+  scripts/migrate-two-stage.sql \
+  scripts/migrate-entity-redesign.sql \
+  scripts/migrate-user-profiles.sql \
+  scripts/migrate-analytics.sql \
+  scripts/migrate-streaks.sql \
+  scripts/migrate-reports.sql \
+  scripts/migrate-storylines.sql \
+  scripts/migrate-markets.sql \
+  scripts/seed-channels.sql \
+  scripts/migrate-weekly-digest.sql \
+  scripts/migrate-podcast.sql \
+  scripts/migrate-roles.sql \
+  scripts/migrate-notifications.sql \
+  scripts/migrate-newsroom.sql; do
+  echo "=== Running $f ==="
+  psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f" || { echo "FAILED: $f"; exit 1; }
 done
 ```
 
-**Note:** The test users (`test-user-1` through `test-user-5`) in `migrate-onboarding.sql` were seeded for local dev. You may want to skip that migration or delete those rows in production.
+### Clean up test data
+`migrate-user-profiles.sql` seeds a single row for `test-user-1` (Alex Chen). Delete it after migrations:
+
+```sql
+DELETE FROM user_profiles WHERE id = 'test-user-1';
+```
+
+**Note on DATABASE_URL for the app:** For Vercel, use the **Transaction pooler** URL (port 6543) — this is different from the migration URL. The pooler is required for serverless functions. Only use the direct connection (port 5432) for one-off migrations and admin queries.
 
 ---
 
