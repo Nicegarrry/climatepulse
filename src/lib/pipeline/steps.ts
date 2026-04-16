@@ -211,16 +211,26 @@ export async function step4Digest(): Promise<StepResult> {
     let failures = 0;
     const details: Array<{ user_id: string; name: string; status: string; error?: string; story_count?: number }> = [];
 
+    // Resolve base URL: prefer public app URL, fall back to Vercel deployment
+    // URL in prod, localhost in dev. Must be absolute — there is no localhost
+    // server inside a Vercel function invocation.
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+      `http://localhost:${process.env.PORT || "3000"}`;
+
     for (const user of users) {
       try {
-        // Call the digest endpoint internally via fetch on localhost
-        // This reuses all the existing logic (personalisation, web context, Claude)
-        const port = process.env.PORT || "3000";
+        // Call the digest endpoint internally. Reuses all the existing logic
+        // (personalisation, web context, Claude) and auth via CRON_SECRET.
         const res = await fetch(
-          `http://localhost:${port}/api/digest/generate`,
+          `${baseUrl}/api/digest/generate`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.CRON_SECRET ?? ""}`,
+            },
             body: JSON.stringify({ userId: user.id }),
           }
         );
