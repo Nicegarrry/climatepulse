@@ -14,6 +14,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  NewspaperIcon,
+  BoltIcon,
+  ChartBarIcon,
+  CalendarDaysIcon,
+  MagnifyingGlassIcon,
+  TagIcon,
+  AdjustmentsHorizontalIcon,
+  CommandLineIcon,
+  ChevronRightIcon,
+  RssIcon,
+} from "@heroicons/react/24/outline";
 import { COLORS, FONTS, GRAIN, NAV_ITEMS } from "@/lib/design-tokens";
 import { DiscoveryTab } from "@/components/discovery-tab";
 import { CategoriesTab } from "@/components/categories-tab";
@@ -21,34 +33,74 @@ import { EnergyTab } from "@/components/energy-tab";
 import { TaxonomyTab } from "@/components/taxonomy-tab";
 import { MarketsTab } from "@/components/markets-tab";
 import WeeklyTab from "@/components/weekly";
+import EditorTab from "@/components/editor";
 import IntelligenceTab from "@/components/intelligence";
+import { NewsroomTab } from "@/components/newsroom/NewsroomTab";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
    ────────────────────────────────────────────────────────────────────────── */
 
-const IS_DEV = process.env.NEXT_PUBLIC_SHOW_DEV_TABS === "true";
-
-const publicTabs = [
-  { value: "intelligence", label: "Briefing", icon: "\u25C7" },
-  { value: "energy", label: "Energy", icon: "\u25CE" },
-  { value: "markets", label: "Markets", icon: "\u25A4" },
-  { value: "weekly", label: "Weekly", icon: "\u25C8" },
+// Tab definitions by access tier
+const readerTabs = [
+  { value: "intelligence", label: "Briefing", icon: NewspaperIcon },
+  { value: "newsroom", label: "Newsroom", icon: RssIcon },
+  { value: "energy", label: "Energy", icon: BoltIcon },
+  { value: "markets", label: "Markets", icon: ChartBarIcon },
+  { value: "weekly", label: "Weekly", icon: CalendarDaysIcon },
 ];
 
-const devOnlyTabs = [
-  { value: "discovery", label: "Discovery", icon: "\u2197" },
-  { value: "categories", label: "Categories", icon: "\u2261" },
-  { value: "taxonomy", label: "Taxonomy", icon: "\u25A4" },
+const editorTabs = [
+  { value: "editor", label: "Editor", icon: CalendarDaysIcon },
 ];
 
-const tabConfig = IS_DEV
-  ? [
-      publicTabs[0],
-      ...devOnlyTabs,
-      ...publicTabs.slice(1),
-    ]
-  : publicTabs;
+const adminTabs = [
+  { value: "discovery", label: "Discovery", icon: MagnifyingGlassIcon },
+  { value: "categories", label: "Categories", icon: TagIcon },
+  { value: "taxonomy", label: "Taxonomy", icon: AdjustmentsHorizontalIcon },
+];
+
+function getTabsForRole(role: "reader" | "editor" | "admin") {
+  // Order: Briefing, (admin tabs between), Energy, Markets, Editor, Weekly
+  const base = [...readerTabs];
+  if (role === "admin") {
+    // Insert admin tabs between Briefing (index 0) and Energy (index 1)
+    base.splice(1, 0, ...adminTabs);
+  }
+  if (role === "editor" || role === "admin") {
+    // Editor tab goes just before Weekly (last position in readerTabs)
+    const weeklyIdx = base.findIndex((t) => t.value === "weekly");
+    if (weeklyIdx >= 0) base.splice(weeklyIdx, 0, ...editorTabs);
+    else base.push(...editorTabs);
+  }
+  return base;
+}
+
+function getMobileNavForRole(role: "reader" | "editor" | "admin") {
+  // Mobile has max 4 slots — prioritise based on role
+  if (role === "admin") {
+    return [
+      { icon: NewspaperIcon, label: "Briefing", value: "intelligence" },
+      { icon: MagnifyingGlassIcon, label: "Explore", value: "discovery" },
+      { icon: BoltIcon, label: "Energy", value: "energy" },
+      { icon: CalendarDaysIcon, label: "Weekly", value: "weekly" },
+    ];
+  }
+  if (role === "editor") {
+    return [
+      { icon: NewspaperIcon, label: "Briefing", value: "intelligence" },
+      { icon: CalendarDaysIcon, label: "Editor", value: "editor" },
+      { icon: ChartBarIcon, label: "Markets", value: "markets" },
+      { icon: CalendarDaysIcon, label: "Weekly", value: "weekly" },
+    ];
+  }
+  return [
+    { icon: NewspaperIcon, label: "Briefing", value: "intelligence" },
+    { icon: BoltIcon, label: "Energy", value: "energy" },
+    { icon: ChartBarIcon, label: "Markets", value: "markets" },
+    { icon: CalendarDaysIcon, label: "Weekly", value: "weekly" },
+  ];
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
    Animation variants
@@ -76,8 +128,12 @@ function TabContent({ activeTab }: { activeTab: string }) {
       return <MarketsTab />;
     case "weekly":
       return <WeeklyTab />;
+    case "editor":
+      return <EditorTab />;
     case "taxonomy":
       return <TaxonomyTab />;
+    case "newsroom":
+      return <NewsroomTab />;
     default:
       return null;
   }
@@ -87,13 +143,6 @@ function TabContent({ activeTab }: { activeTab: string }) {
    Mobile bottom nav items
    ────────────────────────────────────────────────────────────────────────── */
 
-const mobileNav = [
-  { icon: "\u25C7", label: "Briefing", value: "intelligence" },
-  { icon: "\u2197", label: "Explore", value: "discovery" },
-  { icon: "\u25CE", label: "Storylines", value: "energy" },
-  { icon: "\u25C8", label: "Weekly", value: "weekly" },
-];
-
 /* ──────────────────────────────────────────────────────────────────────────
    Dashboard page — editorial nav rail layout
    ────────────────────────────────────────────────────────────────────────── */
@@ -101,6 +150,10 @@ const mobileNav = [
 export default function DashboardPage() {
   const { log, isOpen, setIsOpen, logs } = useDevLogger();
   const { user, logout } = useAuth();
+  const role = user?.role ?? "reader";
+  const tabConfig = getTabsForRole(role);
+  const mobileNav = getMobileNavForRole(role);
+  const isAdmin = role === "admin";
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("intelligence");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -117,8 +170,15 @@ export default function DashboardPage() {
     log("info", "Dashboard loaded");
   }, [log]);
 
+  // Guard: if current tab isn't allowed for role, revert to intelligence
+  useEffect(() => {
+    const allowed = tabConfig.some((t) => t.value === activeTab);
+    if (!allowed) setActiveTab("intelligence");
+  }, [tabConfig, activeTab]);
+
   const isIntelligence = activeTab === "intelligence";
   const isWeekly = activeTab === "weekly";
+  const isNewsroom = activeTab === "newsroom";
 
   return (
     <div
@@ -193,9 +253,7 @@ export default function DashboardPage() {
                 transition: "all 150ms ease",
               }}
             >
-              <span style={{ width: 18, textAlign: "center", flexShrink: 0 }}>
-                {tab.icon}
-              </span>
+              <tab.icon style={{ width: 18, height: 18, flexShrink: 0 }} />
               {sidebarOpen && (
                 <span
                   style={{
@@ -214,8 +272,8 @@ export default function DashboardPage() {
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
-        {/* Dev button */}
-        {IS_DEV && (
+        {/* Dev button — admin only */}
+        {isAdmin && (
           <div
             onClick={() => setIsOpen(!isOpen)}
             style={{
@@ -234,9 +292,7 @@ export default function DashboardPage() {
               transition: "all 150ms ease",
             }}
           >
-            <span style={{ width: 18, textAlign: "center", flexShrink: 0, fontSize: 14 }}>
-              {"\u2318"}
-            </span>
+            <CommandLineIcon style={{ width: 18, height: 18, flexShrink: 0 }} />
             {sidebarOpen && (
               <span style={{ fontFamily: "monospace", fontSize: 11 }}>
                 Dev
@@ -272,9 +328,7 @@ export default function DashboardPage() {
             transition: "all 150ms ease",
           }}
         >
-          <span style={{ width: 18, textAlign: "center", flexShrink: 0, fontSize: 12, transition: "transform 150ms ease", transform: sidebarOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-            {"\u203A"}
-          </span>
+          <ChevronRightIcon style={{ width: 16, height: 16, flexShrink: 0, transition: "transform 150ms ease", transform: sidebarOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
           {sidebarOpen && <span style={{ fontSize: 11 }}>Collapse</span>}
         </div>
 
@@ -373,6 +427,10 @@ export default function DashboardPage() {
             <IntelligenceTab />
           ) : isWeekly ? (
             <WeeklyTab />
+          ) : isNewsroom ? (
+            <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
+              <NewsroomTab />
+            </div>
           ) : (
             <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
               <div className="mx-auto max-w-screen-2xl p-4 sm:p-6 lg:p-8">
@@ -396,7 +454,8 @@ export default function DashboardPage() {
         <div
           className="flex md:hidden"
           style={{
-            height: 50,
+            minHeight: 50,
+            paddingBottom: "env(safe-area-inset-bottom)",
             borderTop: `1px solid ${COLORS.border}`,
             background: COLORS.surface,
             alignItems: "center",
@@ -421,14 +480,13 @@ export default function DashboardPage() {
                   cursor: "pointer",
                 }}
               >
-                <span
+                <item.icon
                   style={{
-                    fontSize: 15,
+                    width: 20,
+                    height: 20,
                     color: isActive ? COLORS.forest : COLORS.inkMuted,
                   }}
-                >
-                  {item.icon}
-                </span>
+                />
                 <span
                   style={{
                     fontSize: 8,

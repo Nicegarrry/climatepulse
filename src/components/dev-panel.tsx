@@ -2,19 +2,10 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useDevLogger, type LogEntry } from "@/lib/dev-logger";
-import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, Trash2, ChevronDown, ChevronUp, Users } from "lucide-react";
+import { X, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-
-const TEST_USERS = [
-  { id: "test-user-1", name: "Sarah Chen", role: "Investor" },
-  { id: "test-user-2", name: "Marcus Webb", role: "Corporate" },
-  { id: "test-user-3", name: "Priya Sharma", role: "Policy" },
-  { id: "test-user-4", name: "James Okonkwo", role: "Developer" },
-  { id: "test-user-5", name: "Dr. Amira Hassan", role: "Researcher" },
-];
 
 /* ── Colour tokens (hardcoded — always dark/terminal) ── */
 const LEVEL_BADGE: Record<
@@ -29,10 +20,8 @@ const LEVEL_BADGE: Record<
 
 export function DevPanel() {
   const { logs, isOpen, setIsOpen, clearLogs, log } = useDevLogger();
-  const { user, switchUser, updateUser } = useAuth();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [showUserSwitcher, setShowUserSwitcher] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   /* Auto-scroll to top when new log arrives (logs are newest-first) */
@@ -73,17 +62,6 @@ export function DevPanel() {
           <div className="flex-1" />
 
           {/* Action buttons */}
-          {/* User switcher */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 gap-1 rounded px-2 font-mono text-[11px] text-[#8A9A88] hover:bg-[#243318] hover:text-[#F5F2EC]"
-            onClick={() => setShowUserSwitcher(!showUserSwitcher)}
-          >
-            <Users className="h-3 w-3" />
-            {user?.name?.split(" ")[0] ?? "User"}
-          </Button>
-
           <Button
             variant="ghost"
             size="sm"
@@ -129,50 +107,6 @@ export function DevPanel() {
             <X className="h-3 w-3" />
           </Button>
         </div>
-
-        {/* ── User switcher bar ── */}
-        {!isMinimized && showUserSwitcher && (
-          <div className="flex items-center gap-1 border-b border-[#243318] bg-[#1A2412] px-3.5 py-1.5">
-            <span className="mr-2 font-mono text-[10px] uppercase tracking-wider text-[#5A6B58]">
-              Switch user:
-            </span>
-            {TEST_USERS.map((tu) => (
-              <button
-                key={tu.id}
-                onClick={async () => {
-                  await switchUser(tu.id);
-                  setShowUserSwitcher(false);
-                  log("info", `Switched to ${tu.name}`, { userId: tu.id });
-                }}
-                className={`rounded-md px-2 py-1 font-mono text-[11px] transition-colors hover:bg-[#243318] ${
-                  user?.id === tu.id
-                    ? "bg-[#243318] text-[#7DBF6E]"
-                    : "text-[#8A9A88]"
-                }`}
-              >
-                {tu.name.split(" ")[0]}
-                <span className="ml-1 text-[9px] text-[#5A6B58]">{tu.role}</span>
-              </button>
-            ))}
-            <div className="mx-1 h-4 w-px bg-[#243318]" />
-            <button
-              onClick={async () => {
-                if (!user?.id) return;
-                await fetch("/api/user/profile", {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ userId: user.id, onboarded_at: null }),
-                });
-                updateUser({ onboardedAt: null });
-                setShowUserSwitcher(false);
-                log("info", "Onboarding reset — redirecting...");
-              }}
-              className="rounded-md px-2 py-1 font-mono text-[11px] text-[#C94444] transition-colors hover:bg-[#243318]"
-            >
-              Reset Onboarding
-            </button>
-          </div>
-        )}
 
         {/* ── Log entries ── */}
         {!isMinimized && (
