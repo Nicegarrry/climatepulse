@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
-import { requireAuth } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
-    const auth = await requireAuth("admin");
-    if ("error" in auth) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    // Any authenticated user can read the taxonomy tree — it's the domain/sector
+    // list used by onboarding (before a user has a profile/role) and by the admin
+    // taxonomy tab. Do not require admin here, or new users cannot onboard.
+    const user = await getAuthUser();
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     const result = await pool.query(`
