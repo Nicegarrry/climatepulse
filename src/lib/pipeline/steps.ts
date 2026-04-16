@@ -196,6 +196,7 @@ export async function step3Enrich(): Promise<StepResult> {
 export async function step4Digest(): Promise<StepResult> {
   return runStep("digest", async () => {
     const pool = (await import("@/lib/db")).default;
+    const { generateBriefingForUser } = await import("@/lib/digest/generate");
 
     // Fetch all user profiles
     const usersResult = await pool.query(
@@ -211,36 +212,10 @@ export async function step4Digest(): Promise<StepResult> {
     let failures = 0;
     const details: Array<{ user_id: string; name: string; status: string; error?: string; story_count?: number }> = [];
 
-    // Resolve base URL: prefer public app URL, fall back to Vercel deployment
-    // URL in prod, localhost in dev. Must be absolute — there is no localhost
-    // server inside a Vercel function invocation.
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-      `http://localhost:${process.env.PORT || "3000"}`;
-
     for (const user of users) {
       try {
-        // Call the digest endpoint internally. Reuses all the existing logic
-        // (personalisation, web context, Claude) and auth via CRON_SECRET.
-        const res = await fetch(
-          `${baseUrl}/api/digest/generate`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${process.env.CRON_SECRET ?? ""}`,
-            },
-            body: JSON.stringify({ userId: user.id }),
-          }
-        );
-
-        if (!res.ok) {
-          const errBody = await res.text();
-          throw new Error(`HTTP ${res.status}: ${errBody.slice(0, 200)}`);
-        }
-
-        const briefing = await res.json();
+        // Direct call — no self-fetch, no auth round-trip.
+        const briefing = await generateBriefingForUser(user.id);
         successes++;
         details.push({
           user_id: user.id,
@@ -249,7 +224,9 @@ export async function step4Digest(): Promise<StepResult> {
           story_count: briefing.stories?.length ?? 0,
         });
 
-        console.log(`[pipeline:digest] ${user.name} (${user.id}): ${briefing.stories?.length ?? 0} stories`);
+        console.log(
+          `[pipeline:digest] ${user.name} (${user.id}): ${briefing.stories?.length ?? 0} stories`
+        );
       } catch (err) {
         failures++;
         const message = err instanceof Error ? err.message : String(err);

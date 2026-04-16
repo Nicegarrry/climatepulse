@@ -1,10 +1,10 @@
 {
   "crons": [
-    { "path": "/api/pipeline/run?step=ingest",     "schedule": "0 19 * * *" },
-    { "path": "/api/pipeline/run?step=fulltext",   "schedule": "5 19 * * *" },
-    { "path": "/api/pipeline/run?step=enrichment", "schedule": "10 19 * * *" },
-    { "path": "/api/pipeline/run?step=digest",     "schedule": "25 19 * * *" },
-    { "path": "/api/pipeline/run?step=podcast",    "schedule": "40 19 * * *" },
+    { "path": "/api/pipeline/ingest",   "schedule": "0 19 * * *" },
+    { "path": "/api/pipeline/fulltext", "schedule": "5 19 * * *" },
+    { "path": "/api/pipeline/enrich",   "schedule": "10 19 * * *" },
+    { "path": "/api/pipeline/digest",   "schedule": "25 19 * * *" },
+    { "path": "/api/pipeline/podcast",  "schedule": "40 19 * * *" },
     { "path": "/api/analytics/weekly-pulse/generate", "schedule": "0 20 * * 0" },
     { "path": "/api/weekly/generate", "schedule": "0 4 * * 5" },
     { "path": "/api/newsroom/ingest", "schedule": "*/30 19-23 * * 1-5" },
