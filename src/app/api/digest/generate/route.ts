@@ -7,6 +7,23 @@ import type { DailyBriefing } from "@/lib/types";
 // Claude Sonnet + optional web-search pre-pass can take >60s for a single user.
 export const maxDuration = 300;
 
+// Invocation-scoped lock so rapid polls don't fire duplicate Sonnet calls.
+// Fluid Compute reuses instances across concurrent requests within a region,
+// so this catches the common case; the DB upsert handles any cross-instance race.
+const inFlight = new Set<string>();
+
+function startBackgroundGeneration(userId: string) {
+  if (inFlight.has(userId)) return;
+  inFlight.add(userId);
+  void generateBriefingForUser(userId)
+    .catch((err) => {
+      console.error(`[digest] background generation failed for ${userId}:`, err);
+    })
+    .finally(() => {
+      inFlight.delete(userId);
+    });
+}
+
 // ─── POST handler — generate today's briefing for a user ──────────────────
 
 export async function POST(req: NextRequest) {
@@ -79,19 +96,31 @@ export async function GET(req: NextRequest) {
         /* non-critical */
       }
       return NextResponse.json({
-        id: row.id,
-        user_id: row.user_id,
-        date: row.date,
-        stories: row.stories,
-        digest: row.digest,
-        generated_at: row.generated_at,
-        articles_analysed: articlesCount,
-      } as DailyBriefing);
+        status: "ready",
+        briefing: {
+          id: row.id,
+          user_id: row.user_id,
+          date: row.date,
+          stories: row.stories,
+          digest: row.digest,
+          generated_at: row.generated_at,
+          articles_analysed: articlesCount,
+        } as DailyBriefing,
+      });
     }
-  } catch {
-    // Table might not exist yet — fall through to mock
+  } catch (err) {
+    console.warn("[digest] daily_briefings lookup failed:", err);
   }
 
-  const { MOCK_BRIEFING } = await import("@/lib/mock-digest");
-  return NextResponse.json(MOCK_BRIEFING);
+  // No briefing for today — kick off background generation and return a
+  // placeholder so the client can render mock content + a generating banner
+  // while polling.
+  startBackgroundGeneration(userId);
+
+  return NextResponse.json({
+    status: "generating",
+    generation_started_at: new Date().toISOString(),
+    estimated_seconds: 60,
+    briefing: null,
+  });
 }

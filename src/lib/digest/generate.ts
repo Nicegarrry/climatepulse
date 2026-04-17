@@ -450,7 +450,9 @@ async function fetchUserProfile(userId: string): Promise<UserProfile> {
   } catch {
     // Fall through to mock
   }
-  return MOCK_USER_PROFILE;
+  // If no profile row exists yet (e.g. mid-onboarding), use mock defaults but
+  // keep the real userId so the persisted briefing is owned by the right user.
+  return { ...MOCK_USER_PROFILE, id: userId };
 }
 
 // ─── Public entry point ────────────────────────────────────────────────────

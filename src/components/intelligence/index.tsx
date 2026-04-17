@@ -12,6 +12,7 @@ import { AlsoToday } from "./also-today";
 import { GlowingBriefingCard } from "./glowing-card";
 import { StoriesOverlay, type BriefingCompletionData } from "./stories-overlay";
 import { EnergySidebar } from "./energy-sidebar";
+import { GeneratingBanner } from "./generating-banner";
 import { SectorCoverage } from "@/components/sector-coverage";
 import { WeeklyPulseCard } from "@/components/weekly-pulse-card";
 import { PodcastPlayer } from "./podcast-player";
@@ -556,6 +557,7 @@ function DesktopIntelligence({
   weeklyPulse,
   podcastEpisode,
   articlesAnalysed,
+  topBanner,
 }: {
   leads: EditorialStory[];
   also: EditorialStory[];
@@ -568,6 +570,7 @@ function DesktopIntelligence({
   weeklyPulse?: WeeklyPulse | null;
   podcastEpisode?: PodcastEpisode | null;
   articlesAnalysed?: number;
+  topBanner?: React.ReactNode;
 }) {
   const totalStories = leads.length + also.length;
   const now = new Date();
@@ -582,6 +585,7 @@ function DesktopIntelligence({
     <div style={{ flex: 1, overflowY: "auto", display: "flex" }}>
       {/* Editorial column */}
       <main style={{ flex: 1, padding: "26px 32px 60px", minWidth: 0 }}>
+        {topBanner}
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
@@ -674,6 +678,7 @@ function MobileIntelligence({
   streakCount,
   podcastEpisode,
   articlesAnalysed,
+  topBanner,
 }: {
   leads: EditorialStory[];
   also: EditorialStory[];
@@ -686,6 +691,7 @@ function MobileIntelligence({
   streakCount?: number;
   podcastEpisode?: PodcastEpisode | null;
   articlesAnalysed?: number;
+  topBanner?: React.ReactNode;
 }) {
   const { track } = useAnalytics();
   const [storiesOpen, setStoriesOpen] = useState(false);
@@ -707,6 +713,7 @@ function MobileIntelligence({
   return (
     <>
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        {topBanner && <div style={{ padding: "12px 16px 0" }}>{topBanner}</div>}
         <DailyNumberMobile data={dailyNumber} briefedToday={briefedToday} streakCount={streakCount} />
         <div style={{ padding: "0 20px" }}><WobblyRule /></div>
         <GlowingBriefingCard onStart={() => openBriefing(0)} todaysRead={todaysRead} storyCount={briefing.length} briefedToday={briefedToday} streakCount={streakCount} articlesAnalysed={articlesAnalysed} />
@@ -754,8 +761,28 @@ export default function IntelligenceTab() {
   const [sectorCoverage, setSectorCoverage] = useState<SectorCoverageData | null>(null);
   const [weeklyPulse, setWeeklyPulse] = useState<WeeklyPulse | null>(null);
   const [podcastEpisode, setPodcastEpisode] = useState<PodcastEpisode | null>(null);
+  const [digestStatus, setDigestStatus] = useState<"ready" | "generating" | "unknown">("unknown");
+  const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
 
   const userId = user?.id;
+
+  // Poll-only digest fetch. Used by the generating-state poll loop so we
+  // don't re-trigger the sidebar/energy/podcast fetches on every tick.
+  const pollDigest = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`/api/digest/generate?userId=${userId}`);
+      if (!res.ok) return;
+      const payload = await res.json();
+      if (payload?.status === "ready" && payload.briefing) {
+        setBriefing(payload.briefing);
+        setDigestStatus("ready");
+        setGenerationStartedAt(null);
+      }
+    } catch {
+      // Non-fatal — next tick will retry
+    }
+  }, [userId]);
 
   const fetchData = useCallback(async () => {
     if (!userId) return;
@@ -772,7 +799,24 @@ export default function IntelligenceTab() {
       ]);
 
       if (digestRes.status === "fulfilled" && digestRes.value.ok) {
-        setBriefing(await digestRes.value.json());
+        const payload = await digestRes.value.json();
+        if (payload?.status === "ready" && payload.briefing) {
+          setBriefing(payload.briefing);
+          setDigestStatus("ready");
+          setGenerationStartedAt(null);
+        } else if (payload?.status === "generating") {
+          setBriefing(null);
+          setDigestStatus("generating");
+          setGenerationStartedAt(
+            payload.generation_started_at
+              ? new Date(payload.generation_started_at).getTime()
+              : Date.now()
+          );
+        } else {
+          // Unexpected shape — treat as ready to preserve backward compat
+          setBriefing(payload);
+          setDigestStatus("ready");
+        }
       } else {
         throw new Error("Failed to fetch briefing");
       }
@@ -809,6 +853,21 @@ export default function IntelligenceTab() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // While a first-time briefing is generating, poll every 6s until it lands.
+  // Cap at ~3 minutes so we don't poll forever if something goes wrong server-side.
+  useEffect(() => {
+    if (digestStatus !== "generating") return;
+    const startedAt = generationStartedAt ?? Date.now();
+    const id = setInterval(() => {
+      if (Date.now() - startedAt > 180_000) {
+        clearInterval(id);
+        return;
+      }
+      pollDigest();
+    }, 6_000);
+    return () => clearInterval(id);
+  }, [digestStatus, generationStartedAt, pollDigest]);
 
   // Handle briefing completion — post to streak API and update local state
   const handleBriefingComplete = useCallback(async (data: BriefingCompletionData) => {
@@ -891,6 +950,11 @@ export default function IntelligenceTab() {
   if (loading) return <LoadingState />;
   if (error && !briefing) return <ErrorState message={error} onRetry={fetchData} />;
 
+  const generatingBanner =
+    digestStatus === "generating" && generationStartedAt ? (
+      <GeneratingBanner startedAt={generationStartedAt} estimatedSeconds={60} />
+    ) : null;
+
   return (
     <>
       {/* Desktop */}
@@ -907,6 +971,7 @@ export default function IntelligenceTab() {
           weeklyPulse={weeklyPulse}
           podcastEpisode={podcastEpisode}
           articlesAnalysed={briefing?.articles_analysed}
+          topBanner={generatingBanner}
         />
       </div>
       {/* Mobile */}
@@ -923,6 +988,7 @@ export default function IntelligenceTab() {
           streakCount={streakCount}
           podcastEpisode={podcastEpisode}
           articlesAnalysed={briefing?.articles_analysed}
+          topBanner={generatingBanner}
         />
       </div>
     </>
