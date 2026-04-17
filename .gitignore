@@ -54,3 +54,4 @@ node_modules/
 # Local agent tooling
 .playwright-mcp/
 .superpowers/
+supabase/.temp

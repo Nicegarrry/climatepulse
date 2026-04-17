@@ -278,6 +278,9 @@ export interface EnrichedArticle {
   technologies_referenced: string[];
   transmission_channels_triggered: string[];
   pipeline_version: number;
+  // Contradicts-prior signal (set by checkContradictsPrior after enrichment)
+  contradicts_prior?: boolean;
+  contradicted_source_ids?: string[];
   // Joined fields from raw_articles
   title: string;
   snippet: string | null;
@@ -398,7 +401,7 @@ export interface ScoredStory {
   secondary_domain: string | null;
   microsector_slugs: string[];
   secondary_microsector_slugs: string[];
-  entities: { name: string; type: string }[];
+  entities: { id?: number; name: string; type: string }[];
   quantitative_data: QuantitativeData | null;
   jurisdictions: string[];
   inherent_score: number;

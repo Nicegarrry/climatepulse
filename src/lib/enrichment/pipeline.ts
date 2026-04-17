@@ -7,6 +7,7 @@ import { resolveEntities, promoteEligibleEntities, markDormantEntities, archiveS
 import { getAllMicrosectors } from "@/lib/enrichment/taxonomy-cache";
 import { discoverStorylines } from "@/lib/enrichment/storyline-discovery";
 import { embedAndStoreArticle } from "@/lib/intelligence/embedder";
+import { checkContradictsPrior } from "@/lib/enrichment/contradicts-prior";
 import type {
   RawArticle,
   Stage1Result,
@@ -264,6 +265,23 @@ export async function runEnrichmentBatch(
           } catch (embedErr) {
             console.warn(`Embedding failed for article ${enrichedId}:`, embedErr);
             // Non-fatal: article is still enriched, just not yet searchable via vector
+          }
+
+          // Step 4c: Flag the article if it contradicts prior coverage of the
+          // same entities. Depends on 4b having landed this article's own
+          // embedding; safe to skip on failure.
+          try {
+            const contradicts = await checkContradictsPrior(enrichedId);
+            if (contradicts.flagged) {
+              console.log(
+                `[enrichment] ${enrichedId} contradicts prior coverage (${contradicts.matches.length} matches)`
+              );
+            }
+          } catch (contradictErr) {
+            console.warn(
+              `contradicts_prior check failed for article ${enrichedId}:`,
+              contradictErr
+            );
           }
 
           processed++;

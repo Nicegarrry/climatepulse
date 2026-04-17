@@ -1,10 +1,16 @@
 import type { DigestOutput, PodcastScript, ScoredStory } from "@/lib/types";
+import { getEntityBrief } from "@/lib/intelligence/retriever";
 
 export interface PodcastContext {
   digest: DigestOutput;
   stories?: ScoredStory[];
   nemSummary?: string;
 }
+
+// Cap the number of entity briefs we fetch per episode. Each brief is 5 DB
+// queries, so 8 × 5 = 40 queries in parallel — still fast, but enough to
+// inform the script without overwhelming the prompt.
+const MAX_ENTITY_BRIEFS = 8;
 
 /**
  * Generate a two-speaker podcast script from the daily digest.
@@ -16,7 +22,15 @@ export async function generatePodcastScript(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
 
-  const prompt = buildScriptPrompt(context);
+  // Fetch entity callbacks from RAG (prior coverage, mention trends). Failure
+  // is non-fatal: if the table is missing or a query fails we drop the
+  // "ENTITY HISTORY" block entirely and Claude writes the script without it.
+  const entityHistory = await fetchEntityHistory(context).catch((err) => {
+    console.warn("[podcast] entity history fetch failed:", err);
+    return "";
+  });
+
+  const prompt = buildScriptPrompt(context, entityHistory);
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -112,7 +126,88 @@ ${matched?.snippet ? `Snippet: ${matched.snippet}` : ""}`;
   return [...heroBlocks, ...compactBlocks].join("\n\n");
 }
 
-function buildScriptPrompt(context: PodcastContext): string {
+/**
+ * Resolve entity IDs across this episode's hero stories, fetch their briefs
+ * in parallel, and format a short "ENTITY HISTORY" block the script writer
+ * can draw on for "as we covered last Tuesday" style callbacks.
+ *
+ * Returns "" if no entities can be resolved — caller then omits the block.
+ */
+async function fetchEntityHistory(context: PodcastContext): Promise<string> {
+  const { digest, stories } = context;
+  if (!stories || stories.length === 0) return "";
+
+  // Match hero stories back to their ScoredStory so we can read entity IDs.
+  const storyMap = new Map<string, ScoredStory>();
+  for (const s of stories) storyMap.set(s.title, s);
+
+  // Dedupe entity IDs across heroes; preserve appearance order so we bias
+  // toward entities in the top-ranked story.
+  const entityOrder: number[] = [];
+  const seen = new Set<number>();
+  for (const hero of digest.hero_stories) {
+    const story = storyMap.get(hero.headline);
+    if (!story) continue;
+    for (const e of story.entities ?? []) {
+      if (typeof e.id !== "number") continue;
+      if (!seen.has(e.id)) {
+        seen.add(e.id);
+        entityOrder.push(e.id);
+      }
+    }
+  }
+
+  const topEntityIds = entityOrder.slice(0, MAX_ENTITY_BRIEFS);
+  if (topEntityIds.length === 0) return "";
+
+  const briefs = await Promise.all(
+    topEntityIds.map((id) => getEntityBrief(id).catch(() => null))
+  );
+
+  const lines: string[] = [];
+  const todayMs = Date.now();
+  for (const brief of briefs) {
+    if (!brief) continue;
+
+    // Only include entities with genuine history — filter out those we've
+    // only ever seen today (nothing to call back to).
+    const recent = brief.recent_content.filter((c) => {
+      if (!c.published_at) return false;
+      const ageDays = (todayMs - Date.parse(c.published_at)) / 86_400_000;
+      return ageDays >= 1; // strictly earlier than today
+    });
+    if (recent.length === 0) continue;
+
+    const mentions = recent.slice(0, 3).map((c) => {
+      const date = c.published_at ? c.published_at.slice(0, 10) : "unknown";
+      const kind = c.content_type === "daily_digest"
+        ? "our briefing"
+        : c.content_type === "podcast"
+          ? "the podcast"
+          : c.subtitle ?? "article";
+      return `  ${date} (${kind}): ${c.title}`;
+    });
+
+    const totalMentions = brief.entity.mention_count ?? recent.length;
+    const topDomain = brief.domain_distribution?.[0]?.domain;
+    const topSignal = brief.signal_distribution?.[0]?.signal;
+    const flavour = [
+      topDomain ? `mostly ${topDomain}` : null,
+      topSignal ? topSignal.replace(/_/g, " ") : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    lines.push(
+      `- ${brief.entity.canonical_name} (${brief.entity.entity_type}) — ${totalMentions} total mentions${flavour ? ` [${flavour}]` : ""}:\n${mentions.join("\n")}`
+    );
+  }
+
+  if (lines.length === 0) return "";
+  return lines.join("\n");
+}
+
+function buildScriptPrompt(context: PodcastContext, entityHistory: string = ""): string {
   const { digest, nemSummary } = context;
 
   const today = new Date().toLocaleDateString("en-AU", {
@@ -159,6 +254,12 @@ ${articleBlocks}
 
 CROSS-STORY CONNECTIONS:
 ${connectionsBlock}
+${entityHistory ? `
+ENTITY HISTORY (prior ClimatePulse coverage of today's key entities):
+${entityHistory}
+
+You MAY draw on this history for natural callbacks — e.g. "ARENA, who we covered on 2026-04-12 for that Pilbara storage announcement" or "AEMO again — this is the third time this month their numbers have driven the story". Use these sparingly: only when the callback genuinely reframes today's story or highlights a pattern. Do not pad every sentence with references to past coverage.
+` : ""}
 
 EPISODE STRUCTURE:
 

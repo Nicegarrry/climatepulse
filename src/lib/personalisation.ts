@@ -163,6 +163,14 @@ function computeBoosts(
     }
   }
 
+  // ── Contradicts prior coverage (+12) ─────────────────────────────────
+  // Flagged by Stage 2 enrichment when a story has opposing sentiment +
+  // high similarity to recent coverage of the same entities. Contradictory
+  // reporting is a strong signal to a professional audience — surface it.
+  if (story.contradicts_prior) {
+    boosts.push({ condition: "Contradicts prior coverage", boost: 12 });
+  }
+
   // ── Newsroom interaction boost ───────────────────────────────────────
   // Direct: same article previously surfaced via Newsroom → boost based
   // on the strongest signal the user gave it.
@@ -236,6 +244,7 @@ export function computePersonalScore(
     microsector_slugs: story.microsector_names ?? [],
     secondary_microsector_slugs: [],
     entities: (story.entities ?? []).map((e) => ({
+      id: e.id,
       name: e.name,
       type: e.type,
     })),

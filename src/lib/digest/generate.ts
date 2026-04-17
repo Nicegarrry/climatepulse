@@ -9,6 +9,8 @@ import { selectBriefingStories, DEPTH_RANGES } from "@/lib/personalisation";
 import { getTaxonomyTree } from "@/lib/enrichment/taxonomy-cache";
 import { MOCK_USER_PROFILE } from "@/lib/mock-digest";
 import { getInteractionSummary } from "@/lib/newsroom/interactions";
+import { retrieveContent } from "@/lib/intelligence/retriever";
+import type { RetrievedContent } from "@/lib/intelligence/retriever";
 import type {
   UserProfile,
   ScoredStory,
@@ -138,17 +140,73 @@ If you cannot find information for a story, set context to null.`,
 
 // ─── Build the digest prompt ───────────────────────────────────────────────
 
+// ─── Prior-coverage RAG lookup for hero stories ─────────────────────────────
+
+// Look back three days so we skip today's own coverage but catch week-over-week
+// continuations. Tiers 0 + 1 = own editorial + primary sources (skip aggregator
+// noise). dedupeBySource collapses multi-chunk articles to their best chunk.
+const PRIOR_COVERAGE_LOOKBACK_DAYS = 3;
+const PRIOR_COVERAGE_PER_STORY = 3;
+
+async function fetchPriorCoverage(
+  stories: ScoredStory[]
+): Promise<Map<string, RetrievedContent[]>> {
+  const result = new Map<string, RetrievedContent[]>();
+  const heroes = stories.filter((s) => s.designation === "hero");
+  if (heroes.length === 0) return result;
+
+  const cutoff = new Date(
+    Date.now() - PRIOR_COVERAGE_LOOKBACK_DAYS * 86_400_000
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  await Promise.all(
+    heroes.map(async (story) => {
+      const entityIds = story.entities
+        .map((e) => e.id)
+        .filter((id): id is number => typeof id === "number");
+
+      try {
+        const hits = await retrieveContent(
+          story.title,
+          {
+            date_to: cutoff,
+            content_types: ["article", "daily_digest", "podcast"],
+            trustworthiness_tiers: [0, 1],
+            ...(entityIds.length > 0 ? { entity_ids: entityIds } : {}),
+          },
+          {
+            limit: PRIOR_COVERAGE_PER_STORY,
+            dedupeBySource: true,
+          }
+        );
+        if (hits.length > 0) result.set(story.id, hits);
+      } catch (err) {
+        console.warn(
+          `[digest] prior coverage for "${story.title}" failed:`,
+          err
+        );
+      }
+    })
+  );
+
+  return result;
+}
+
 function buildDigestPrompt(
   stories: ScoredStory[],
   profile: UserProfile,
   roleLensLabel: string,
   webContext: Map<string, string>,
+  priorCoverage: Map<string, RetrievedContent[]>,
   analysisDetail: "brief" | "standard" | "extended" = "standard"
 ): string {
   const storiesBlock = stories
     .map((s, i) => {
       const depth = getContentDepth(s);
       const webCtx = webContext.get(s.id);
+      const prior = priorCoverage.get(s.id) ?? [];
 
       let contentLine: string;
       if (depth === "full_text") {
@@ -159,6 +217,17 @@ function buildDigestPrompt(
         contentLine = "No article content available";
       }
 
+      const priorBlock =
+        prior.length > 0
+          ? `\nPrior ClimatePulse coverage (reference only when it genuinely reframes today's story):\n` +
+            prior
+              .map(
+                (p) =>
+                  `  - ${p.published_at?.slice(0, 10) ?? "?"} [${p.content_type}] ${p.title}${p.snippet ? ` — ${p.snippet.slice(0, 180)}` : ""}`
+              )
+              .join("\n")
+          : "";
+
       return `---
 [${i + 1}] ${s.title}
 Designation: ${s.designation.toUpperCase()}
@@ -168,7 +237,7 @@ Sectors: ${s.microsector_slugs.join(", ") || "none"}
 Entities: ${s.entities.map((e) => `${e.name} (${e.type})`).join(", ") || "none"}
 Key metric: ${s.quantitative_data?.primary_metric ? `${s.quantitative_data.primary_metric.value} ${s.quantitative_data.primary_metric.unit} — ${s.quantitative_data.primary_metric.context}` : "None"}
 Content: ${contentLine}${webCtx ? `\nWeb research (verified): ${webCtx}` : ""}
-Source URL: ${s.article_url}
+Source URL: ${s.article_url}${priorBlock}
 ---`;
     })
     .join("\n");
@@ -275,6 +344,7 @@ async function fetchRecentEnrichedArticles(): Promise<EnrichedArticle[]> {
       ea.context_quality, ea.primary_domain, ea.secondary_domain,
       ea.confidence_levels, ea.quantitative_data,
       ea.transmission_channels_triggered, ea.pipeline_version,
+      ea.contradicts_prior, ea.contradicted_source_ids,
       ra.title, ra.snippet, ra.source_name, ra.article_url, ra.published_at,
       ft.content as full_text, ft.word_count as full_text_word_count,
       COALESCE(
@@ -446,12 +516,22 @@ export async function generateBriefingForUser(
       );
     }
 
+    // Pull prior ClimatePulse coverage for each HERO story so Claude can
+    // reference historical context ("as we covered on April 12…") when it
+    // genuinely reframes today's piece. Non-fatal — if RAG is unavailable
+    // we just skip the block.
+    const priorCoverage = await fetchPriorCoverage(stories).catch((err) => {
+      console.warn("[digest] prior coverage fetch failed:", err);
+      return new Map<string, RetrievedContent[]>();
+    });
+
     const depthConfig = DEPTH_RANGES[profile.briefing_depth];
     const prompt = buildDigestPrompt(
       stories,
       profile,
       roleLensLabel,
       webContext,
+      priorCoverage,
       depthConfig.analysisDetail
     );
 
