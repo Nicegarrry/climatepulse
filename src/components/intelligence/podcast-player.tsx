@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { COLORS, FONTS } from "@/lib/design-tokens";
 import type { PodcastEpisode } from "@/lib/types";
+import { ShareButton } from "@/components/share/ShareButton";
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) return "0:00";
@@ -231,6 +232,13 @@ export function PodcastPlayer({
             >
               {SPEEDS[speedIdx]}x
             </button>
+            <ShareButton
+              articleUrl={episode.audio_url}
+              headline={`ClimatePulse Daily — ${episode.briefing_date}`}
+              sourceName="ClimatePulse"
+              campaign={`podcast-${episode.briefing_date}`}
+              compact
+            />
           </div>
 
           {/* Progress bar */}

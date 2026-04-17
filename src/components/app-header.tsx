@@ -124,6 +124,14 @@ export function AppHeader() {
                 <span className="hidden text-sm font-medium text-foreground sm:block">
                   {user?.name}
                 </span>
+                {user?.tier === "founder" && (
+                  <Badge
+                    variant="outline"
+                    className="hidden border-plum/30 bg-plum/5 px-1.5 py-0 text-[9px] font-medium uppercase tracking-wider text-plum sm:inline-flex"
+                  >
+                    Founder
+                  </Badge>
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
@@ -132,6 +140,11 @@ export function AppHeader() {
                   {user?.name}
                 </p>
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
+                {user?.tier === "founder" && (
+                  <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-plum">
+                    Founding Member
+                  </p>
+                )}
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem

@@ -13,6 +13,7 @@ import { ReportViewer } from "./report-viewer";
 import { StoryPicker } from "./story-picker";
 import { DigestComposer } from "./digest-composer";
 import { PreviewPanel } from "./preview-panel";
+import { DailyReviewPanel } from "./daily-review";
 import { currentWeekRange, formatWeekLabel } from "./helpers";
 import type { EditorArticle } from "./types";
 
@@ -394,6 +395,9 @@ export default function EditorTab() {
           <WobblyRule />
         </div>
       </div>
+
+      {/* Daily editorial controls (post-publish edits) */}
+      <DailyReviewPanel />
 
       {/* Content grid: desktop = split, mobile = toggle */}
       <div

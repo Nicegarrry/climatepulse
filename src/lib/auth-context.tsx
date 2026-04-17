@@ -8,12 +8,14 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export type UserRole = "reader" | "editor" | "admin";
+export type UserTier = "founder" | "launch" | "paid" | "free";
 
 export interface AuthUser {
   id: string;
   email: string;
   name: string;
   role: UserRole;
+  tier: UserTier;
   onboardedAt: string | null;
 }
 
@@ -40,6 +42,7 @@ async function fetchProfile(supabaseUser: SupabaseUser): Promise<AuthUser | null
         email: supabaseUser.email ?? "",
         name: (supabaseUser.user_metadata?.name as string) ?? "",
         role: "reader",
+        tier: "free",
         onboardedAt: null,
       };
     }
@@ -49,6 +52,7 @@ async function fetchProfile(supabaseUser: SupabaseUser): Promise<AuthUser | null
       email: profile.email ?? supabaseUser.email ?? "",
       name: profile.name ?? "",
       role: (profile.user_role as UserRole) ?? "reader",
+      tier: (profile.tier as UserTier) ?? "free",
       onboardedAt: profile.onboarded_at ?? null,
     };
   } catch {

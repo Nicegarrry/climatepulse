@@ -38,13 +38,17 @@ export async function getAuthUser(): Promise<User | null> {
   return user ?? null;
 }
 
-/**
- * Role hierarchy for access control.
- */
 const ROLE_LEVEL: Record<string, number> = {
   reader: 0,
   editor: 1,
   admin: 2,
+};
+
+const TIER_LEVEL: Record<string, number> = {
+  free: 0,
+  launch: 1,
+  paid: 1,
+  founder: 2,
 };
 
 /**
@@ -59,7 +63,7 @@ export async function requireAuth(minRole?: "reader" | "editor" | "admin") {
 
   try {
     const result = await pool.query(
-      `SELECT id, name, email, user_role, onboarded_at FROM user_profiles WHERE id = $1`,
+      `SELECT id, name, email, user_role, onboarded_at, tier FROM user_profiles WHERE id = $1`,
       [user.id]
     );
 
@@ -78,4 +82,19 @@ export async function requireAuth(minRole?: "reader" | "editor" | "admin") {
   } catch {
     return { error: "Database error", status: 500 } as const;
   }
+}
+
+/**
+ * Tier gate. Use after requireAuth when a route needs a paid-or-higher surface.
+ * Returns { user, profile } on success or { error, status: 402|403 } on failure.
+ */
+export async function requireTier(minTier: "launch" | "paid" | "founder") {
+  const auth = await requireAuth();
+  if ("error" in auth) return auth;
+
+  const tier = auth.profile.tier || "free";
+  if ((TIER_LEVEL[tier] ?? 0) < (TIER_LEVEL[minTier] ?? 0)) {
+    return { error: "Upgrade required", status: 402 } as const;
+  }
+  return auth;
 }

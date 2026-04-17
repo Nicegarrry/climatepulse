@@ -3,8 +3,15 @@
 import { COLORS, FONTS, SEVERITY } from "@/lib/design-tokens";
 import type { EditorialStory } from "@/lib/mock-editorial";
 import { Micro } from "./primitives";
+import { ThumbsActions } from "./thumbs-actions";
 
-export function AlsoToday({ stories }: { stories: EditorialStory[] }) {
+export function AlsoToday({
+  stories,
+  dailyBriefingId,
+}: {
+  stories: EditorialStory[];
+  dailyBriefingId?: string | null;
+}) {
   return (
     <div>
       {stories.map((story) => {
@@ -66,23 +73,29 @@ export function AlsoToday({ stories }: { stories: EditorialStory[] }) {
                 </p>
               )}
             </div>
-            {story.number && (
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: COLORS.ink,
-                  fontVariantNumeric: "tabular-nums",
-                  flexShrink: 0,
-                  marginLeft: 12,
-                }}
-              >
-                {story.number}
-                <span style={{ fontSize: 9, color: COLORS.inkMuted, marginLeft: 2 }}>
-                  {story.unit}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, marginLeft: 12 }}>
+              {story.number && (
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: COLORS.ink,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {story.number}
+                  <span style={{ fontSize: 9, color: COLORS.inkMuted, marginLeft: 2 }}>
+                    {story.unit}
+                  </span>
                 </span>
-              </span>
-            )}
+              )}
+              <ThumbsActions
+                articleUrl={story.url}
+                storyId={story.id}
+                dailyBriefingId={dailyBriefingId}
+                compact
+              />
+            </div>
           </div>
         );
       })}

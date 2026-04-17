@@ -4,11 +4,15 @@ import { useState } from "react";
 import { COLORS, FONTS, SEVERITY } from "@/lib/design-tokens";
 import type { EditorialStory } from "@/lib/mock-editorial";
 import { Micro, SourceTag } from "./primitives";
+import { ThumbsActions } from "./thumbs-actions";
+import { ShareButton } from "@/components/share/ShareButton";
 
 export function LeadStories({
   stories,
+  dailyBriefingId,
 }: {
   stories: EditorialStory[];
+  dailyBriefingId?: string | null;
 }) {
   const [expanded, setExpanded] = useState<number | null>(stories[0]?.id ?? null);
 
@@ -72,6 +76,23 @@ export function LeadStories({
                   />
                 )}
                 <Micro color={isLead ? COLORS.forest : sev.labelColor}>{story.sector}</Micro>
+                {story.editorsPick && (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: COLORS.plum,
+                      border: `1px solid ${COLORS.plum}55`,
+                      borderRadius: 3,
+                      padding: "1px 5px",
+                      background: "rgba(112,58,101,0.06)",
+                    }}
+                  >
+                    Editor&apos;s Pick
+                  </span>
+                )}
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                 {story.number && (
@@ -167,6 +188,20 @@ export function LeadStories({
                     {story.trend}
                   </div>
                 )}
+                {story.editorialNote && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontStyle: "italic",
+                      color: COLORS.plum,
+                      borderLeft: `2px solid ${COLORS.plum}55`,
+                      paddingLeft: 10,
+                      marginBottom: 10,
+                    }}
+                  >
+                    {story.editorialNote}
+                  </div>
+                )}
                 {story.whyItMatters && (
                   <div
                     style={{
@@ -198,25 +233,42 @@ export function LeadStories({
                     <span style={{ fontWeight: 600 }}>Connected:</span> {story.connectedStoryline.title} {"\u2014"} {story.connectedStoryline.context}
                   </div>
                 )}
-                {story.url && (
-                  <a
-                    href={story.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      display: "inline-block",
-                      fontSize: 11,
-                      color: COLORS.forest,
-                      fontWeight: 500,
-                      textDecoration: "none",
-                      borderBottom: `1px solid ${COLORS.sage}`,
-                      marginBottom: 10,
-                    }}
-                  >
-                    Read full article {"\u2197"}
-                  </a>
-                )}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                  {story.url ? (
+                    <a
+                      href={story.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        fontSize: 11,
+                        color: COLORS.forest,
+                        fontWeight: 500,
+                        textDecoration: "none",
+                        borderBottom: `1px solid ${COLORS.sage}`,
+                      }}
+                    >
+                      Read full article {"\u2197"}
+                    </a>
+                  ) : (
+                    <span />
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {story.url && (
+                      <ShareButton
+                        articleUrl={story.url}
+                        headline={story.headline}
+                        sourceName={story.sources?.[0]}
+                        compact
+                      />
+                    )}
+                    <ThumbsActions
+                      articleUrl={story.url}
+                      storyId={story.id}
+                      dailyBriefingId={dailyBriefingId}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

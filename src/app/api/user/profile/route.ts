@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getAuthUser } from "@/lib/supabase/server";
+import { sectorLimit, type Tier } from "@/lib/tier";
 import type { UserProfile } from "@/lib/types";
 
 // ─── GET — fetch user profile ─────────────────────────────────────────────
@@ -20,39 +21,47 @@ export async function GET(req: NextRequest) {
     }
     const userId = requestedUserId || user.id;
 
-    // Query with user_role + notification_prefs (columns may not exist in older DBs).
-    // Fall back progressively: first drop notification_prefs, then drop user_role.
+    // Fall back progressively if newer columns are missing on older DBs.
     let result;
     try {
       result = await pool.query(
         `SELECT id, name, email, role_lens, primary_sectors, jurisdictions,
                 followed_entities, followed_storylines, triage_history,
                 accordion_opens, story_ring_taps, briefing_depth, digest_time,
-                onboarded_at, user_role, notification_prefs
+                onboarded_at, user_role, notification_prefs, tier
          FROM user_profiles WHERE id = $1`,
         [userId]
       );
     } catch {
       try {
-        // Fallback: drop notification_prefs if that column is missing
         result = await pool.query(
           `SELECT id, name, email, role_lens, primary_sectors, jurisdictions,
                   followed_entities, followed_storylines, triage_history,
                   accordion_opens, story_ring_taps, briefing_depth, digest_time,
-                  onboarded_at, user_role
+                  onboarded_at, user_role, notification_prefs
            FROM user_profiles WHERE id = $1`,
           [userId]
         );
       } catch {
-        // Fallback: drop both user_role and notification_prefs
-        result = await pool.query(
-          `SELECT id, name, email, role_lens, primary_sectors, jurisdictions,
-                  followed_entities, followed_storylines, triage_history,
-                  accordion_opens, story_ring_taps, briefing_depth, digest_time,
-                  onboarded_at
-           FROM user_profiles WHERE id = $1`,
-          [userId]
-        );
+        try {
+          result = await pool.query(
+            `SELECT id, name, email, role_lens, primary_sectors, jurisdictions,
+                    followed_entities, followed_storylines, triage_history,
+                    accordion_opens, story_ring_taps, briefing_depth, digest_time,
+                    onboarded_at, user_role
+             FROM user_profiles WHERE id = $1`,
+            [userId]
+          );
+        } catch {
+          result = await pool.query(
+            `SELECT id, name, email, role_lens, primary_sectors, jurisdictions,
+                    followed_entities, followed_storylines, triage_history,
+                    accordion_opens, story_ring_taps, briefing_depth, digest_time,
+                    onboarded_at
+             FROM user_profiles WHERE id = $1`,
+            [userId]
+          );
+        }
       }
     }
 
@@ -74,6 +83,7 @@ export async function GET(req: NextRequest) {
       onboarded_at: string | null;
       user_role: string;
       notification_prefs: Record<string, boolean>;
+      tier: string;
     } = {
       id: row.id,
       name: row.name,
@@ -94,6 +104,7 @@ export async function GET(req: NextRequest) {
         ...DEFAULT_NOTIFICATION_PREFS,
         ...(row.notification_prefs ?? {}),
       },
+      tier: row.tier ?? "free",
     };
 
     return NextResponse.json(profile);
@@ -129,11 +140,33 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Check if profile exists
-    const existing = await pool.query(
-      "SELECT id FROM user_profiles WHERE id = $1",
+    // Check if profile exists (and load tier for cap enforcement)
+    const existing = await pool.query<{ id: string; tier: Tier | null }>(
+      "SELECT id, tier FROM user_profiles WHERE id = $1",
       [userId]
+    ).catch(() =>
+      pool.query<{ id: string; tier: Tier | null }>(
+        "SELECT id, NULL::text AS tier FROM user_profiles WHERE id = $1",
+        [userId]
+      )
     );
+
+    const currentTier: Tier = existing.rows[0]?.tier ?? "free";
+    const limit = sectorLimit(currentTier);
+    if (
+      Array.isArray(body.primary_sectors) &&
+      limit !== null &&
+      body.primary_sectors.length > limit
+    ) {
+      return NextResponse.json(
+        {
+          error: "SECTOR_LIMIT_EXCEEDED",
+          message: `Free tier is limited to ${limit} sectors.`,
+          limit,
+        },
+        { status: 402 }
+      );
+    }
 
     if (existing.rows.length === 0) {
       // Upsert: create profile for first-time onboarding

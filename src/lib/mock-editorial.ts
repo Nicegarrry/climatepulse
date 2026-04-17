@@ -21,6 +21,9 @@ export interface EditorialStory {
   signalType?: string;
   connectedStoryline?: { title: string; context: string } | null;
   entitiesMentioned?: string[];
+  // Post-publish editorial overrides (Daily Review panel)
+  editorsPick?: boolean;
+  editorialNote?: string | null;
 }
 
 export interface DailyNumber {

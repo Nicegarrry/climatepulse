@@ -64,19 +64,47 @@ export async function getInteractionSummary(
   if (!userId) return { byArticle, byEntity };
 
   // ── Per-article aggregation ──────────────────────────────────────────────
-  const articles = await pool.query<ArticleAgg>(
-    `SELECT raw_article_id,
-            COUNT(*) FILTER (WHERE interaction_type IN ('read','expand'))                        AS reads,
-            MAX(CASE interaction_type WHEN 'thumbs_up' THEN 1
-                                      WHEN 'thumbs_down' THEN -1
-                                      ELSE 0 END)                                                AS thumbs,
-            BOOL_OR(interaction_type = 'save')                                                   AS saved
-       FROM user_newsroom_interactions
-      WHERE user_id = $1
-        AND created_at > NOW() - ($2 || ' days')::interval
-      GROUP BY raw_article_id`,
-    [userId, String(LOOKBACK_DAYS)]
-  );
+  // UNION ALL across newsroom + briefing interactions — the downstream
+  // personalisation boost logic is identical for both surfaces, so merging
+  // them here keeps the call sites unchanged. `user_briefing_interactions`
+  // may not exist on older DBs; fall back to newsroom-only if that's the case.
+  let articles;
+  try {
+    articles = await pool.query<ArticleAgg>(
+      `WITH actions AS (
+         SELECT raw_article_id, interaction_type, created_at
+           FROM user_newsroom_interactions
+          WHERE user_id = $1 AND created_at > NOW() - ($2 || ' days')::interval
+         UNION ALL
+         SELECT raw_article_id, interaction_type, created_at
+           FROM user_briefing_interactions
+          WHERE user_id = $1 AND created_at > NOW() - ($2 || ' days')::interval
+       )
+       SELECT raw_article_id,
+              COUNT(*) FILTER (WHERE interaction_type IN ('read','expand'))                        AS reads,
+              MAX(CASE interaction_type WHEN 'thumbs_up' THEN 1
+                                        WHEN 'thumbs_down' THEN -1
+                                        ELSE 0 END)                                                AS thumbs,
+              BOOL_OR(interaction_type = 'save')                                                   AS saved
+         FROM actions
+        GROUP BY raw_article_id`,
+      [userId, String(LOOKBACK_DAYS)]
+    );
+  } catch {
+    articles = await pool.query<ArticleAgg>(
+      `SELECT raw_article_id,
+              COUNT(*) FILTER (WHERE interaction_type IN ('read','expand'))                        AS reads,
+              MAX(CASE interaction_type WHEN 'thumbs_up' THEN 1
+                                        WHEN 'thumbs_down' THEN -1
+                                        ELSE 0 END)                                                AS thumbs,
+              BOOL_OR(interaction_type = 'save')                                                   AS saved
+         FROM user_newsroom_interactions
+        WHERE user_id = $1
+          AND created_at > NOW() - ($2 || ' days')::interval
+        GROUP BY raw_article_id`,
+      [userId, String(LOOKBACK_DAYS)]
+    );
+  }
 
   for (const row of articles.rows) {
     const rawThumbs = Number(row.thumbs ?? 0);
@@ -92,10 +120,17 @@ export async function getInteractionSummary(
   // Bridge from raw_article_id → enriched_articles via FK, then to entities
   // via article_entities. We only count entities the user actually touched
   // (i.e., the article's entities, not the entire entity universe).
-  const entities = await pool.query<EntityAgg>(
+  let entities;
+  try {
+    entities = await pool.query<EntityAgg>(
     `WITH actions AS (
        SELECT raw_article_id, interaction_type
          FROM user_newsroom_interactions
+        WHERE user_id = $1
+          AND created_at > NOW() - ($2 || ' days')::interval
+       UNION ALL
+       SELECT raw_article_id, interaction_type
+         FROM user_briefing_interactions
         WHERE user_id = $1
           AND created_at > NOW() - ($2 || ' days')::interval
      ),
@@ -114,8 +149,34 @@ export async function getInteractionSummary(
             COUNT(*) FILTER (WHERE interaction_type = 'save')               AS saves
        FROM story_entities
       GROUP BY LOWER(name)`,
-    [userId, String(LOOKBACK_DAYS), MIN_ENTITY_LENGTH]
-  );
+      [userId, String(LOOKBACK_DAYS), MIN_ENTITY_LENGTH]
+    );
+  } catch {
+    entities = await pool.query<EntityAgg>(
+      `WITH actions AS (
+         SELECT raw_article_id, interaction_type
+           FROM user_newsroom_interactions
+          WHERE user_id = $1
+            AND created_at > NOW() - ($2 || ' days')::interval
+       ),
+       story_entities AS (
+         SELECT a.raw_article_id, a.interaction_type, e.canonical_name AS name
+           FROM actions a
+           JOIN enriched_articles ea ON ea.raw_article_id = a.raw_article_id
+           JOIN article_entities ae ON ae.enriched_article_id = ea.id
+           JOIN entities e ON e.id = ae.entity_id
+          WHERE LENGTH(e.canonical_name) >= $3
+       )
+       SELECT LOWER(name) AS name,
+              COUNT(*) FILTER (WHERE interaction_type IN ('read','expand'))   AS reads,
+              COUNT(*) FILTER (WHERE interaction_type = 'thumbs_up')          AS positive,
+              COUNT(*) FILTER (WHERE interaction_type = 'thumbs_down')        AS negative,
+              COUNT(*) FILTER (WHERE interaction_type = 'save')               AS saves
+         FROM story_entities
+        GROUP BY LOWER(name)`,
+      [userId, String(LOOKBACK_DAYS), MIN_ENTITY_LENGTH]
+    );
+  }
 
   for (const row of entities.rows) {
     const key = row.name;

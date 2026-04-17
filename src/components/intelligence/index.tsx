@@ -17,6 +17,7 @@ import { SectorCoverage } from "@/components/sector-coverage";
 import { WeeklyPulseCard } from "@/components/weekly-pulse-card";
 import { PodcastPlayer } from "./podcast-player";
 import { ResearchPanel } from "./research-panel";
+import { DailyFeedbackPrompt } from "./DailyFeedbackPrompt";
 import type { SectorCoverageData, WeeklyPulse } from "@/lib/types";
 import type { EditorialStory, DailyNumber as DailyNumberType } from "@/lib/mock-editorial";
 import {
@@ -92,6 +93,10 @@ function resolveSeverity(idx: number, scoredStory?: ScoredStory): "alert" | "wat
 
 function heroToEditorial(hero: DigestHeroStory, idx: number, scoredStories: ScoredStory[]): EditorialStory {
   const matched = scoredStories.find((s) => s.title === hero.headline);
+  const ed = hero as DigestHeroStory & {
+    editors_pick?: boolean;
+    editorial_note?: string | null;
+  };
   return {
     id: idx + 1,
     sector: resolveSector(hero, scoredStories),
@@ -109,11 +114,17 @@ function heroToEditorial(hero: DigestHeroStory, idx: number, scoredStories: Scor
     url: hero.url,
     connectedStoryline: hero.connected_storyline,
     entitiesMentioned: hero.entities_mentioned,
+    editorsPick: ed.editors_pick,
+    editorialNote: ed.editorial_note ?? null,
   };
 }
 
 function compactToEditorial(compact: DigestCompactStory, idx: number, offset: number, scoredStories: ScoredStory[]): EditorialStory {
   const matched = scoredStories.find((s) => s.title === compact.headline);
+  const ed = compact as DigestCompactStory & {
+    editors_pick?: boolean;
+    editorial_note?: string | null;
+  };
   return {
     id: offset + idx + 1,
     sector: resolveSector(compact, scoredStories),
@@ -127,6 +138,8 @@ function compactToEditorial(compact: DigestCompactStory, idx: number, offset: nu
     number: compact.key_metric?.value,
     unit: compact.key_metric?.unit,
     url: compact.url,
+    editorsPick: ed.editors_pick,
+    editorialNote: ed.editorial_note ?? null,
   };
 }
 
@@ -991,6 +1004,13 @@ export default function IntelligenceTab() {
           topBanner={generatingBanner}
         />
       </div>
+      <DailyFeedbackPrompt
+        storyOptions={allStories.map((s) => ({
+          id: s.id,
+          headline: s.headline,
+          url: s.url,
+        }))}
+      />
     </>
   );
 }

@@ -133,8 +133,16 @@ export default function ProfilePage() {
                 {user?.name || "Unnamed"}
               </h2>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
-              <div className="flex gap-2 pt-0.5">
+              <div className="flex flex-wrap gap-2 pt-0.5">
                 {user?.role && <RoleBadge role={user.role} />}
+                {user?.tier === "founder" && (
+                  <Badge
+                    variant="outline"
+                    className="border-plum/30 bg-plum/5 text-xs font-medium tracking-wide text-plum"
+                  >
+                    Founding Member
+                  </Badge>
+                )}
                 <Badge
                   variant="secondary"
                   className="bg-accent-emerald/8 text-accent-emerald border-accent-emerald/15 text-xs font-medium"

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
 import { generateBriefingForUser, DigestError } from "@/lib/digest/generate";
+import { applyEditorialOverrides } from "@/lib/digest/editorial-overrides";
 import type { DailyBriefing } from "@/lib/types";
 
 // Claude Sonnet + optional web-search pre-pass can take >60s for a single user.
@@ -73,14 +74,28 @@ export async function GET(req: NextRequest) {
 
   try {
     const today = new Date().toISOString().split("T")[0];
-    const result = await pool.query(
-      `SELECT id, user_id, date, stories, digest, generated_at
-       FROM daily_briefings
-       WHERE user_id = $1 AND date = $2
-       ORDER BY generated_at DESC
-       LIMIT 1`,
-      [userId, today]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `SELECT id, user_id, date, stories, digest, generated_at,
+                editorial_overrides, suppressed_story_ids
+         FROM daily_briefings
+         WHERE user_id = $1 AND date = $2
+         ORDER BY generated_at DESC
+         LIMIT 1`,
+        [userId, today]
+      );
+    } catch {
+      // Fallback if editorial columns aren't migrated yet.
+      result = await pool.query(
+        `SELECT id, user_id, date, stories, digest, generated_at
+         FROM daily_briefings
+         WHERE user_id = $1 AND date = $2
+         ORDER BY generated_at DESC
+         LIMIT 1`,
+        [userId, today]
+      );
+    }
 
     if (result.rows.length > 0) {
       const row = result.rows[0];
@@ -95,6 +110,11 @@ export async function GET(req: NextRequest) {
       } catch {
         /* non-critical */
       }
+      const digest = applyEditorialOverrides(
+        row.digest,
+        row.editorial_overrides ?? {},
+        row.suppressed_story_ids ?? []
+      );
       return NextResponse.json({
         status: "ready",
         briefing: {
@@ -102,7 +122,7 @@ export async function GET(req: NextRequest) {
           user_id: row.user_id,
           date: row.date,
           stories: row.stories,
-          digest: row.digest,
+          digest,
           generated_at: row.generated_at,
           articles_analysed: articlesCount,
         } as DailyBriefing,
