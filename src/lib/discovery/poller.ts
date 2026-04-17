@@ -15,6 +15,13 @@ const parser = new RSSParser({
   headers: FETCH_HEADERS,
 });
 
+// ClimatePulse is a forward-looking daily digest — the briefing only looks
+// back 32h, so there's no value in ingesting items older than a week. Also
+// prevents podcast feeds (which serve full episode history) from re-populating
+// multi-year backlogs on every poll.
+const MAX_ARTICLE_AGE_DAYS = 7;
+const MAX_ARTICLE_AGE_MS = MAX_ARTICLE_AGE_DAYS * 24 * 60 * 60 * 1000;
+
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 }
@@ -56,7 +63,14 @@ export async function pollAllFeeds(): Promise<PollResult> {
         const title = item.title?.trim() || "Untitled";
         const rawSnippet = item.contentSnippet || item.content || item.summary || "";
         const snippet = truncate(stripHtml(rawSnippet), 500);
-        const publishedAt = item.pubDate ? new Date(item.pubDate).toISOString() : null;
+        const pubDate = item.pubDate ? new Date(item.pubDate) : null;
+        const publishedAt = pubDate ? pubDate.toISOString() : null;
+
+        // Skip items published more than MAX_ARTICLE_AGE_DAYS ago. Items with
+        // no pubDate are kept (we can't tell how old they are).
+        if (pubDate && Date.now() - pubDate.getTime() > MAX_ARTICLE_AGE_MS) {
+          continue;
+        }
 
         try {
           await pool.query(
