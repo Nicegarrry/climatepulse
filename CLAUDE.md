@@ -30,6 +30,7 @@ The validated pipeline: (1) ingest climate/energy news from RSS + scrapers, (2) 
 - Store: title, summary snippet, source, URL, published_at
 - Deduplicate by URL
 - Target: ~100-200 new entries per day
+- **Max-age filter**: `MAX_ARTICLE_AGE_DAYS = 7` in `src/lib/discovery/poller.ts` — RSS items with `pubDate` older than 7 days are skipped. Prevents podcast RSS feeds (which serve their full episode history) from repopulating multi-year backlogs. Items without `pubDate` are kept.
 
 **Phase 2 — Enrichment (Tab: "Categories" enriched view + "Taxonomy")**
 - Full text extraction BEFORE enrichment (cheerio-based, 100-word minimum)
@@ -51,10 +52,15 @@ The validated pipeline: (1) ingest climate/energy news from RSS + scrapers, (2) 
 - Composite score 0-100 stored in enriched_articles.significance_composite
 - Prompt templates in prompts/ directory, definitions in prompts/definitions/, calibration in prompts/scoring/
 - pipeline_version column enables safe re-enrichment of existing articles (?reenrich=true)
+- **Post-enrichment side effects** (see `src/lib/enrichment/pipeline.ts`):
+  1. `embedAndStoreArticle()` — embeds the article into `content_embeddings` (Gemini `gemini-embedding-001`, 768 dims, HNSW cosine index)
+  2. `checkContradictsPrior()` — runs one HNSW query: entity overlap + opposite sentiment + similarity ≥ 0.72 within last 30 days flips `enriched_articles.contradicts_prior = TRUE` and records matched `contradicted_source_ids`. Personalisation adds +12 boost when flagged.
 
 **Phase 3 — Daily Digest Generation**
 - Claude Sonnet generates personalised digest per user
 - Cap at 15 articles total sent to Sonnet
+- Core logic lives in `src/lib/digest/generate.ts` (`generateBriefingForUser(userId, { mock })`) so the HTTP route and the pipeline's `step4Digest` can call it directly — no self-fetch (previous version tried `http://localhost:3000` inside a Vercel function and always 500'd)
+- **RAG prior-coverage hook**: for each HERO story, `fetchPriorCoverage()` calls `retrieveContent` with entity overlap + trust tiers 0/1 + 3-day lookback cutoff. Hits are injected into the Claude prompt as a per-story "Prior ClimatePulse coverage" block; Claude is instructed to reference only when it reframes today's piece
 
 **Phase 3b — Daily Podcast ("ClimatePulse Daily")**
 - ~5 min two-speaker audio podcast generated after digest
@@ -63,10 +69,11 @@ The validated pipeline: (1) ingest climate/energy news from RSS + scrapers, (2) 
 - TTS: Gemini `gemini-2.5-flash-preview-tts` with multi-speaker (Aoede=host, Charon=analyst)
 - Voices: Female host "Sarah" (qualitative, sceptical) + Male analyst "James" (data-driven, precise)
 - NEM check-in every episode with real OpenElectricity data (renewable %, state spot prices)
-- Storage: local `public/podcasts/` in dev, Vercel Blob in production
+- Storage: local `public/podcasts/` in dev, Vercel Blob in production (store: `climatepulse-blob`, auto-provisioned env `BLOB_READ_WRITE_TOKEN`)
 - Generate locally: `npx tsx scripts/generate-podcast.ts [date]`
 - v1 is global (one episode for all users); per-user custom podcasts deferred to premium tier
 - DB table: `podcast_episodes` (schema in `scripts/migrate-podcast.sql`)
+- **RAG entity callbacks**: `fetchEntityHistory()` in `src/lib/podcast/script-generator.ts` fetches `getEntityBrief` for up to 8 unique entities across hero stories and injects an `ENTITY HISTORY` block. Claude uses it for natural "as we covered on April 12…" references — sparingly, only when it reframes a story
 
 **Phase 4 — Weekly Digest ("The Weekly Pulse")**
 - Friday 3pm: Auto-generate intelligence report from week's enriched articles
@@ -122,6 +129,38 @@ Company, Project, Regulation, Jurisdiction, Person, Technology — stored in `en
 
 Hand-authored causal links between domains (e.g., "EU ETS price → Australian offset demand"). Stored in `transmission_channels` table. Used in future "So What" generation.
 
+### Intelligence Layer (RAG)
+
+Unified pgvector-backed corpus embeds all content types for similarity search — articles, podcasts, daily briefings, weekly digests, and weekly reports all flow into one `content_embeddings` table.
+
+- **Extension**: `vector 0.8.0` installed in Supabase; HNSW index with cosine distance
+- **Model**: `gemini-embedding-001` at 768 dimensions (Matryoshka truncation), free tier rate limits
+- **Schema**: see `scripts/migrate-intelligence.sql` — `content_embeddings(content_type, source_id, chunk_index, embedding vector(768), …filter metadata)` with 10 supporting indexes
+- **Embedder**: `src/lib/intelligence/embedder.ts`. Called automatically at end of Stage 2 enrichment, after digest generation, and after podcast/weekly generation. Each embed is wrapped in a try/catch so failures never block the main flow
+- **Retriever**: `src/lib/intelligence/retriever.ts`. Three public entry points:
+  - `retrieveContent(query, filters, options)` — hybrid search with entity / domain / sentiment / date / trust filters
+  - `getEntityBrief(entityId)` — recent mentions + domain/signal distribution + co-occurring entities
+  - `findRelatedContent(source_id)` — similarity neighbours of an existing piece
+- **Consumers**:
+  - **Digest** (`src/lib/digest/generate.ts`) — `fetchPriorCoverage()` per hero story
+  - **Podcast** (`src/lib/podcast/script-generator.ts`) — `fetchEntityHistory()` per episode
+  - **Enrichment** (`src/lib/enrichment/contradicts-prior.ts`) — one HNSW query per article to set the `contradicts_prior` flag
+- **Backfill**: `npx tsx scripts/backfill-embeddings.ts` re-embeds anything missing; idempotent. `scripts/backfill-contradicts-prior.ts` does the same for the contradicts flag
+
+## Pipeline Cron Schedule
+
+The pipeline is split into 5 dedicated Vercel cron routes (previously a single `/api/pipeline/run` was hitting the 800s serverless cap during enrichment). All times UTC (05:00 AEST = 19:00 UTC):
+
+| Time | Route | maxDuration | Notes |
+|---|---|---|---|
+| `0 19 * * *`  | `/api/pipeline/ingest`   | 300s | RSS + scrape + 2 APIs in parallel |
+| `5 19 * * *`  | `/api/pipeline/fulltext` | 300s | 3-min internal budget |
+| `10 19 * * *` | `/api/pipeline/enrich`   | **800s** | 12-min internal budget leaves headroom for the active Gemini batch |
+| `25 19 * * *` | `/api/pipeline/digest`   | 300s | Per-user Sonnet calls, direct function invocation (no self-fetch) |
+| `40 19 * * *` | `/api/pipeline/podcast`  | 300s | Sonnet script + Gemini TTS → Vercel Blob |
+
+Each dedicated route is a 3-line wrapper around `handleStepCron(req, step)` in `src/lib/pipeline/cron-handler.ts`, which delegates to `runPipeline({ trigger, singleStep })`. The admin-facing `/api/pipeline/run` remains for full-pipeline and on-demand single-step runs.
+
 ## Database Schema
 
 ### Core Tables
@@ -134,11 +173,13 @@ Hand-authored causal links between domains (e.g., "EU ETS price → Australian o
 - `taxonomy_domains` / `taxonomy_sectors` / `taxonomy_microsectors` — 3-level hierarchy
 - `taxonomy_tags` — 5 cross-cutting tags
 - `entities` — entity registry with aliases, fuzzy matching (pg_trgm)
-- `enriched_articles` — new enrichment results (microsector_ids[], signal_type, sentiment, jurisdictions[], raw_entities)
+- `enriched_articles` — new enrichment results (microsector_ids[], signal_type, sentiment, jurisdictions[], raw_entities, **contradicts_prior**, **contradicted_source_ids**)
 - `article_entities` — join table (enriched_article ↔ entity)
 - `transmission_channels` — causal links between domains
 - `enrichment_runs` — cost/performance tracking
 - `category_migration_map` — old 20 categories → new microsector slugs
+- `content_embeddings` — unified RAG corpus (pgvector); see Intelligence Layer section above
+- `pipeline_runs` — per-run telemetry for the cron pipeline (`id`, `status`, `trigger`, `steps` JSONB, `error`)
 
 ### Weekly Digest Tables
 - `weekly_reports` — auto-generated intelligence reports (theme clusters, sentiment, numbers)
@@ -158,6 +199,8 @@ Hand-authored causal links between domains (e.g., "EU ETS price → Australian o
 - `scripts/migrate-enrichment.sql` — Enrichment tables, enums, extensions
 - `scripts/seed-taxonomy.sql` — 12 domains, 75 sectors, 103 microsectors, 5 tags
 - `scripts/migrate-newsroom.sql` — Newsroom tables, `title_hash` column, notification_prefs JSONB backfill
+- `scripts/migrate-intelligence.sql` — pgvector + `content_embeddings` + HNSW index + 10 filter indexes (apply via `node scripts/apply-intelligence-migration.mjs`)
+- `scripts/migrate-contradicts-prior.sql` — adds `contradicts_prior` + `contradicted_source_ids` to `enriched_articles` (apply via `node scripts/apply-contradicts-prior-migration.mjs`)
 
 ## Dashboard Tabs
 
@@ -199,6 +242,10 @@ The Profile page additionally renders `SavedBoard` — the user's personal archi
 - DO NOT add offline-caching logic to `public/sw.js` without coordination — it is deliberately limited to push handling so it can coexist with any future caching SW
 - DO NOT classify Newsroom items at microsector granularity — Newsroom is domain-only by design. Deep microsector + entity work happens in the nightly Stage-1/Stage-2 pipeline
 - Newsroom `user_id` columns are `TEXT` (matches `user_profiles.id`), not UUID — every new table that joins to the user must use TEXT
+- DO NOT `fetch('http://localhost:...')` from inside a serverless function — there's no localhost server in a Vercel invocation. Refactor into a shared lib function and call it directly (the old digest step hit this; core now lives in `src/lib/digest/generate.ts`)
+- DO NOT rely on the Supabase MCP in this workspace — it's bound to a different project (coffeeclub). For climatepulse schema work use `pg` over `DATABASE_URL` (template: `scripts/apply-intelligence-migration.mjs`). Supabase CLI `db push` works too but has no "execute file" verb
+- DO NOT schedule a single cron to run all pipeline steps sequentially — enrichment's backlog will blow past the 800s Vercel Pro cap and kill later steps. Keep steps on their own staggered crons (see "Pipeline Cron Schedule")
+- DO NOT widen the RSS age cutoff without thinking — podcast RSS feeds serve their full episode history (400+ items each), which will flood enrichment. If you must, consider a per-source cap in `pollAllFeeds` instead
 
 ## Git Workflow
 
@@ -267,11 +314,23 @@ climatepulse/
 │   ├── migrate-enrichment.sql   # Enrichment schema
 │   ├── migrate-two-stage.sql    # Two-stage pipeline columns + indexes
 │   ├── migrate-newsroom.sql     # Newsroom tables, title_hash, push/saved/interactions
+│   ├── migrate-intelligence.sql # pgvector + content_embeddings + HNSW
+│   ├── migrate-contradicts-prior.sql  # contradicts_prior flag on enriched_articles
 │   ├── seed-taxonomy.sql        # 108 microsectors + domains + tags
 │   ├── seed-sources.sql         # Initial source seeding
 │   ├── migrate-weekly-digest.sql # Weekly reports + digests tables
 │   ├── migrate-podcast.sql      # Podcast episodes table
-│   └── generate-podcast.ts      # Standalone podcast generation script
+│   ├── generate-podcast.ts      # Standalone podcast generation script
+│   ├── backfill-embeddings.ts   # Backfill content_embeddings for existing content
+│   ├── backfill-contradicts-prior.ts  # Backfill contradicts_prior flag
+│   ├── pipeline-status.mjs      # Quick diagnostic: freshness + recent pipeline_runs
+│   ├── pipeline-probe.mjs       # Deeper probe: recent articles + source health
+│   ├── pipeline-cleanup.mjs     # Mark stale "running" pipeline_runs rows as failed
+│   ├── podcast-backlog-inspect.mjs  # Survey podcast backlog before purge
+│   ├── podcast-backlog-purge.mjs    # Delete unprocessed >3d-old podcast items
+│   ├── rag-status.mjs           # Confirm pgvector + embedding table state
+│   ├── rag-verify.mjs           # Coverage report + sample HNSW nearest-neighbour
+│   └── vercel-blob-link.exp     # expect-driven non-interactive blob store linker
 ├── src/
 │   ��── app/
 │   │   ├── layout.tsx
@@ -289,6 +348,13 @@ climatepulse/
 │   │       ├── energy/              # NEM energy data
 │   │       ├── digest/              # Digest generation (Claude Sonnet)
 │   │       ├── podcast/             # Podcast generation + retrieval
+│   │       ├── pipeline/
+│   │       │   ├── run/             # Multi-step + admin single-step runner
+│   │       │   ├── ingest/          # Cron: step1 (RSS + scrape + APIs)
+│   │       │   ├── fulltext/        # Cron: step2 (cheerio extract)
+│   │       │   ├── enrich/          # Cron: step3 (Stage 1/2 + embed + contradicts_prior)
+│   │       │   ├── digest/          # Cron: step4 (per-user briefing gen)
+│   │       │   └── podcast/         # Cron: step5 (script + TTS + Blob upload)
 │   │       └── newsroom/            # Newsroom API
 │   │           ├── ingest/          # Cron entry (GET|POST, CRON_SECRET)
 │   │           ├── feed/            # Paginated user feed
@@ -309,13 +375,26 @@ climatepulse/
 │   │   ├── categorise/
 │   │   │   └── engine.ts            # Old Gemini categorisation (legacy)
 │   │   ├── enrichment/
-│   │   │   ├── pipeline.ts          # Two-stage orchestrator (prefetch → classify → enrich → promote)
+│   │   │   ├── pipeline.ts          # Two-stage orchestrator (prefetch → classify → enrich → embed → contradicts-prior)
 │   │   │   ├── stage1-classifier.ts # Stage 1: batch domain classification (10/call)
 │   │   │   ├── stage2-enricher.ts   # Stage 2: per-article enrichment + significance
+│   │   │   ├── contradicts-prior.ts # Post-enrichment HNSW check for contradictory coverage
 │   │   │   ├── prompt-loader.ts     # Load/cache .md prompt templates
 │   │   │   ├── entity-resolver.ts   # Entity matching + candidate creation
 │   │   │   ├── taxonomy-cache.ts    # DB-loaded taxonomy cache (5-min TTL)
-│   │   │   └─��� fulltext-prefetch.ts # Pre-fetch full text before enrichment
+│   │   │   └── fulltext-prefetch.ts # Pre-fetch full text before enrichment
+│   │   ├── digest/
+│   │   │   └── generate.ts          # generateBriefingForUser() — shared core for route + step4Digest
+│   │   ├── intelligence/
+│   │   │   ├── embedder.ts          # Gemini embed + content_embeddings writer + backfill
+│   │   │   ├── retriever.ts         # retrieveContent / getEntityBrief / findRelatedContent
+│   │   │   ├── chunker.ts           # Token-aware chunking for long-form content
+│   │   │   └── generator.ts         # RAG-augmented generation helpers
+│   │   ├── pipeline/
+│   │   │   ├── orchestrator.ts      # runPipeline(): persists to pipeline_runs, dispatches steps
+│   │   │   ├── steps.ts             # step1Ingest → step5Podcast implementations
+│   │   │   ├── cron-handler.ts      # Shared auth + dispatch for the 5 dedicated cron routes
+│   │   │   └── types.ts             # StepName, StepResult, PipelineRunResult
 │   │   ├── discovery/
 │   │   │   ├── poller.ts, scraper.ts, fulltext.ts
 │   │   │   ├── newsapi-ai.ts, newsapi-org.ts
