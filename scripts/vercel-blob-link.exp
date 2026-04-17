@@ -1,0 +1,24 @@
+#!/usr/bin/expect -f
+# Non-interactive driver for `vercel blob create-store`.
+# Accepts link prompt, selects all 3 environments, exits.
+
+set timeout 60
+set storeName [lindex $argv 0]
+
+spawn vercel blob create-store $storeName
+
+expect {
+  -re "link this blob store.*" {
+    send "y\r"
+    exp_continue
+  }
+  -re "Select environments.*" {
+    # Press 'a' to toggle all, then Enter to confirm.
+    sleep 0.5
+    send "a"
+    sleep 0.5
+    send "\r"
+    exp_continue
+  }
+  eof
+}
