@@ -16,6 +16,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "@google/generative-ai": "^0.24.1",
     "@heroicons/react": "^2.2.0",
     "@openelectricity/client": "^0.4.0",

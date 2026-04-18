@@ -1,4 +1,5 @@
 import type { PodcastScript } from "@/lib/types";
+import { Mp3Encoder } from "@breezystack/lamejs";
 
 // Voice assignments — distinct male/female pairing for clear speaker separation
 const VOICES = {
@@ -10,7 +11,8 @@ const TTS_MODEL = "gemini-2.5-flash-preview-tts";
 
 /**
  * Synthesize a podcast script into audio using Gemini TTS.
- * Returns a WAV buffer ready for storage.
+ * Returns an MP3 buffer — encoded from the 24 kHz PCM Gemini returns so
+ * mobile playback starts quickly over cellular.
  */
 export async function synthesizePodcast(
   script: PodcastScript
@@ -86,19 +88,44 @@ export async function synthesizePodcast(
 
   const pcmBuffer = Buffer.from(audioPart.inlineData.data, "base64");
 
-  // Wrap PCM in WAV header
   const sampleRate = 24000;
   const bitsPerSample = 16;
   const channels = 1;
-  const wavBuffer = prependWavHeader(pcmBuffer, sampleRate, bitsPerSample, channels);
-
-  // Calculate duration from PCM data
   const bytesPerSample = bitsPerSample / 8;
+
   const durationSeconds = Math.round(
     pcmBuffer.length / (sampleRate * bytesPerSample * channels)
   );
 
-  return { audioBuffer: wavBuffer, durationSeconds, format: "wav" };
+  // Encode to MP3 — WAV was ~48 KB/s (14 MB for 5 min) which made first-tap
+  // playback slow on mobile. MP3 mono 64kbps is ~8 KB/s (2.4 MB for 5 min)
+  // with no perceptible speech-quality loss at 24 kHz source.
+  const mp3Buffer = pcmToMp3(pcmBuffer, sampleRate, channels);
+  console.log(
+    `[tts] Encoded ${(pcmBuffer.length / 1024 / 1024).toFixed(1)}MB PCM → ${(mp3Buffer.length / 1024 / 1024).toFixed(1)}MB MP3`
+  );
+
+  return { audioBuffer: mp3Buffer, durationSeconds, format: "mp3" };
+}
+
+function pcmToMp3(pcm: Buffer, sampleRate: number, channels: number): Buffer {
+  // 64 kbps mono — transparent for speech at 24 kHz source.
+  const encoder = new Mp3Encoder(channels, sampleRate, 64);
+
+  const samples = new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length / 2);
+  const blockSize = 1152;
+  const chunks: Buffer[] = [];
+
+  for (let i = 0; i < samples.length; i += blockSize) {
+    const slice = samples.subarray(i, i + blockSize);
+    const encoded = encoder.encodeBuffer(slice);
+    if (encoded.length > 0) chunks.push(Buffer.from(encoded));
+  }
+
+  const tail = encoder.flush();
+  if (tail.length > 0) chunks.push(Buffer.from(tail));
+
+  return Buffer.concat(chunks);
 }
 
 /**
@@ -134,41 +161,3 @@ function buildTranscript(script: PodcastScript): string {
   return directorNotes + turns;
 }
 
-/**
- * Prepend a standard 44-byte WAV header to raw PCM data.
- */
-function prependWavHeader(
-  pcm: Buffer,
-  sampleRate: number,
-  bitsPerSample: number,
-  channels: number
-): Buffer {
-  const bytesPerSample = bitsPerSample / 8;
-  const blockAlign = channels * bytesPerSample;
-  const byteRate = sampleRate * blockAlign;
-  const dataSize = pcm.length;
-  const fileSize = 36 + dataSize; // Total file size minus 8 bytes for RIFF header
-
-  const header = Buffer.alloc(44);
-
-  // RIFF header
-  header.write("RIFF", 0);
-  header.writeUInt32LE(fileSize, 4);
-  header.write("WAVE", 8);
-
-  // fmt sub-chunk
-  header.write("fmt ", 12);
-  header.writeUInt32LE(16, 16);          // Sub-chunk size (16 for PCM)
-  header.writeUInt16LE(1, 20);           // Audio format (1 = PCM)
-  header.writeUInt16LE(channels, 22);
-  header.writeUInt32LE(sampleRate, 24);
-  header.writeUInt32LE(byteRate, 28);
-  header.writeUInt16LE(blockAlign, 32);
-  header.writeUInt16LE(bitsPerSample, 34);
-
-  // data sub-chunk
-  header.write("data", 36);
-  header.writeUInt32LE(dataSize, 40);
-
-  return Buffer.concat([header, pcm]);
-}
