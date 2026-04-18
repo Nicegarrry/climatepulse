@@ -64,16 +64,19 @@ The validated pipeline: (1) ingest climate/energy news from RSS + scrapers, (2) 
 
 **Phase 3b — Daily Podcast ("ClimatePulse Daily")**
 - ~5 min two-speaker audio podcast generated after digest
-- Pipeline step 5: digest → Claude Sonnet script → Gemini TTS → WAV storage
+- Pipeline step 5: digest → Claude Sonnet script → Gemini TTS (PCM) → MP3 encode → Blob storage
 - Script: Claude Sonnet converts DigestOutput + full article text + NEM data into conversational script
-- TTS: Gemini `gemini-2.5-flash-preview-tts` with multi-speaker (Aoede=host, Charon=analyst)
+- TTS: Gemini `gemini-2.5-flash-preview-tts` with multi-speaker (Aoede=host, Charon=analyst); returns 24 kHz 16-bit mono PCM, then encoded to 64 kbps mono MP3 via `@breezystack/lamejs` (pure-JS, Vercel-safe). ~1.6 MB for a 3-min episode vs the old ~9 MB WAV — first-tap playback starts instantly over cellular
 - Voices: Female host "Sarah" (qualitative, sceptical) + Male analyst "James" (data-driven, precise)
 - NEM check-in every episode with real OpenElectricity data (renewable %, state spot prices)
 - Storage: local `public/podcasts/` in dev, Vercel Blob in production (store: `climatepulse-blob`, auto-provisioned env `BLOB_READ_WRITE_TOKEN`)
 - Generate locally: `npx tsx scripts/generate-podcast.ts [date]`
 - v1 is global (one episode for all users); per-user custom podcasts deferred to premium tier
-- DB table: `podcast_episodes` (schema in `scripts/migrate-podcast.sql`)
+- DB table: `podcast_episodes` (base schema in `scripts/migrate-podcast.sql`; evolution schema in `scripts/migrate-podcast-evolution.sql` adds multi-variant keying — `tier`, `archetype`, `theme_slug`, `flagship_episode_id`, `character_ids`, `music_bed_url`, `mix_manifest`)
 - **RAG entity callbacks**: `fetchEntityHistory()` in `src/lib/podcast/script-generator.ts` fetches `getEntityBrief` for up to 8 unique entities across hero stories and injects an `ENTITY HISTORY` block. Claude uses it for natural "as we covered on April 12…" references — sparingly, only when it reframes a story
+- **Playback telemetry**: `/api/podcast/interact` + `src/lib/podcast/telemetry.ts` persist per-user play/resume/complete/quit/skip_back/skip_forward events into `user_podcast_interactions`. The player (`src/components/intelligence/podcast-player.tsx`) fires them via `fetch(..., { keepalive: true })` and a `pagehide` fallback, distinguishing first play from resume via a ref and skipping emits for mock episodes. Skip events come from the media-session 15s handlers, not from progress-bar scrubs (too noisy).
+- **Archetype variants (Workstream A — on main)**: `/api/podcast/archetypes` runs `src/lib/podcast/workstream-a-archetypes.ts`, generating per-archetype (`commercial | academic | public | general`) daily variants on top of the global episode. Variants are stored with `tier='daily'` + `archetype='…'` and keyed by the `idx_podcast_episodes_variant_uniq` expression index. Per-archetype framing comes from `ARCHETYPE_FRAMINGS` in `src/lib/podcast/archetypes.ts` (role-lens → archetype mapping), injected into the DigestOutput narrative before the existing Claude script generator runs.
+- Themed deep-dives (Workstream B) and flagship auto-link on weekly-digest publish (Workstream C) are on the `podcast` branch, not yet merged.
 
 **Phase 4 — Weekly Digest ("The Weekly Pulse")**
 - Friday 3pm: Auto-generate intelligence report from week's enriched articles
@@ -185,6 +188,15 @@ Each dedicated route is a 3-line wrapper around `handleStepCron(req, step)` in `
 - `weekly_reports` — auto-generated intelligence reports (theme clusters, sentiment, numbers)
 - `weekly_digests` — human-curated editorial digests (headline, narrative, curated stories, distribution tracking)
 
+### Podcast Tables
+- `podcast_episodes` — extended with `tier` (`daily|themed|flagship`), `archetype`, `theme_slug`, `flagship_episode_id`, `character_ids[]`, `music_bed_url`, `mix_manifest JSONB`. Uniqueness enforced by `idx_podcast_episodes_variant_uniq` over `(tier, briefing_date, COALESCE(archetype,''), COALESCE(theme_slug,''), COALESCE(flagship_episode_id,''), COALESCE(user_id,''))`
+- `voice_profiles` — TTS voice registry (`gemini | lyria | gemini-tts`); decouples provider voice IDs from characters
+- `podcast_characters` — canonical cast bios (`host_daily | host_flagship | ensemble | correspondent`) with FK to `voice_profiles`
+- `podcast_formats` — Main Piece format registry for flagship (dinner_table, fireside, etc.)
+- `flagship_episodes` — backlog through published pipeline; `status` enum, `scheduled_for`, `episode_number` (sequential on publish), `assigned_characters[]`, `linked_weekly_digest_id`
+- `themed_schedule` — weekly deep-dive cadence keyed by `theme_slug`/`day_of_week` with cornerstone character + `domain_filter[]` + `min_significance`
+- `user_podcast_interactions` — append-only playback telemetry (`play|resume|complete|quit|skip_back|skip_forward`) with `position_seconds`
+
 ### Newsroom Tables
 - `newsroom_items` — lightly-classified wire items (FK to `raw_articles`, `primary_domain`, `urgency`, `teaser`, `duplicate_of_id`, `editor_override` JSONB for future WS4 controls)
 - `user_saved_articles` — user archive; FK to `raw_articles` + nullable FK to `newsroom_items`; unique on `(user_id, raw_article_id)`; GIN index on `note` for search
@@ -201,6 +213,7 @@ Each dedicated route is a 3-line wrapper around `handleStepCron(req, step)` in `
 - `scripts/migrate-newsroom.sql` — Newsroom tables, `title_hash` column, notification_prefs JSONB backfill
 - `scripts/migrate-intelligence.sql` — pgvector + `content_embeddings` + HNSW index + 10 filter indexes (apply via `node scripts/apply-intelligence-migration.mjs`)
 - `scripts/migrate-contradicts-prior.sql` — adds `contradicts_prior` + `contradicted_source_ids` to `enriched_articles` (apply via `node scripts/apply-contradicts-prior-migration.mjs`)
+- `scripts/migrate-podcast-evolution.sql` — voice profiles, characters, formats, flagship backlog, themed schedule, podcast variant keying, interactions telemetry. Seeds in `scripts/seed-podcast.sql` + `scripts/seed-accounts.sql`. Verify with `node --env-file=.env.production.local scripts/podcast-evolution-smoke.mjs`
 
 ## Dashboard Tabs
 
@@ -246,6 +259,8 @@ The Profile page additionally renders `SavedBoard` — the user's personal archi
 - DO NOT rely on the Supabase MCP in this workspace — it's bound to a different project (coffeeclub). For climatepulse schema work use `pg` over `DATABASE_URL` (template: `scripts/apply-intelligence-migration.mjs`). Supabase CLI `db push` works too but has no "execute file" verb
 - DO NOT schedule a single cron to run all pipeline steps sequentially — enrichment's backlog will blow past the 800s Vercel Pro cap and kill later steps. Keep steps on their own staggered crons (see "Pipeline Cron Schedule")
 - DO NOT widen the RSS age cutoff without thinking — podcast RSS feeds serve their full episode history (400+ items each), which will flood enrichment. If you must, consider a per-source cap in `pollAllFeeds` instead
+- DO NOT re-add `ON CONFLICT (briefing_date, user_id)` to `savePodcastEpisode` — the old unique constraint was dropped by `migrate-podcast-evolution.sql` and the replacement `idx_podcast_episodes_variant_uniq` is an expression index over `COALESCE(...)` which Postgres won't accept as an `ON CONFLICT` target. Callers must guard against duplicates with a `SELECT` before insert (see `/api/podcast/generate` and `step5Podcast`)
+- DO NOT fire podcast interact events from progress-bar scrub drags — only from explicit skip controls (media-session 15s handlers). Scrubs fire on every pointermove and would flood `user_podcast_interactions`
 
 ## Git Workflow
 
@@ -316,6 +331,10 @@ climatepulse/
 │   ├── migrate-newsroom.sql     # Newsroom tables, title_hash, push/saved/interactions
 │   ├── migrate-intelligence.sql # pgvector + content_embeddings + HNSW
 │   ├── migrate-contradicts-prior.sql  # contradicts_prior flag on enriched_articles
+│   ├── migrate-podcast-evolution.sql  # Voices, characters, formats, flagship, themed schedule, podcast variant keying, interactions
+│   ├── seed-podcast.sql         # Voice/character/format/theme/flagship seeds
+│   ├── seed-accounts.sql        # Seed editor/admin accounts
+│   ├── podcast-evolution-smoke.mjs    # Schema + seed + archive-query smoke test
 │   ├── seed-taxonomy.sql        # 108 microsectors + domains + tags
 │   ├── seed-sources.sql         # Initial source seeding
 │   ├── migrate-weekly-digest.sql # Weekly reports + digests tables
@@ -403,7 +422,7 @@ climatepulse/
 │   │   │   └── openelectricity.ts
 │   │   ├── podcast/
 │   │   │   ├── script-generator.ts  # Claude Sonnet → two-speaker script
-│   │   │   ├── tts-synthesizer.ts   # Gemini TTS multi-speaker → WAV
+│   │   │   ├── tts-synthesizer.ts   # Gemini TTS multi-speaker → PCM → MP3 (lamejs, 64 kbps)
 │   │   │   └── storage.ts           # Vercel Blob / local file storage
 │   │   ├── newsroom/
 │   │   │   ├── run.ts               # Orchestrator: poll → dedup → classify → fanout
