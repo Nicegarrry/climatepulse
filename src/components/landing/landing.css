@@ -82,14 +82,10 @@
   color: var(--ink);
 }
 .cp-landing .topbar-logo .mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 35% 35%, var(--forest-3) 0 22%, transparent 23%),
-    radial-gradient(circle at 65% 30%, var(--forest-2) 0 20%, transparent 21%),
-    radial-gradient(circle at 30% 65%, var(--forest) 0 22%, transparent 23%),
-    radial-gradient(circle at 65% 65%, var(--ink) 0 22%, transparent 23%);
+  width: 24px;
+  height: 24px;
+  display: block;
+  flex-shrink: 0;
 }
 .cp-landing .topbar-cta {
   font-family: var(--font-ui);

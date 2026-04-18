@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import { PulseArt } from "./pulse-art";
 import { SampleBriefingModal } from "./sample-modal";
@@ -74,7 +75,14 @@ export function Landing() {
     <div className="cp-landing">
       <header className="topbar">
         <div className="topbar-logo">
-          <span className="mark" aria-hidden />
+          <Image
+            src="/leaf only.svg"
+            alt=""
+            width={24}
+            height={24}
+            className="mark"
+            priority
+          />
           <span>climate pulse</span>
         </div>
         <button
