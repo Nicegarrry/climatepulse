@@ -38,6 +38,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // savePodcastEpisode no longer has ON CONFLICT after the variant migration,
+    // so guard here against re-running for the same date.
+    const existing = await pool.query(
+      `SELECT id, briefing_date, user_id, script, audio_url,
+              audio_duration_seconds, audio_size_bytes, audio_format, generated_at
+         FROM podcast_episodes
+         WHERE briefing_date = $1 AND tier = 'daily' AND user_id IS NULL
+           AND archetype IS NULL
+         LIMIT 1`,
+      [date]
+    );
+    if (existing.rows.length > 0) {
+      return NextResponse.json(existing.rows[0]);
+    }
+
     const digest = briefingResult.rows[0].digest as DigestOutput;
     const stories = briefingResult.rows[0].stories ?? [];
 

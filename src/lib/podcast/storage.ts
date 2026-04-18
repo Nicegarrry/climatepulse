@@ -11,12 +11,13 @@ import { sydneyDateString } from "@/lib/podcast/date";
 export async function storePodcastAudio(
   audioBuffer: Buffer,
   date: string,
-  format: string
+  format: string,
+  variant: string = "global"
 ): Promise<string> {
   // Use Vercel Blob if token is available (production/preview)
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     const { put } = await import("@vercel/blob");
-    const pathname = `podcasts/${date}-global.${format}`;
+    const pathname = `podcasts/${date}-${variant}.${format}`;
     const blob = await put(pathname, audioBuffer, {
       access: "public",
       contentType: `audio/${format}`,
@@ -30,13 +31,18 @@ export async function storePodcastAudio(
   // Local dev: write to public/podcasts/ and serve as static file
   const dir = join(process.cwd(), "public", "podcasts");
   await mkdir(dir, { recursive: true });
-  const filename = `${date}-global.${format}`;
+  const filename = `${date}-${variant}.${format}`;
   await writeFile(join(dir, filename), audioBuffer);
   return `/podcasts/${filename}`;
 }
 
 /**
  * Persist podcast episode metadata to the database.
+ *
+ * Uniqueness is enforced by idx_podcast_episodes_variant_uniq across
+ * (tier, briefing_date, archetype, theme_slug, flagship_episode_id, user_id).
+ * Callers should check for an existing row before invoking to avoid conflicts;
+ * racing writers will fail loudly on the unique index, which is desirable.
  */
 export async function savePodcastEpisode(episode: {
   briefing_date: string;
@@ -50,26 +56,24 @@ export async function savePodcastEpisode(episode: {
   model_script?: string;
   generation_cost_usd?: number;
   generated_at: string;
+  tier?: "daily" | "themed" | "flagship";
+  archetype?: "commercial" | "academic" | "public" | "general" | null;
+  theme_slug?: string | null;
+  flagship_episode_id?: string | null;
+  character_ids?: string[];
+  music_bed_url?: string | null;
 }): Promise<PodcastEpisode> {
   const id = `podcast-${Date.now()}`;
+  const tier = episode.tier ?? "daily";
 
   await pool.query(
     `INSERT INTO podcast_episodes
        (id, briefing_date, user_id, script, audio_url, audio_duration_seconds,
         audio_size_bytes, audio_format, model_tts, model_script,
-        generation_cost_usd, generated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-     ON CONFLICT (briefing_date, user_id) DO UPDATE SET
-       id = EXCLUDED.id,
-       script = EXCLUDED.script,
-       audio_url = EXCLUDED.audio_url,
-       audio_duration_seconds = EXCLUDED.audio_duration_seconds,
-       audio_size_bytes = EXCLUDED.audio_size_bytes,
-       audio_format = EXCLUDED.audio_format,
-       model_tts = EXCLUDED.model_tts,
-       model_script = EXCLUDED.model_script,
-       generation_cost_usd = EXCLUDED.generation_cost_usd,
-       generated_at = EXCLUDED.generated_at`,
+        generation_cost_usd, generated_at,
+        tier, archetype, theme_slug, flagship_episode_id, character_ids, music_bed_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+             $13, $14, $15, $16, $17, $18)`,
     [
       id,
       episode.briefing_date,
@@ -83,6 +87,12 @@ export async function savePodcastEpisode(episode: {
       episode.model_script ?? null,
       episode.generation_cost_usd ?? null,
       episode.generated_at,
+      tier,
+      episode.archetype ?? null,
+      episode.theme_slug ?? null,
+      episode.flagship_episode_id ?? null,
+      episode.character_ids ?? [],
+      episode.music_bed_url ?? null,
     ]
   );
 

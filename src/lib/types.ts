@@ -540,6 +540,26 @@ export interface PodcastEpisode {
   audio_size_bytes: number | null;
   audio_format: string;
   generated_at: string;
+  tier?: "daily" | "themed" | "flagship";
+  archetype?: "commercial" | "academic" | "public" | "general" | null;
+  theme_slug?: string | null;
+  flagship_episode_id?: string | null;
+  character_ids?: string[];
+  music_bed_url?: string | null;
+}
+
+export interface PodcastArchiveItem {
+  id: string;
+  briefing_date: string;
+  tier: "daily" | "themed" | "flagship";
+  archetype: "commercial" | "academic" | "public" | "general" | null;
+  theme_slug: string | null;
+  flagship_episode_id: string | null;
+  audio_url: string;
+  audio_duration_seconds: number | null;
+  audio_format: string;
+  generated_at: string;
+  title: string | null;
 }
 
 // ─── Weekly Digest ───────────────────────────────────────────────────────────

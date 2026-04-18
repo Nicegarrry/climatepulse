@@ -14,6 +14,34 @@ function formatTime(seconds: number): string {
 
 const SPEEDS = [1, 1.5, 2] as const;
 
+type InteractionType = "play" | "resume" | "complete" | "quit" | "skip_back" | "skip_forward";
+
+// Fire-and-forget interact emit. Uses keepalive so it survives page unload.
+// Safely skips when the episode id looks synthetic (mock data, no DB row).
+function emitInteraction(
+  episodeId: string | undefined,
+  type: InteractionType,
+  positionSeconds: number
+) {
+  if (!episodeId || episodeId.startsWith("mock-")) return;
+  const body = JSON.stringify({
+    podcast_episode_id: episodeId,
+    type,
+    position_seconds: Math.max(0, Math.floor(positionSeconds)),
+  });
+  try {
+    fetch("/api/podcast/interact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+      credentials: "same-origin",
+    }).catch(() => {});
+  } catch {
+    // Ignore — telemetry must never block playback.
+  }
+}
+
 export function PodcastPlayer({
   episode,
   compact = false,
@@ -30,6 +58,18 @@ export function PodcastPlayer({
   const [speedIdx, setSpeedIdx] = useState(0);
   const [expanded, setExpanded] = useState(false);
 
+  // Telemetry bookkeeping. Refs so event handlers stay stable across renders.
+  const hasStartedRef = useRef(false);   // first play vs subsequent resume
+  const completedRef = useRef(false);    // skip the unmount `quit` after natural end
+  const episodeIdRef = useRef(episode.id);
+
+  // Reset telemetry flags when a different episode is loaded into the player.
+  useEffect(() => {
+    hasStartedRef.current = false;
+    completedRef.current = false;
+    episodeIdRef.current = episode.id;
+  }, [episode.id]);
+
   // Sync with audio element — mirror *actual* element state so external pauses
   // (phone call, headphones unplugged, lock-screen control) don't desync the UI.
   useEffect(() => {
@@ -45,6 +85,12 @@ export function PodcastPlayer({
     const onPlay = () => {
       setPlaying(true);
       setLoading(false);
+      if (!hasStartedRef.current) {
+        hasStartedRef.current = true;
+        emitInteraction(episodeIdRef.current, "play", audio.currentTime);
+      } else {
+        emitInteraction(episodeIdRef.current, "resume", audio.currentTime);
+      }
     };
     const onPause = () => setPlaying(false);
     const onPlaying = () => {
@@ -57,6 +103,8 @@ export function PodcastPlayer({
     const onEnded = () => {
       setPlaying(false);
       setLoading(false);
+      completedRef.current = true;
+      emitInteraction(episodeIdRef.current, "complete", audio.duration || audio.currentTime);
     };
 
     audio.addEventListener("timeupdate", onTime);
@@ -82,6 +130,20 @@ export function PodcastPlayer({
       audio.removeEventListener("ended", onEnded);
     };
   }, [episode.audio_duration_seconds]);
+
+  // Emit `quit` if the user navigates away (or this component unmounts) mid-episode.
+  useEffect(() => {
+    const onUnload = () => {
+      const audio = audioRef.current;
+      if (!audio || completedRef.current || !hasStartedRef.current) return;
+      emitInteraction(episodeIdRef.current, "quit", audio.currentTime);
+    };
+    window.addEventListener("pagehide", onUnload);
+    return () => {
+      window.removeEventListener("pagehide", onUnload);
+      onUnload();
+    };
+  }, []);
 
   // Wrap audio.play() so we catch iOS autoplay / session-interruption rejections
   // instead of leaving the UI in a fake "playing" state.
@@ -112,9 +174,11 @@ export function PodcastPlayer({
     navigator.mediaSession.setActionHandler("pause", () => { audio.pause(); });
     navigator.mediaSession.setActionHandler("seekbackward", () => {
       audio.currentTime = Math.max(0, audio.currentTime - 15);
+      emitInteraction(episodeIdRef.current, "skip_back", audio.currentTime);
     });
     navigator.mediaSession.setActionHandler("seekforward", () => {
       audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 15);
+      emitInteraction(episodeIdRef.current, "skip_forward", audio.currentTime);
     });
   }, [episode.briefing_date, safePlay]);
 
