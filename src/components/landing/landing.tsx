@@ -137,8 +137,8 @@ function Hero({
       </h1>
       <p className="hero-sub">
         ClimatePulse reads the policy drops, market moves, and project news shaping your
-        sector — then sends you only what matters. Built by someone who&rsquo;s worked
-        inside it, not another aggregator.
+        sector — then sends you only what matters. Paired with a live NEM + ASX energy
+        dashboard. Built by someone who&rsquo;s worked inside it, not another aggregator.
       </p>
       <div className="hero-cta-stack">
         <button type="button" className="btn-primary" onClick={onCTAClick}>
@@ -273,14 +273,17 @@ function WhatYouGet() {
       desc: "The brief as a short podcast, for the commute. Plus weekly themed episodes that go deeper on a single story.",
     },
     {
+      name: "Live energy dashboard",
+      desc: "NEM generation mix, wholesale spot prices by state, and the renewables share — updated every five-minute dispatch interval. Opens today's brief with the at-a-glance snapshot.",
+    },
+    {
+      name: "ASX energy tickers",
+      desc: "Daily market data for the ASX-listed energy, utilities, and critical-minerals stocks that move with your sector — Origin, Santos, Pilbara, Lynas, IGO, AGL, and more.",
+    },
+    {
       name: "Storylines",
       soon: true,
       desc: "Follow a narrative across weeks. How a policy fight, project saga, or market shift is actually developing over time.",
-    },
-    {
-      name: "Markets pulse",
-      soon: true,
-      desc: "ASX-listed energy tickers, sparklines, and the moves worth knowing about.",
     },
     {
       name: "Learn",
@@ -292,7 +295,7 @@ function WhatYouGet() {
     <section>
       <div className="section-num">04 · What you get</div>
       <h2 className="section-title">
-        Five surfaces, <em>one signal.</em>
+        A briefing, <em>and a data dashboard.</em>
       </h2>
       <div className="features">
         {features.map((f, i) => (
