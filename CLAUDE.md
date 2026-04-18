@@ -218,6 +218,13 @@ Tabs are role-gated via `getTabsForRole()` in `src/app/(app)/dashboard/page.tsx`
 
 The Profile page additionally renders `SavedBoard` — the user's personal archive of saved Newsroom items as a dense clippings board.
 
+## Public Routes & Auth Flow
+
+- **`/` — marketing landing page** (`src/app/page.tsx` → `src/components/landing/`). Server component, so SEO-indexable. Uses its own scoped design system (warm paper `#F5EFE6` + aubergine ink + forest green, Inter Tight / Newsreader / JetBrains Mono loaded via `next/font`) under a `.cp-landing` wrapper so nothing leaks into the authed app. Includes generative ECG canvas (`pulse-art.tsx`, pure canvas — no p5 dependency) and a bottom-sheet sample-briefing modal (`sample-modal.tsx`) with a live Energy snapshot + ASX ticker strip to position the product as a data dashboard, not just a newsletter.
+- **`cp_returning` cookie** (1-year, lax, not httpOnly) is set in `/auth/callback` on successful sign-in. The landing page reads it via `next/headers` and issues `redirect('/dashboard')` server-side before any HTML renders — returning users never see the marketing page again. Cookie survives logout intentionally (a returning user should hit `/login`, not landing, on next visit). PWA `manifest.json` `start_url` is `/dashboard`, so installed users skip landing entirely.
+- **Cookie consent** (`src/components/cookie-consent.tsx`) renders in the authed `(app)` layout. Transparency notice for `cp_returning` + product analytics, accept / essential-only choice persisted to localStorage. It's a notice, not a gate — no server-side code reads the consent value.
+- **Post-briefing notifications prompt** (`src/components/intelligence/NotificationsPrompt.tsx`) appears ~8s after `digestStatus === "ready"` on a user's first briefing, asking once about urgency-5 breaking-news push. Dismissal stored per-device in `localStorage.cp_notifs_prompt_resolved`; short-circuits if the user has already granted / denied via another surface or has an existing subscription.
+
 ## Key Principles
 
 - **Full text extraction BEFORE enrichment** — trivial cost increase, massive quality improvement
@@ -246,6 +253,9 @@ The Profile page additionally renders `SavedBoard` — the user's personal archi
 - DO NOT rely on the Supabase MCP in this workspace — it's bound to a different project (coffeeclub). For climatepulse schema work use `pg` over `DATABASE_URL` (template: `scripts/apply-intelligence-migration.mjs`). Supabase CLI `db push` works too but has no "execute file" verb
 - DO NOT schedule a single cron to run all pipeline steps sequentially — enrichment's backlog will blow past the 800s Vercel Pro cap and kill later steps. Keep steps on their own staggered crons (see "Pipeline Cron Schedule")
 - DO NOT widen the RSS age cutoff without thinking — podcast RSS feeds serve their full episode history (400+ items each), which will flood enrichment. If you must, consider a per-source cap in `pollAllFeeds` instead
+- DO NOT leak landing-page styles into the authed app — every selector in `src/components/landing/landing.css` is namespaced under `.cp-landing`, including CSS variables. If you add a new rule without that prefix you'll override shadcn tokens globally
+- DO NOT remove the `cp_returning` cookie from `/auth/callback` — the landing page's server-side redirect depends on it. Clearing it on logout would force existing users back through the marketing page on their next visit, which is the bug we set out to prevent
+- DO NOT change `public/manifest.json` `start_url` away from `/dashboard` — PWA installers rely on it to skip landing
 
 ## Git Workflow
 
@@ -334,7 +344,11 @@ climatepulse/
 ├── src/
 │   ��── app/
 │   │   ├── layout.tsx
+│   │   ├── page.tsx                 # Public landing (server component; redirects returning users via cp_returning cookie)
+│   │   ├── auth/
+│   │   │   └── callback/route.ts    # Magic-link exchange; sets cp_returning=1 cookie
 │   │   ├── (app)/
+│   │   │   ├── layout.tsx           # Renders CookieConsent banner for authed users
 │   │   │   ├── dashboard/page.tsx   # Main tabbed dashboard
 │   │   │   ├── settings/page.tsx
 │   │   │   └── profile/page.tsx
@@ -419,6 +433,12 @@ climatepulse/
 │   │       ├── theme-clusterer.ts   # Taxonomy-based article clustering
 │   │       └── email-sender.ts      # Resend email delivery
 │   └── components/
+│       ├── landing/                 # Public landing page (scoped under .cp-landing)
+│       │   ├── landing.tsx          # Composition + all sections (hero, problem, how, features, personas, moat, FAQ, CTA, footer)
+│       │   ├── landing.css          # Scoped palette, typography, layout — every selector prefixed .cp-landing
+│       │   ├── pulse-art.tsx        # Canvas ECG waveform hero (no p5 dep; settles after 180 frames)
+│       │   └── sample-modal.tsx     # Bottom-sheet sample briefing with live Energy snapshot + ASX ticker strip
+│       ├── cookie-consent.tsx       # Consent banner rendered in (app)/layout.tsx
 │       ├── intelligence/            # Daily briefing (folder with subcomponents)
 │       ├── weekly/                  # Weekly digest tab
 │       │   ├── index.tsx            # Main component, data fetching, layout
