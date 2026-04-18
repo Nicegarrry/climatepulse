@@ -25,7 +25,12 @@ import {
   CommandLineIcon,
   ChevronRightIcon,
   RssIcon,
+  UserIcon,
+  Cog6ToothIcon,
+  ArrowRightOnRectangleIcon,
+  EllipsisHorizontalIcon,
 } from "@heroicons/react/24/outline";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { COLORS, FONTS, GRAIN, NAV_ITEMS } from "@/lib/design-tokens";
 import { DiscoveryTab } from "@/components/discovery-tab";
 import { CategoriesTab } from "@/components/categories-tab";
@@ -77,13 +82,12 @@ function getTabsForRole(role: "reader" | "editor" | "admin") {
 }
 
 function getMobileNavForRole(role: "reader" | "editor" | "admin") {
-  // Mobile has max 4 slots — prioritise based on role
+  // Mobile reserves 3 primary slots + a "More" slot on the right.
   if (role === "admin") {
     return [
       { icon: NewspaperIcon, label: "Briefing", value: "intelligence" },
       { icon: MagnifyingGlassIcon, label: "Explore", value: "discovery" },
       { icon: BoltIcon, label: "Energy", value: "energy" },
-      { icon: CalendarDaysIcon, label: "Weekly", value: "weekly" },
     ];
   }
   if (role === "editor") {
@@ -91,14 +95,12 @@ function getMobileNavForRole(role: "reader" | "editor" | "admin") {
       { icon: NewspaperIcon, label: "Briefing", value: "intelligence" },
       { icon: CalendarDaysIcon, label: "Editor", value: "editor" },
       { icon: ChartBarIcon, label: "Markets", value: "markets" },
-      { icon: CalendarDaysIcon, label: "Weekly", value: "weekly" },
     ];
   }
   return [
     { icon: NewspaperIcon, label: "Briefing", value: "intelligence" },
+    { icon: RssIcon, label: "Newsroom", value: "newsroom" },
     { icon: BoltIcon, label: "Energy", value: "energy" },
-    { icon: ChartBarIcon, label: "Markets", value: "markets" },
-    { icon: CalendarDaysIcon, label: "Weekly", value: "weekly" },
   ];
 }
 
@@ -157,6 +159,10 @@ export default function DashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("intelligence");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const mobileNavValues = new Set(mobileNav.map((n) => n.value));
+  const moreTabs = tabConfig.filter((t) => !mobileNavValues.has(t.value));
 
   const errorCount = logs.filter((l) => l.level === "error").length;
   const initials = user?.name
@@ -184,7 +190,7 @@ export default function DashboardPage() {
     <div
       style={{
         display: "flex",
-        height: "100vh",
+        height: "100dvh",
         background: COLORS.bg,
         fontFamily: FONTS.sans,
         overflow: "hidden",
@@ -397,28 +403,91 @@ export default function DashboardPage() {
         <header
           className="flex md:hidden"
           style={{
-            height: 44,
+            minHeight: 48,
+            paddingTop: "env(safe-area-inset-top)",
             background: COLORS.surface,
             borderBottom: `1px solid ${COLORS.border}`,
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "0 18px",
+            padding: "0 14px 0 16px",
             flexShrink: 0,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <img src="/leaf only.svg" alt="Climate Pulse" width={22} height={22} />
+          <div
+            onClick={() => setActiveTab("intelligence")}
+            style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
+          >
             <img src="/logo.svg" alt="Climate Pulse" height={22} style={{ height: 22, width: "auto" }} />
           </div>
-          <span
-            style={{
-              fontSize: 10,
-              color: COLORS.inkMuted,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            14 Apr 2026
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span
+              style={{
+                fontSize: 11,
+                color: COLORS.inkMuted,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  aria-label="Account menu"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback
+                      style={{
+                        background: COLORS.sageTint,
+                        color: COLORS.forest,
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-3 py-2">
+                  <p className="text-sm font-medium">{user?.name}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push("/profile")} className="gap-2 text-sm">
+                  <UserIcon className="h-4 w-4 text-muted-foreground" />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/settings")} className="gap-2 text-sm">
+                  <Cog6ToothIcon className="h-4 w-4 text-muted-foreground" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    logout();
+                    router.push("/login");
+                  }}
+                  className="gap-2 text-sm text-destructive focus:text-destructive"
+                >
+                  <ArrowRightOnRectangleIcon className="h-4 w-4" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </header>
 
         {/* Content */}
@@ -454,8 +523,9 @@ export default function DashboardPage() {
         <div
           className="flex md:hidden"
           style={{
-            minHeight: 50,
-            paddingBottom: "env(safe-area-inset-bottom)",
+            minHeight: 60,
+            paddingTop: 6,
+            paddingBottom: "max(env(safe-area-inset-bottom), 10px)",
             borderTop: `1px solid ${COLORS.border}`,
             background: COLORS.surface,
             alignItems: "center",
@@ -466,7 +536,7 @@ export default function DashboardPage() {
           {mobileNav.map((item) => {
             const isActive = activeTab === item.value;
             return (
-              <div
+              <button
                 key={item.value}
                 onClick={() => {
                   setActiveTab(item.value);
@@ -476,30 +546,121 @@ export default function DashboardPage() {
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
-                  gap: 1,
+                  gap: 3,
                   cursor: "pointer",
+                  background: "transparent",
+                  border: "none",
+                  padding: "6px 10px",
+                  minHeight: 44,
+                  flex: 1,
                 }}
               >
                 <item.icon
                   style={{
-                    width: 20,
-                    height: 20,
+                    width: 22,
+                    height: 22,
                     color: isActive ? COLORS.forest : COLORS.inkMuted,
                   }}
                 />
                 <span
                   style={{
-                    fontSize: 8,
+                    fontSize: 10,
                     color: isActive ? COLORS.forest : COLORS.inkMuted,
-                    fontWeight: isActive ? 600 : 400,
+                    fontWeight: isActive ? 600 : 500,
                   }}
                 >
                   {item.label}
                 </span>
-              </div>
+              </button>
             );
           })}
+
+          {/* More — opens sheet with any tabs not in the primary slots */}
+          <button
+            onClick={() => setMoreOpen(true)}
+            aria-label="More tabs"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              cursor: "pointer",
+              background: "transparent",
+              border: "none",
+              padding: "6px 10px",
+              minHeight: 44,
+              flex: 1,
+            }}
+          >
+            <EllipsisHorizontalIcon
+              style={{
+                width: 22,
+                height: 22,
+                color: moreTabs.some((t) => t.value === activeTab) ? COLORS.forest : COLORS.inkMuted,
+              }}
+            />
+            <span
+              style={{
+                fontSize: 10,
+                color: moreTabs.some((t) => t.value === activeTab) ? COLORS.forest : COLORS.inkMuted,
+                fontWeight: moreTabs.some((t) => t.value === activeTab) ? 600 : 500,
+              }}
+            >
+              More
+            </span>
+          </button>
         </div>
+
+        {/* More sheet — all remaining tabs + quick account actions */}
+        <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+          <SheetContent
+            side="bottom"
+            className="md:hidden rounded-t-2xl"
+            style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
+          >
+            <SheetHeader>
+              <SheetTitle>More</SheetTitle>
+            </SheetHeader>
+            <div style={{ padding: "0 8px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+              {moreTabs.map((tab) => {
+                const isActive = activeTab === tab.value;
+                return (
+                  <button
+                    key={tab.value}
+                    onClick={() => {
+                      setActiveTab(tab.value);
+                      setMoreOpen(false);
+                      log("info", `Switched to tab: ${tab.value}`);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "14px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: isActive ? COLORS.sageTint : "transparent",
+                      color: isActive ? COLORS.forest : COLORS.ink,
+                      fontSize: 15,
+                      fontWeight: isActive ? 600 : 500,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      minHeight: 48,
+                    }}
+                  >
+                    <tab.icon style={{ width: 20, height: 20, color: isActive ? COLORS.forest : COLORS.inkSec }} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+              {moreTabs.length === 0 && (
+                <p style={{ padding: 16, fontSize: 13, color: COLORS.inkMuted, margin: 0 }}>
+                  No additional tabs for this role.
+                </p>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </div>
   );
