@@ -35,5 +35,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth`);
   }
 
-  return NextResponse.redirect(`${origin}/dashboard`);
+  const response = NextResponse.redirect(`${origin}/dashboard`);
+  // Mark this browser as a returning user so the landing page can
+  // redirect them straight to /dashboard on future root-URL visits.
+  // Functional cookie — survives logout, cleared only by the user.
+  response.cookies.set("cp_returning", "1", {
+    maxAge: 60 * 60 * 24 * 365, // 1 year
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: false,
+  });
+  return response;
 }

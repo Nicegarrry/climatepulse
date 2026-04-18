@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
@@ -24,6 +24,13 @@ export default function LoginPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const { login, verifyCode } = useAuth();
   const router = useRouter();
+  const codeInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (state.step === "code") {
+      codeInputRef.current?.focus();
+    }
+  }, [state.step]);
 
   // Cooldown timer for resend button
   useEffect(() => {
@@ -187,26 +194,51 @@ export default function LoginPage() {
 
                   <form onSubmit={handleVerify} className="space-y-5">
                     <div className="space-y-2">
-                      <Label htmlFor="code" className="text-xs font-medium text-muted-foreground">
+                      <Label htmlFor="code" className="sr-only">
                         Code
                       </Label>
-                      <Input
+                      <button
+                        type="button"
+                        onClick={() => codeInputRef.current?.focus()}
+                        className="flex w-full justify-center gap-2"
+                        aria-label="Enter 6-digit code"
+                      >
+                        {Array.from({ length: 6 }).map((_, i) => {
+                          const char = code[i] ?? "";
+                          const isCursor = i === code.length;
+                          return (
+                            <span
+                              key={i}
+                              className={`flex h-12 w-11 items-center justify-center rounded-md border font-mono text-xl tabular-nums transition-colors ${
+                                char
+                                  ? "border-forest/50 bg-forest/5 text-foreground"
+                                  : isCursor
+                                    ? "border-forest ring-2 ring-forest/30 text-muted-foreground"
+                                    : "border-border bg-muted/30 text-muted-foreground"
+                              }`}
+                            >
+                              {char || (isCursor ? <span className="animate-pulse">|</span> : "")}
+                            </span>
+                          );
+                        })}
+                      </button>
+                      <input
+                        ref={codeInputRef}
                         id="code"
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         value={code}
                         onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="123456"
                         required
                         autoFocus
                         autoComplete="one-time-code"
                         maxLength={6}
-                        className="h-11 text-center text-lg tracking-[0.5em] font-mono"
+                        className="sr-only"
                       />
                     </div>
 
-                    {error && <p className="text-sm text-destructive">{error}</p>}
+                    {error && <p className="text-center text-sm text-destructive">{error}</p>}
 
                     <Button
                       type="submit"

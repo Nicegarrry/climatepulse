@@ -4,6 +4,7 @@ import { GEMINI_MODEL } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
 import { sendWeeklyDigestEmail } from "@/lib/weekly/email-sender";
+import { autoLinkFlagshipOnPublish } from "@/lib/podcast/workstream-c-flagship";
 
 export const maxDuration = 60;
 
@@ -76,12 +77,24 @@ export async function POST(
       }
     }
 
+    // Workstream C: link any scheduled flagship episode to this digest.
+    let flagshipLink: Awaited<ReturnType<typeof autoLinkFlagshipOnPublish>> = {
+      status: "skipped",
+      reason: "not attempted",
+    };
+    try {
+      flagshipLink = await autoLinkFlagshipOnPublish(id);
+    } catch (err) {
+      console.warn("Flagship auto-link failed:", err);
+    }
+
     return NextResponse.json({
       published: true,
       digest_id: id,
       banner_expires_at: bannerExpires.toISOString(),
       linkedin_draft: linkedinDraft,
       emails_sent: emailResult.sent,
+      flagship_link: flagshipLink,
     });
   } catch (err) {
     console.error("Weekly digest publish:", err);
