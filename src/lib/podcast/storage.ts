@@ -2,6 +2,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import pool from "@/lib/db";
 import type { PodcastEpisode, PodcastScript } from "@/lib/types";
+import { sydneyDateString } from "@/lib/podcast/date";
 
 /**
  * Store podcast audio. Uses Vercel Blob in production,
@@ -105,7 +106,7 @@ export async function savePodcastEpisode(episode: {
 export async function getTodaysPodcast(
   date?: string
 ): Promise<PodcastEpisode | null> {
-  const targetDate = date ?? new Date().toISOString().split("T")[0];
+  const targetDate = date ?? sydneyDateString();
 
   const result = await pool.query(
     `SELECT id, briefing_date, user_id, script, audio_url,

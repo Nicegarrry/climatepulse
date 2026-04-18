@@ -11,6 +11,7 @@ import { MOCK_USER_PROFILE } from "@/lib/mock-digest";
 import { getInteractionSummary } from "@/lib/newsroom/interactions";
 import { retrieveContent } from "@/lib/intelligence/retriever";
 import type { RetrievedContent } from "@/lib/intelligence/retriever";
+import { sydneyDateString } from "@/lib/podcast/date";
 import type {
   UserProfile,
   ScoredStory,
@@ -552,7 +553,7 @@ export async function generateBriefingForUser(
   }
 
   const now = new Date().toISOString();
-  const today = now.split("T")[0];
+  const today = sydneyDateString();
   const briefingId = `briefing-${Date.now()}`;
 
   const briefing: DailyBriefing = {

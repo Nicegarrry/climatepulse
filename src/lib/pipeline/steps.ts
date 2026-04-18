@@ -2,6 +2,7 @@
 
 import type { StepResult } from "./types";
 import type { DigestOutput } from "@/lib/types";
+import { sydneyDateString } from "@/lib/podcast/date";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -250,7 +251,7 @@ export async function step5Podcast(): Promise<StepResult> {
   return runStep("podcast", async () => {
     const pool = (await import("@/lib/db")).default;
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = sydneyDateString();
 
     // Check if podcast already exists for today
     const existing = await pool.query(
