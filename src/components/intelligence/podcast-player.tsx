@@ -100,6 +100,11 @@ export function PodcastPlayer({
     const onWaiting = () => setLoading(true);
     const onStalled = () => setLoading(true);
     const onCanPlay = () => setLoading(false);
+    // timeupdate means frames are arriving — safety net for mobile Safari where
+    // `playing`/`canplay` sometimes don't fire reliably after resume from buffering.
+    const onTimeUpdateLoading = () => {
+      if (!audio.paused) setLoading(false);
+    };
     const onEnded = () => {
       setPlaying(false);
       setLoading(false);
@@ -108,6 +113,7 @@ export function PodcastPlayer({
     };
 
     audio.addEventListener("timeupdate", onTime);
+    audio.addEventListener("timeupdate", onTimeUpdateLoading);
     audio.addEventListener("loadedmetadata", onMeta);
     audio.addEventListener("durationchange", onDurationChange);
     audio.addEventListener("play", onPlay);
@@ -119,6 +125,7 @@ export function PodcastPlayer({
     audio.addEventListener("ended", onEnded);
     return () => {
       audio.removeEventListener("timeupdate", onTime);
+      audio.removeEventListener("timeupdate", onTimeUpdateLoading);
       audio.removeEventListener("loadedmetadata", onMeta);
       audio.removeEventListener("durationchange", onDurationChange);
       audio.removeEventListener("play", onPlay);
@@ -222,11 +229,18 @@ export function PodcastPlayer({
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  // Single <audio> element rendered at a stable position — do NOT move this
+  // into the compact branch, or React will unmount/remount it on the
+  // compact → expanded transition and break play/timeupdate event listeners.
+  const audioEl = (
+    <audio ref={audioRef} src={episode.audio_url} preload="metadata" playsInline />
+  );
+
   // Compact mode: equal-sibling CTA for mobile — matches the Start-briefing bar
   if (compact && !expanded) {
     return (
       <>
-        <audio ref={audioRef} src={episode.audio_url} preload="metadata" playsInline />
+        {audioEl}
         <button
           onClick={togglePlay}
           style={{
@@ -272,9 +286,9 @@ export function PodcastPlayer({
   }
 
   return (
-    <div style={{ marginBottom: expanded ? 0 : 4 }}>
-      <audio ref={audioRef} src={episode.audio_url} preload="metadata" playsInline />
-
+    <>
+      {audioEl}
+      <div style={{ marginBottom: expanded ? 0 : 4 }}>
       {/* Collapsed: single-line button */}
       {!expanded && (
         <button
