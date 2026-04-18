@@ -23,6 +23,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   login: (email: string) => Promise<{ ok: boolean; error?: string }>;
+  verifyCode: (email: string, token: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<AuthUser>) => void;
   refreshProfile: () => Promise<void>;
@@ -132,6 +133,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { ok: true };
   }, []);
 
+  const verifyCode = useCallback(async (email: string, token: string): Promise<{ ok: boolean; error?: string }> => {
+    const supabase = createClient();
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token: token.trim(),
+      type: "email",
+    });
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+
+    if (data.user) {
+      const profile = await fetchProfile(data.user);
+      setUser(profile);
+    }
+
+    return { ok: true };
+  }, []);
+
   const logout = useCallback(async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -153,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser, refreshProfile }}>
+    <AuthContext.Provider value={{ user, isLoading, login, verifyCode, logout, updateUser, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -12,15 +13,17 @@ import { Loader2, ArrowLeft, Mail } from "lucide-react";
 
 type LoginState =
   | { step: "email" }
-  | { step: "sent"; email: string };
+  | { step: "code"; email: string };
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [state, setState] = useState<LoginState>({ step: "email" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const { login } = useAuth();
+  const { login, verifyCode } = useAuth();
+  const router = useRouter();
 
   // Cooldown timer for resend button
   useEffect(() => {
@@ -38,15 +41,32 @@ export default function LoginPage() {
     setSubmitting(false);
 
     if (result.ok) {
-      setState({ step: "sent", email });
+      setState({ step: "code", email });
+      setCode("");
       setResendCooldown(60);
     } else {
-      setError(result.error || "Could not send magic link. Please try again.");
+      setError(result.error || "Could not send sign-in code. Please try again.");
+    }
+  }
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    if (state.step !== "code") return;
+    setError("");
+    setSubmitting(true);
+
+    const result = await verifyCode(state.email, code);
+    setSubmitting(false);
+
+    if (result.ok) {
+      router.push("/dashboard");
+    } else {
+      setError(result.error || "That code didn't work. Check the email and try again.");
     }
   }
 
   async function handleResend() {
-    if (resendCooldown > 0 || state.step !== "sent") return;
+    if (resendCooldown > 0 || state.step !== "code") return;
     setError("");
     setSubmitting(true);
     const result = await login(state.email);
@@ -60,6 +80,7 @@ export default function LoginPage() {
 
   function goBack() {
     setState({ step: "email" });
+    setCode("");
     setError("");
   }
 
@@ -102,7 +123,7 @@ export default function LoginPage() {
                     Sign In
                   </p>
                   <p className="mb-6 text-sm text-muted-foreground">
-                    Enter your email to receive a magic link.
+                    Enter your email to receive a sign-in code.
                   </p>
 
                   <form onSubmit={handleSubmit} className="space-y-5">
@@ -143,7 +164,7 @@ export default function LoginPage() {
                 </motion.div>
               ) : (
                 <motion.div
-                  key="sent-state"
+                  key="code-state"
                   initial={{ opacity: 0, x: 8 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -8 }}
@@ -155,21 +176,59 @@ export default function LoginPage() {
                     </div>
                   </div>
                   <p className="mb-2 text-center text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                    Check your email
+                    Enter sign-in code
                   </p>
-                  <p className="mb-5 text-center text-sm text-foreground">
-                    We sent a magic link to
+                  <p className="mb-1 text-center text-sm text-foreground">
+                    We sent a 6-digit code to
                   </p>
-                  <p className="mb-6 text-center text-sm font-medium text-forest">
+                  <p className="mb-5 text-center text-sm font-medium text-forest">
                     {state.email}
                   </p>
-                  <p className="mb-6 text-center text-xs text-muted-foreground">
-                    Click the link in your email to sign in. You can close this window.
+
+                  <form onSubmit={handleVerify} className="space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="code" className="text-xs font-medium text-muted-foreground">
+                        Code
+                      </Label>
+                      <Input
+                        id="code"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="123456"
+                        required
+                        autoFocus
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        className="h-11 text-center text-lg tracking-[0.5em] font-mono"
+                      />
+                    </div>
+
+                    {error && <p className="text-sm text-destructive">{error}</p>}
+
+                    <Button
+                      type="submit"
+                      className="w-full h-10 bg-forest hover:bg-forest/90 text-white"
+                      disabled={submitting || code.length !== 6}
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Verifying...
+                        </>
+                      ) : (
+                        "Sign in"
+                      )}
+                    </Button>
+                  </form>
+
+                  <p className="mt-4 text-center text-xs text-muted-foreground">
+                    The email also has a magic link you can click instead.
                   </p>
 
-                  {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
-
-                  <div className="space-y-3">
+                  <div className="mt-5 space-y-3">
                     <Button
                       type="button"
                       variant="outline"
@@ -177,16 +236,7 @@ export default function LoginPage() {
                       onClick={handleResend}
                       disabled={submitting || resendCooldown > 0}
                     >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Resending...
-                        </>
-                      ) : resendCooldown > 0 ? (
-                        `Resend in ${resendCooldown}s`
-                      ) : (
-                        "Resend magic link"
-                      )}
+                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}
                     </Button>
 
                     <button
