@@ -1,5 +1,28 @@
 import type { Metadata } from "next";
+import { Inter_Tight, Newsreader, JetBrains_Mono } from "next/font/google";
 import { Landing } from "@/components/landing/landing";
+
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-inter-tight",
+  display: "swap",
+});
+
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  weight: ["300", "400", "500"],
+  style: ["normal", "italic"],
+  variable: "--font-newsreader",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "ClimatePulse — The daily brief for Australia's energy transition",
@@ -14,5 +37,9 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  return <Landing />;
+  return (
+    <div className={`${interTight.variable} ${newsreader.variable} ${jetbrainsMono.variable}`}>
+      <Landing />
+    </div>
+  );
 }
