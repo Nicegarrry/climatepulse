@@ -333,7 +333,11 @@ async function resolveDisplayData(rows: Array<Record<string, unknown>>): Promise
       sentiment: (r.sentiment as string) ?? null,
       jurisdictions: (r.jurisdictions as string[]) ?? [],
       entity_ids: (r.entity_ids as number[]) ?? [],
-      published_at: (r.published_at as string) ?? null,
+      published_at: r.published_at
+        ? (r.published_at instanceof Date
+            ? r.published_at.toISOString()
+            : String(r.published_at))
+        : null,
       significance_composite: r.significance_composite as number | null,
       trustworthiness_tier: r.trustworthiness_tier as number,
       title: display.title,

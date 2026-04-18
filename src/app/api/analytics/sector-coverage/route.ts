@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     const { rows: publishedRows } = await pool.query(
       `SELECT unnest(microsector_ids) AS microsector_id, COUNT(DISTINCT id) AS story_count
        FROM enriched_articles
-       WHERE created_at >= $1::date
+       WHERE enriched_at >= $1::date
        GROUP BY 1`,
       [weekStartStr]
     );

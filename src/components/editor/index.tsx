@@ -95,6 +95,9 @@ export default function EditorTab() {
   const [saving, setSaving] = useState(false);
   const [view, setView] = useState<"compose" | "preview">("compose");
 
+  const [focus, setFocus] = useState<"both" | "daily" | "weekly">("both");
+  const [generatingReport, setGeneratingReport] = useState(false);
+
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishResult, setPublishResult] = useState<{
@@ -250,6 +253,36 @@ export default function EditorTab() {
     });
   }, []);
 
+  const handleGenerateReport = useCallback(async () => {
+    setGeneratingReport(true);
+    try {
+      const res = await fetch(
+        `/api/weekly/generate?weekStart=${initialWeek.start}`,
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Generation failed (${res.status})`);
+      }
+      // Refetch the latest report
+      const r = await fetch("/api/weekly/reports?limit=1");
+      if (r.ok) {
+        const data = await r.json();
+        setReport(data.reports?.[0] ?? null);
+      }
+      setToast({ message: "Weekly report generated.", kind: "success" });
+      setTimeout(() => setToast(null), 2500);
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Generation failed.",
+        kind: "error",
+      });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setGeneratingReport(false);
+    }
+  }, [initialWeek.start]);
+
   const useReportAsBasis = useCallback((r: WeeklyReport) => {
     const stories = r.theme_clusters.slice(0, 6).map(clusterToCuratedStory);
     setDraft((prev) => ({
@@ -375,20 +408,51 @@ export default function EditorTab() {
             </div>
           </div>
 
-          {/* Mobile view toggle */}
-          <div className="lg:hidden" style={{ display: "flex", gap: 4 }}>
-            <button
-              onClick={() => setView("compose")}
-              style={{ ...toggleBtn, ...(view === "compose" ? toggleActive : {}) }}
-            >
-              Compose
-            </button>
-            <button
-              onClick={() => setView("preview")}
-              style={{ ...toggleBtn, ...(view === "preview" ? toggleActive : {}) }}
-            >
-              Preview
-            </button>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+            {/* Focus toggle — split daily vs weekly workspace */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 10, color: COLORS.inkFaint, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>
+                Focus
+              </span>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button
+                  onClick={() => setFocus("daily")}
+                  style={{ ...toggleBtn, ...(focus === "daily" ? toggleActive : {}) }}
+                >
+                  Daily
+                </button>
+                <button
+                  onClick={() => setFocus("weekly")}
+                  style={{ ...toggleBtn, ...(focus === "weekly" ? toggleActive : {}) }}
+                >
+                  Weekly
+                </button>
+                <button
+                  onClick={() => setFocus("both")}
+                  style={{ ...toggleBtn, ...(focus === "both" ? toggleActive : {}) }}
+                >
+                  Both
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile view toggle (only when weekly is visible) */}
+            {focus !== "daily" && (
+              <div className="lg:hidden" style={{ display: "flex", gap: 4 }}>
+                <button
+                  onClick={() => setView("compose")}
+                  style={{ ...toggleBtn, ...(view === "compose" ? toggleActive : {}) }}
+                >
+                  Compose
+                </button>
+                <button
+                  onClick={() => setView("preview")}
+                  style={{ ...toggleBtn, ...(view === "preview" ? toggleActive : {}) }}
+                >
+                  Preview
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <div style={{ margin: "14px 0 18px" }}>
@@ -397,47 +461,55 @@ export default function EditorTab() {
       </div>
 
       {/* Daily editorial controls (post-publish edits) */}
-      <DailyReviewPanel />
+      {focus !== "weekly" && <DailyReviewPanel />}
 
-      {/* Content grid: desktop = split, mobile = toggle */}
-      <div
-        style={{
-          display: "grid",
-          gap: 18,
-          gridTemplateColumns: "minmax(0, 1fr)",
-        }}
-        className="editor-grid"
-      >
-        {/* Compose column */}
+      {/* Weekly workspace */}
+      {focus !== "daily" && (
         <div
-          className={view === "preview" ? "lg:block hidden" : ""}
-          style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}
+          style={{
+            display: "grid",
+            gap: 18,
+            gridTemplateColumns: "minmax(0, 1fr)",
+            marginTop: focus === "both" ? 18 : 0,
+          }}
+          className="editor-grid"
         >
-          <ReportViewer report={report} onUseAsBasis={useReportAsBasis} />
-          <StoryPicker
-            defaultFrom={initialWeek.start}
-            defaultTo={initialWeek.end}
-            onAddSelected={addArticlesToDigest}
-          />
-          <DigestComposer
-            value={draft}
-            onChange={handleChange}
-            onSave={handleManualSave}
-            onPublish={handlePublish}
-            saving={saving}
-            saveStatus={saveStatus}
-            canPublish={canPublish}
-          />
-        </div>
+          {/* Compose column */}
+          <div
+            className={view === "preview" ? "lg:block hidden" : ""}
+            style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}
+          >
+            <ReportViewer
+              report={report}
+              onUseAsBasis={useReportAsBasis}
+              onGenerate={handleGenerateReport}
+              generating={generatingReport}
+            />
+            <StoryPicker
+              defaultFrom={initialWeek.start}
+              defaultTo={initialWeek.end}
+              onAddSelected={addArticlesToDigest}
+            />
+            <DigestComposer
+              value={draft}
+              onChange={handleChange}
+              onSave={handleManualSave}
+              onPublish={handlePublish}
+              saving={saving}
+              saveStatus={saveStatus}
+              canPublish={canPublish}
+            />
+          </div>
 
-        {/* Preview column */}
-        <div
-          className={view === "compose" ? "lg:block hidden" : ""}
-          style={{ minWidth: 0 }}
-        >
-          <PreviewPanel draft={draft} />
+          {/* Preview column */}
+          <div
+            className={view === "compose" ? "lg:block hidden" : ""}
+            style={{ minWidth: 0 }}
+          >
+            <PreviewPanel draft={draft} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Publish modal */}
       {publishModalOpen && (

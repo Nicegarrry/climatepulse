@@ -9,9 +9,11 @@ import { formatWeekLabel } from "./helpers";
 interface ReportViewerProps {
   report: WeeklyReport | null;
   onUseAsBasis: (report: WeeklyReport) => void;
+  onGenerate: () => void;
+  generating: boolean;
 }
 
-export function ReportViewer({ report, onUseAsBasis }: ReportViewerProps) {
+export function ReportViewer({ report, onUseAsBasis, onGenerate, generating }: ReportViewerProps) {
   if (!report) {
     return (
       <div
@@ -22,18 +24,42 @@ export function ReportViewer({ report, onUseAsBasis }: ReportViewerProps) {
           padding: 18,
         }}
       >
-        <Micro>Intelligence Report</Micro>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+          <Micro>Intelligence Report</Micro>
+          <button
+            onClick={onGenerate}
+            disabled={generating}
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "7px 14px",
+              background: generating ? COLORS.inkFaint : COLORS.plum,
+              color: "#fff",
+              border: "none",
+              borderRadius: 5,
+              cursor: generating ? "wait" : "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {generating ? "Generating\u2026" : "Generate report"}
+          </button>
+        </div>
         <WobblyRule color={COLORS.borderLight} />
         <div
           style={{
-            padding: "28px 10px",
+            padding: "22px 10px",
             textAlign: "center",
             color: COLORS.inkMuted,
             fontSize: 13,
+            lineHeight: 1.55,
           }}
         >
-          No auto-generated report available yet. Trigger a generation via the
-          pipeline or compose a digest manually using the Story Picker below.
+          No auto-generated report for this week yet.
+          <div style={{ marginTop: 6, fontSize: 12, color: COLORS.inkFaint }}>
+            Click <strong style={{ color: COLORS.plum }}>Generate report</strong> to cluster
+            this week&rsquo;s enriched articles, or compose manually from the Story Picker below.
+          </div>
         </div>
       </div>
     );
@@ -63,23 +89,44 @@ export function ReportViewer({ report, onUseAsBasis }: ReportViewerProps) {
             {formatWeekLabel(report.week_start, report.week_end)} {"\u00b7"} {report.model_used}
           </div>
         </div>
-        <button
-          onClick={() => onUseAsBasis(report)}
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: 12,
-            fontWeight: 600,
-            padding: "7px 12px",
-            background: COLORS.forest,
-            color: "#fff",
-            border: "none",
-            borderRadius: 5,
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Use as basis
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={onGenerate}
+            disabled={generating}
+            title="Re-run clustering for this week"
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "7px 12px",
+              background: generating ? COLORS.inkFaint : "transparent",
+              color: generating ? "#fff" : COLORS.plum,
+              border: `1px solid ${COLORS.plum}`,
+              borderRadius: 5,
+              cursor: generating ? "wait" : "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {generating ? "Generating\u2026" : "Regenerate"}
+          </button>
+          <button
+            onClick={() => onUseAsBasis(report)}
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "7px 12px",
+              background: COLORS.forest,
+              color: "#fff",
+              border: "none",
+              borderRadius: 5,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Use as basis
+          </button>
+        </div>
       </div>
       <WobblyRule color={COLORS.borderLight} />
 
