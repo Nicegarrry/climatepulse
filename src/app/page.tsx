@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { Inter_Tight, Newsreader, JetBrains_Mono } from "next/font/google";
 import { Landing } from "@/components/landing/landing";
 
@@ -36,7 +38,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Home() {
+export default async function Home() {
+  // Returning users (cookie set at /auth/callback) skip the landing entirely.
+  // If their session is gone, /dashboard will bounce them to /login.
+  const cookieStore = await cookies();
+  if (cookieStore.get("cp_returning")?.value === "1") {
+    redirect("/dashboard");
+  }
+
   return (
     <div className={`${interTight.variable} ${newsreader.variable} ${jetbrainsMono.variable}`}>
       <Landing />
