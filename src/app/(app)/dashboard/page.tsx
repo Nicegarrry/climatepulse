@@ -29,6 +29,7 @@ import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   EllipsisHorizontalIcon,
+  MicrophoneIcon,
 } from "@heroicons/react/24/outline";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { COLORS, FONTS, GRAIN, NAV_ITEMS } from "@/lib/design-tokens";
@@ -41,6 +42,8 @@ import WeeklyTab from "@/components/weekly";
 import EditorTab from "@/components/editor";
 import IntelligenceTab from "@/components/intelligence";
 import { NewsroomTab } from "@/components/newsroom/NewsroomTab";
+import { PodcastAdminTab } from "@/components/podcast-admin-tab";
+import { FlagshipScheduler } from "@/components/flagship-scheduler";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
@@ -57,12 +60,14 @@ const readerTabs = [
 
 const editorTabs = [
   { value: "editor", label: "Editor", icon: CalendarDaysIcon },
+  { value: "flagship", label: "Flagship", icon: MicrophoneIcon },
 ];
 
 const adminTabs = [
   { value: "discovery", label: "Discovery", icon: MagnifyingGlassIcon },
   { value: "categories", label: "Categories", icon: TagIcon },
   { value: "taxonomy", label: "Taxonomy", icon: AdjustmentsHorizontalIcon },
+  { value: "podcast-admin", label: "Podcast", icon: MicrophoneIcon },
 ];
 
 function getTabsForRole(role: "reader" | "editor" | "admin") {
@@ -136,6 +141,10 @@ function TabContent({ activeTab }: { activeTab: string }) {
       return <TaxonomyTab />;
     case "newsroom":
       return <NewsroomTab />;
+    case "podcast-admin":
+      return <PodcastAdminTab />;
+    case "flagship":
+      return <FlagshipScheduler />;
     default:
       return null;
   }
