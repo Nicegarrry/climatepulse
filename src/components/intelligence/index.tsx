@@ -18,6 +18,7 @@ import { WeeklyPulseCard } from "@/components/weekly-pulse-card";
 import { PodcastPlayer } from "./podcast-player";
 import { ResearchPanel } from "./research-panel";
 import { DailyFeedbackPrompt } from "./DailyFeedbackPrompt";
+import { NotificationsPrompt } from "./NotificationsPrompt";
 import type { SectorCoverageData, WeeklyPulse } from "@/lib/types";
 import type { EditorialStory, DailyNumber as DailyNumberType } from "@/lib/mock-editorial";
 import {
@@ -1011,6 +1012,7 @@ export default function IntelligenceTab() {
           url: s.url,
         }))}
       />
+      <NotificationsPrompt briefingReady={digestStatus === "ready" && !!briefing} />
     </>
   );
 }

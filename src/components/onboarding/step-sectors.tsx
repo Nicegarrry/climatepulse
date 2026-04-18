@@ -133,10 +133,8 @@ export function StepSectors({ domains, initialSlugs = [], onNext }: StepSectorsP
               transition={{ delay: i * 0.03, duration: 0.25 }}
               className={`col-span-1 ${isExpanded ? "col-span-2 sm:col-span-3" : ""}`}
             >
-              <button
-                onClick={() => toggleDomain(domain)}
-                disabled={atCap}
-                className={`relative flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-all duration-200 ${
+              <div
+                className={`relative flex w-full items-stretch rounded-xl border text-left transition-all duration-200 ${
                   isSelected
                     ? "border-accent-emerald bg-accent-emerald/5"
                     : atCap
@@ -144,51 +142,63 @@ export function StepSectors({ domains, initialSlugs = [], onNext }: StepSectorsP
                       : "border-border/60 bg-card hover:border-accent-emerald/40"
                 }`}
               >
-                {/* Checkbox indicator */}
-                <div
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                    isSelected
-                      ? "border-accent-emerald bg-accent-emerald text-white"
-                      : "border-border bg-background"
-                  }`}
+                <button
+                  type="button"
+                  onClick={() => toggleDomain(domain)}
+                  disabled={atCap}
+                  aria-pressed={isSelected}
+                  className="flex flex-1 items-center gap-3 rounded-l-xl p-4 text-left disabled:cursor-not-allowed"
                 >
-                  {isSelected && <Check className="h-3 w-3" />}
-                </div>
-
-                {Icon && (
+                  {/* Checkbox indicator */}
                   <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
                       isSelected
-                        ? "bg-accent-emerald/15 text-accent-emerald"
-                        : "bg-muted text-muted-foreground"
+                        ? "border-accent-emerald bg-accent-emerald text-white"
+                        : "border-border bg-background"
                     }`}
                   >
-                    <Icon className="h-5 w-5" />
+                    {isSelected && <Check className="h-3 w-3" />}
                   </div>
-                )}
 
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium leading-tight text-foreground">
-                    {domain.name}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {storyHint(domain)}
-                  </p>
-                </div>
-              </button>
+                  {Icon && (
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                        isSelected
+                          ? "bg-accent-emerald/15 text-accent-emerald"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+                  )}
 
-              {/* Customise link */}
-              {isSelected && (
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium leading-tight text-foreground">
+                      {domain.name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {storyHint(domain)}
+                    </p>
+                  </div>
+                </button>
+
+                {/* Expand toggle — always visible so users can preview micro-sectors before committing */}
                 <button
+                  type="button"
                   onClick={() => toggleExpand(domain.slug)}
-                  className="mt-1 flex w-full items-center justify-center gap-1 py-1 text-xs text-accent-emerald hover:underline"
+                  aria-label={isExpanded ? `Collapse ${domain.name}` : `Customise ${domain.name}`}
+                  aria-expanded={isExpanded}
+                  className={`flex w-11 shrink-0 items-center justify-center rounded-r-xl border-l transition-colors ${
+                    isSelected
+                      ? "border-accent-emerald/30 text-accent-emerald hover:bg-accent-emerald/10"
+                      : "border-border/50 text-muted-foreground hover:bg-muted/50"
+                  }`}
                 >
-                  {isExpanded ? "Close" : "Customise"}
                   <ChevronDown
-                    className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                    className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                   />
                 </button>
-              )}
+              </div>
 
               {/* Accordion: sector/microsector drill-down */}
               <AnimatePresence>
