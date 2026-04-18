@@ -14,6 +14,7 @@ import { StoryPicker } from "./story-picker";
 import { DigestComposer } from "./digest-composer";
 import { PreviewPanel } from "./preview-panel";
 import { DailyReviewPanel } from "./daily-review";
+import { ActivityLogPanel } from "./activity-log-panel";
 import { currentWeekRange, formatWeekLabel } from "./helpers";
 import type { EditorArticle } from "./types";
 
@@ -396,8 +397,19 @@ export default function EditorTab() {
         </div>
       </div>
 
-      {/* Daily editorial controls (post-publish edits) */}
-      <DailyReviewPanel />
+      {/* Daily editorial controls (post-publish edits) + activity log */}
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          gridTemplateColumns: "minmax(0, 1fr)",
+          marginBottom: 18,
+        }}
+        className="daily-grid"
+      >
+        <DailyReviewPanel />
+        <ActivityLogPanel />
+      </div>
 
       {/* Content grid: desktop = split, mobile = toggle */}
       <div
@@ -480,6 +492,9 @@ export default function EditorTab() {
         @media (min-width: 1024px) {
           :global(.editor-grid) {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          }
+          :global(.daily-grid) {
+            grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
           }
         }
       `}</style>
