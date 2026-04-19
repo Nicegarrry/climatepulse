@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
-import { callClaude } from "@/lib/digest/generate";
 import { ARCHETYPE_FRAMINGS, type PodcastArchetype } from "@/lib/podcast/archetypes";
 import type { DigestOutput } from "@/lib/types";
 
@@ -14,25 +13,90 @@ function isArchetype(v: string): v is PodcastArchetype {
 }
 
 /**
- * Builds a lightweight reframe prompt. Keeps stories identical to the source
- * briefing — only wording changes (narrative, expert_take, one_line_take).
+ * Builds a directive-heavy reframe prompt. Claude must aggressively change
+ * the *voice* — a reader should be able to tell which archetype they're
+ * seeing from the narrative alone.
  */
 function buildReframePrompt(
   source: DigestOutput,
   archetype: PodcastArchetype
 ): string {
   const framing = ARCHETYPE_FRAMINGS[archetype];
-  return `You are reframing an existing daily climate/energy briefing for a specific reader archetype. Do not add or remove stories. Do not change the daily_number. Do not change rank order. Only rewrite: narrative, hero_stories[*].expert_take, compact_stories[*].one_line_take, and hero_stories[*].so_what (if present) so the voice fits the target archetype.
+  return `You are reframing an existing daily climate/energy briefing for a specific reader archetype. The original briefing is written for a generic reader — your job is to rewrite it with a distinctly different voice so the target archetype reader can immediately tell this was written for them.
 
 TARGET ARCHETYPE: ${framing.label}
 
 FRAMING DIRECTIVE:
 ${framing.directive}
 
+WHAT YOU MUST REWRITE (be aggressive — voice changes should be obvious):
+  - narrative — rewrite fully in the archetype's voice
+  - hero_stories[*].expert_take — rewrite fully
+  - hero_stories[*].so_what — rewrite fully if present
+  - compact_stories[*].one_line_take — rewrite fully
+
+WHAT YOU MUST PRESERVE VERBATIM (do not change):
+  - daily_number (entire object)
+  - rank ordering of hero_stories and compact_stories
+  - every story's headline, source, url
+  - every story's key_metric
+  - hero_stories[*].micro_sectors, entities_mentioned, connected_storyline
+
 SOURCE BRIEFING (JSON):
 ${JSON.stringify(source)}
 
-Return ONLY a JSON object with the exact same shape as the source briefing, with narrative + expert_take + one_line_take + so_what rewritten for the archetype. Preserve story ids, ranks, headlines, sources, urls, micro_sectors, entities_mentioned, key_metric, and daily_number verbatim.`;
+Return ONLY a JSON object (no prose before or after, no code fences) with the exact same shape as the source. Every rewritten field should reflect the archetype directive unmistakably.`;
+}
+
+/**
+ * Dedicated Claude call for reframing. Higher max_tokens than the default
+ * digest path because the response must contain the full digest JSON (stories,
+ * takes, narrative) — not just the narrative delta.
+ */
+async function callClaudeReframe(prompt: string): Promise<DigestOutput> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 8192,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Anthropic API ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const text: string = data.content?.[0]?.text ?? "";
+  const stopReason: string | null = data.stop_reason ?? null;
+  if (stopReason === "max_tokens") {
+    throw new Error("Reframe response truncated (hit max_tokens)");
+  }
+
+  // Prefer fenced JSON, fall back to first `{…}` block, then raw text.
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  let jsonStr = fenced?.[1]?.trim();
+  if (!jsonStr) {
+    const firstBrace = text.indexOf("{");
+    const lastBrace = text.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      jsonStr = text.slice(firstBrace, lastBrace + 1);
+    } else {
+      jsonStr = text.trim();
+    }
+  }
+
+  return JSON.parse(jsonStr) as DigestOutput;
 }
 
 // GET /api/briefing/[id]/preview?archetype=commercial
@@ -86,7 +150,7 @@ export async function GET(
   // Reframe via Claude
   let digest: DigestOutput;
   try {
-    digest = await callClaude(buildReframePrompt(source, archetype));
+    digest = await callClaudeReframe(buildReframePrompt(source, archetype));
   } catch (err) {
     console.error("[preview] Claude reframe failed:", err);
     return NextResponse.json(
