@@ -17,6 +17,7 @@ import { DailyReviewPanel } from "./daily-review";
 import { ActivityLogPanel } from "./activity-log-panel";
 import { SourceHealthDot } from "./source-health-dot";
 import { CollapsibleSection } from "./collapsible-section";
+import { BriefingPackView } from "./briefing-pack-view";
 import { currentWeekRange, formatWeekLabel } from "./helpers";
 import type { EditorArticle } from "./types";
 
@@ -448,6 +449,14 @@ export default function EditorTab() {
             defaultOpen={true}
           >
             <ReportViewer report={report} onUseAsBasis={useReportAsBasis} />
+          </CollapsibleSection>
+          <CollapsibleSection
+            title="Briefing Pack"
+            subtitle="Top-engaged, saves, picks, notes, RAG, angles"
+            storageKey="briefing-pack"
+            defaultOpen={false}
+          >
+            <BriefingPackView />
           </CollapsibleSection>
           <CollapsibleSection
             title="Story Picker"

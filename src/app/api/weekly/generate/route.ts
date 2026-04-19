@@ -4,6 +4,7 @@ import { GEMINI_MODEL } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
 import { fetchWeekArticles, clusterArticles } from "@/lib/weekly/theme-clusterer";
+import { buildBriefingPack } from "@/lib/weekly/briefing-pack";
 import type { WeeklyThemeCluster } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -284,6 +285,49 @@ export async function POST(req: NextRequest) {
     );
 
     console.log(`Weekly report ${reportId}: saved with ${clusters.length} clusters, ${topNumbers.length} numbers`);
+
+    // Step 7: Build the editor briefing pack (top-engaged, saves, picks,
+    // notes, RAG retrievals, suggested angles). Non-fatal — pack is a
+    // secondary surface; failures shouldn't block the report.
+    try {
+      // Pick the most recent admin as the default pack editor (user can
+      // override by calling the generator with ?editorUserId=…).
+      const editorParam = req.nextUrl.searchParams.get("editorUserId");
+      let editorUserId: string | null = editorParam;
+      if (!editorUserId) {
+        try {
+          const { rows: adminRows } = await pool.query<{ id: string }>(
+            `SELECT id FROM user_profiles
+              WHERE user_role = 'admin'
+              ORDER BY onboarded_at DESC NULLS LAST
+              LIMIT 1`
+          );
+          editorUserId = adminRows[0]?.id ?? null;
+        } catch {
+          /* no-op */
+        }
+      }
+
+      const pack = await buildBriefingPack({
+        weekStart,
+        weekEnd,
+        editorUserId,
+        clusters,
+      });
+      try {
+        await pool.query(
+          `UPDATE weekly_reports SET briefing_pack = $2::jsonb WHERE id = $1`,
+          [reportId, JSON.stringify(pack)]
+        );
+      } catch (writeErr) {
+        console.warn(
+          "[weekly/generate] briefing_pack write skipped (migration missing?):",
+          writeErr
+        );
+      }
+    } catch (packErr) {
+      console.warn("[weekly/generate] briefing_pack build failed:", packErr);
+    }
 
     // Embed weekly report into RAG corpus (own editorial, feedback loop)
     try {
