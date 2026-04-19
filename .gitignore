@@ -55,3 +55,6 @@ node_modules/
 .playwright-mcp/
 .superpowers/
 supabase/.temp
+
+# Historical backfill checkpoint
+scripts/.backfill-state.json
