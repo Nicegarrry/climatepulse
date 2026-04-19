@@ -92,7 +92,10 @@ export function PodcastPlayer({
         emitInteraction(episodeIdRef.current, "resume", audio.currentTime);
       }
     };
-    const onPause = () => setPlaying(false);
+    const onPause = () => {
+      setPlaying(false);
+      setLoading(false);
+    };
     const onPlaying = () => {
       setPlaying(true);
       setLoading(false);
@@ -100,6 +103,10 @@ export function PodcastPlayer({
     const onWaiting = () => setLoading(true);
     const onStalled = () => setLoading(true);
     const onCanPlay = () => setLoading(false);
+    const onError = () => {
+      setPlaying(false);
+      setLoading(false);
+    };
     const onEnded = () => {
       setPlaying(false);
       setLoading(false);
@@ -116,6 +123,7 @@ export function PodcastPlayer({
     audio.addEventListener("waiting", onWaiting);
     audio.addEventListener("stalled", onStalled);
     audio.addEventListener("canplay", onCanPlay);
+    audio.addEventListener("error", onError);
     audio.addEventListener("ended", onEnded);
     return () => {
       audio.removeEventListener("timeupdate", onTime);
@@ -127,6 +135,7 @@ export function PodcastPlayer({
       audio.removeEventListener("waiting", onWaiting);
       audio.removeEventListener("stalled", onStalled);
       audio.removeEventListener("canplay", onCanPlay);
+      audio.removeEventListener("error", onError);
       audio.removeEventListener("ended", onEnded);
     };
   }, [episode.audio_duration_seconds]);
@@ -203,30 +212,108 @@ export function PodcastPlayer({
     audio.playbackRate = SPEEDS[next];
   }, [speedIdx]);
 
+  // Drag-to-scrub bookkeeping. `scrubbingRef` gates move events so we only seek
+  // while the pointer is down; `rafRef` coalesces pointermove updates to one per
+  // frame so a drag doesn't thrash `currentTime` (which can cause audible chatter
+  // on iOS). `isScrubbing` state mirrors the ref for render-time styling (CSS
+  // transition toggle). We intentionally do NOT emit skip_* telemetry from drag
+  // seeks — that's reserved for the explicit 15s media-session handlers.
+  const scrubbingRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+  const pendingClientXRef = useRef<number | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+
   const seek = useCallback((clientX: number) => {
     const audio = audioRef.current;
     const bar = progressRef.current;
     if (!audio || !bar) return;
     const rect = bar.getBoundingClientRect();
+    if (rect.width <= 0) return;
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    audio.currentTime = ratio * (audio.duration || duration);
+    const target = ratio * (audio.duration || duration);
+    if (isFinite(target)) {
+      audio.currentTime = target;
+      setCurrentTime(target);
+    }
   }, [duration]);
 
-  const onSeekPointer = useCallback(
+  const flushScrub = useCallback(() => {
+    rafRef.current = null;
+    const x = pendingClientXRef.current;
+    pendingClientXRef.current = null;
+    if (x !== null) seek(x);
+  }, [seek]);
+
+  const onSeekPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       e.preventDefault();
+      scrubbingRef.current = true;
+      setIsScrubbing(true);
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Some older browsers throw if capture isn't supported — ignore.
+      }
       seek(e.clientX);
     },
     [seek]
   );
 
+  const onSeekPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!scrubbingRef.current) return;
+      e.preventDefault();
+      pendingClientXRef.current = e.clientX;
+      if (rafRef.current === null) {
+        rafRef.current = requestAnimationFrame(flushScrub);
+      }
+    },
+    [flushScrub]
+  );
+
+  const onSeekPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!scrubbingRef.current) return;
+      scrubbingRef.current = false;
+      setIsScrubbing(false);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // Ignore — capture may have been lost already (e.g., pointercancel).
+      }
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      // Final commit in case a pointermove was queued without flushing.
+      if (pendingClientXRef.current !== null) {
+        const x = pendingClientXRef.current;
+        pendingClientXRef.current = null;
+        seek(x);
+      }
+    },
+    [seek]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Compact mode: equal-sibling CTA for mobile — matches the Start-briefing bar
-  if (compact && !expanded) {
-    return (
-      <>
-        <audio ref={audioRef} src={episode.audio_url} preload="metadata" playsInline />
+  // Single persistent <audio> element — rendered once at the root so that
+  // compact→expanded transitions on mobile don't unmount/remount it and orphan
+  // the event listeners wired up above. The three UI states (compact CTA,
+  // collapsed inline button, expanded full controls) are rendered as siblings.
+  const showCompact = compact && !expanded;
+
+  return (
+    <>
+      <audio ref={audioRef} src={episode.audio_url} preload="metadata" playsInline />
+
+      {showCompact && (
         <button
           onClick={togglePlay}
           style={{
@@ -267,173 +354,174 @@ export function PodcastPlayer({
             </span>
           </span>
         </button>
-      </>
-    );
-  }
-
-  return (
-    <div style={{ marginBottom: expanded ? 0 : 4 }}>
-      <audio ref={audioRef} src={episode.audio_url} preload="metadata" playsInline />
-
-      {/* Collapsed: single-line button */}
-      {!expanded && (
-        <button
-          onClick={togglePlay}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            width: "100%",
-            padding: "10px 14px",
-            background: COLORS.sageTint,
-            border: `1px solid ${COLORS.sage}40`,
-            borderRadius: 8,
-            cursor: "pointer",
-            textAlign: "left",
-            transition: "background 0.15s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = `${COLORS.sage}30`)}
-          onMouseLeave={(e) => (e.currentTarget.style.background = COLORS.sageTint)}
-        >
-          {loading ? <Spinner size={22} /> : <PlayIcon playing={playing} size={22} />}
-          <span style={{ fontFamily: FONTS.sans, fontSize: 13, fontWeight: 500, color: COLORS.forest, flex: 1 }}>
-            {loading ? "Loading…" : "Listen to today\u2019s briefing"}
-          </span>
-          <span style={{ fontFamily: FONTS.sans, fontSize: 11, fontVariantNumeric: "tabular-nums", color: COLORS.inkMuted }}>
-            {playing || currentTime > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : formatTime(duration)}
-          </span>
-        </button>
       )}
 
-      {/* Expanded: full controls */}
-      {expanded && (
-        <div
-          style={{
-            padding: "12px 14px",
-            background: COLORS.sageTint,
-            border: `1px solid ${COLORS.sage}40`,
-            borderRadius: 8,
-          }}
-        >
-          {/* Top row: play/pause + title + speed */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      {!showCompact && (
+        <div style={{ marginBottom: expanded ? 0 : 4 }}>
+          {/* Collapsed: single-line button */}
+          {!expanded && (
             <button
               onClick={togglePlay}
-              aria-label={playing ? "Pause" : "Play"}
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                background: COLORS.forest,
-                border: "none",
-                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              {loading ? <Spinner size={18} color="#fff" /> : <PlayIcon playing={playing} size={18} color="#fff" />}
-            </button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: FONTS.sans, fontSize: 12, fontWeight: 500, color: COLORS.forest }}>
-                ClimatePulse Daily
-              </div>
-              <div style={{ fontFamily: FONTS.sans, fontSize: 10, color: COLORS.inkMuted, marginTop: 1 }}>
-                {episode.briefing_date} Edition
-              </div>
-            </div>
-            <button
-              onClick={cycleSpeed}
-              style={{
-                fontFamily: FONTS.sans,
-                fontSize: 11,
-                fontWeight: 600,
-                color: COLORS.forestMid,
-                background: `${COLORS.sage}30`,
-                border: "none",
-                borderRadius: 4,
-                padding: "3px 7px",
+                gap: 10,
+                width: "100%",
+                padding: "10px 14px",
+                background: COLORS.sageTint,
+                border: `1px solid ${COLORS.sage}40`,
+                borderRadius: 8,
                 cursor: "pointer",
-                fontVariantNumeric: "tabular-nums",
+                textAlign: "left",
+                transition: "background 0.15s",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = `${COLORS.sage}30`)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = COLORS.sageTint)}
             >
-              {SPEEDS[speedIdx]}x
+              {loading ? <Spinner size={22} /> : <PlayIcon playing={playing} size={22} />}
+              <span style={{ fontFamily: FONTS.sans, fontSize: 13, fontWeight: 500, color: COLORS.forest, flex: 1 }}>
+                {loading ? "Loading…" : "Listen to today\u2019s briefing"}
+              </span>
+              <span style={{ fontFamily: FONTS.sans, fontSize: 11, fontVariantNumeric: "tabular-nums", color: COLORS.inkMuted }}>
+                {playing || currentTime > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : formatTime(duration)}
+              </span>
             </button>
-            <ShareButton
-              articleUrl={episode.audio_url}
-              headline={`ClimatePulse Daily — ${episode.briefing_date}`}
-              sourceName="ClimatePulse"
-              campaign={`podcast-${episode.briefing_date}`}
-              compact
-            />
-          </div>
+          )}
 
-          {/* Progress bar — padded wrapper gives an iOS-friendly ~44px tap target */}
-          <div
-            ref={progressRef}
-            onPointerDown={onSeekPointer}
-            role="slider"
-            aria-label="Seek"
-            aria-valuemin={0}
-            aria-valuemax={duration || 0}
-            aria-valuenow={currentTime}
-            style={{
-              padding: "14px 0",
-              marginTop: -6,
-              marginBottom: -2,
-              cursor: "pointer",
-              touchAction: "none",
-            }}
-          >
+          {/* Expanded: full controls */}
+          {expanded && (
             <div
               style={{
-                height: 6,
-                background: `${COLORS.sage}40`,
-                borderRadius: 3,
-                position: "relative",
-                overflow: "visible",
+                padding: "12px 14px",
+                background: COLORS.sageTint,
+                border: `1px solid ${COLORS.sage}40`,
+                borderRadius: 8,
               }}
             >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${progress}%`,
-                  background: COLORS.forest,
-                  borderRadius: 3,
-                  transition: "width 0.2s linear",
-                }}
-              />
-              {/* scrubber knob */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: `${progress}%`,
-                  top: "50%",
-                  width: 14,
-                  height: 14,
-                  marginLeft: -7,
-                  marginTop: -7,
-                  borderRadius: "50%",
-                  background: COLORS.forest,
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                }}
-              />
-            </div>
-          </div>
+              {/* Top row: play/pause + title + speed */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <button
+                  onClick={togglePlay}
+                  aria-label={playing ? "Pause" : "Play"}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: "50%",
+                    background: COLORS.forest,
+                    border: "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  {loading ? <Spinner size={18} color="#fff" /> : <PlayIcon playing={playing} size={18} color="#fff" />}
+                </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: FONTS.sans, fontSize: 12, fontWeight: 500, color: COLORS.forest }}>
+                    ClimatePulse Daily
+                  </div>
+                  <div style={{ fontFamily: FONTS.sans, fontSize: 10, color: COLORS.inkMuted, marginTop: 1 }}>
+                    {episode.briefing_date} Edition
+                  </div>
+                </div>
+                <button
+                  onClick={cycleSpeed}
+                  style={{
+                    fontFamily: FONTS.sans,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: COLORS.forestMid,
+                    background: `${COLORS.sage}30`,
+                    border: "none",
+                    borderRadius: 4,
+                    padding: "3px 7px",
+                    cursor: "pointer",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {SPEEDS[speedIdx]}x
+                </button>
+                <ShareButton
+                  articleUrl={episode.audio_url}
+                  headline={`ClimatePulse Daily — ${episode.briefing_date}`}
+                  sourceName="ClimatePulse"
+                  campaign={`podcast-${episode.briefing_date}`}
+                  compact
+                />
+              </div>
 
-          {/* Time display */}
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ fontFamily: FONTS.sans, fontSize: 10, fontVariantNumeric: "tabular-nums", color: COLORS.inkMuted }}>
-              {formatTime(currentTime)}
-            </span>
-            <span style={{ fontFamily: FONTS.sans, fontSize: 10, fontVariantNumeric: "tabular-nums", color: COLORS.inkMuted }}>
-              {formatTime(duration)}
-            </span>
-          </div>
+              {/* Progress bar — padded wrapper gives an iOS-friendly ~44px tap target */}
+              <div
+                ref={progressRef}
+                onPointerDown={onSeekPointerDown}
+                onPointerMove={onSeekPointerMove}
+                onPointerUp={onSeekPointerUp}
+                onPointerCancel={onSeekPointerUp}
+                role="slider"
+                aria-label="Seek"
+                aria-valuemin={0}
+                aria-valuemax={duration || 0}
+                aria-valuenow={currentTime}
+                style={{
+                  padding: "14px 0",
+                  marginTop: -6,
+                  marginBottom: -2,
+                  cursor: "pointer",
+                  touchAction: "none",
+                }}
+              >
+                <div
+                  style={{
+                    height: 6,
+                    background: `${COLORS.sage}40`,
+                    borderRadius: 3,
+                    position: "relative",
+                    overflow: "visible",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${progress}%`,
+                      background: COLORS.forest,
+                      borderRadius: 3,
+                      transition: isScrubbing ? "none" : "width 0.2s linear",
+                    }}
+                  />
+                  {/* scrubber knob */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${progress}%`,
+                      top: "50%",
+                      width: 14,
+                      height: 14,
+                      marginLeft: -7,
+                      marginTop: -7,
+                      borderRadius: "50%",
+                      background: COLORS.forest,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Time display */}
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontFamily: FONTS.sans, fontSize: 10, fontVariantNumeric: "tabular-nums", color: COLORS.inkMuted }}>
+                  {formatTime(currentTime)}
+                </span>
+                <span style={{ fontFamily: FONTS.sans, fontSize: 10, fontVariantNumeric: "tabular-nums", color: COLORS.inkMuted }}>
+                  {formatTime(duration)}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
