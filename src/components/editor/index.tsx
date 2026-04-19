@@ -18,6 +18,7 @@ import { ActivityLogPanel } from "./activity-log-panel";
 import { SourceHealthDot } from "./source-health-dot";
 import { CollapsibleSection } from "./collapsible-section";
 import { BriefingPackView } from "./briefing-pack-view";
+import { ArchetypePreviewSwitcher } from "./archetype-preview-switcher";
 import { currentWeekRange, formatWeekLabel } from "./helpers";
 import type { EditorArticle } from "./types";
 
@@ -425,6 +426,17 @@ export default function EditorTab() {
           defaultOpen={true}
         >
           <ActivityLogPanel />
+        </CollapsibleSection>
+      </div>
+
+      <div style={{ marginBottom: 18 }}>
+        <CollapsibleSection
+          title="Archetype Preview"
+          subtitle="Commercial · Academic · Policy · General"
+          storageKey="archetype-preview"
+          defaultOpen={false}
+        >
+          <ArchetypePreviewSwitcher />
         </CollapsibleSection>
       </div>
 

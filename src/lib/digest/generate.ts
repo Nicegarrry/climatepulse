@@ -384,7 +384,7 @@ async function fetchRecentEnrichedArticles(): Promise<EnrichedArticle[]> {
 
 // ─── Call Claude Sonnet ────────────────────────────────────────────────────
 
-async function callClaude(prompt: string): Promise<DigestOutput> {
+export async function callClaude(prompt: string): Promise<DigestOutput> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
 
