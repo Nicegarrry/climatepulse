@@ -15,6 +15,7 @@ import { DigestComposer } from "./digest-composer";
 import { PreviewPanel } from "./preview-panel";
 import { DailyReviewPanel } from "./daily-review";
 import { ActivityLogPanel } from "./activity-log-panel";
+import { SourceHealthDot } from "./source-health-dot";
 import { currentWeekRange, formatWeekLabel } from "./helpers";
 import type { EditorArticle } from "./types";
 
@@ -498,6 +499,9 @@ export default function EditorTab() {
           }
         }
       `}</style>
+
+      {/* Persistent corner widget — source health */}
+      <SourceHealthDot />
     </div>
   );
 }
