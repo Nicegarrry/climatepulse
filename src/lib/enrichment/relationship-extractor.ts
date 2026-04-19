@@ -186,10 +186,17 @@ function validateTriple(
   if (VOCAB_SET.has(predicateRaw)) {
     predicate = predicateRaw as Predicate;
   } else if (predicateRaw === "_uncategorised") {
-    predicate = "_uncategorised";
     const rp = typeof raw.raw_predicate === "string" ? raw.raw_predicate.trim() : "";
-    rawPredicate = rp || predicateRaw;
-    stats.triplesUncategorised++;
+    // Rescue case: the model marked the triple _uncategorised but the
+    // raw_predicate it supplied is itself a valid vocab entry. The model
+    // is being over-cautious — promote it back to the vocab predicate.
+    if (rp && VOCAB_SET.has(rp)) {
+      predicate = rp as Predicate;
+    } else {
+      predicate = "_uncategorised";
+      rawPredicate = rp || predicateRaw;
+      stats.triplesUncategorised++;
+    }
   } else {
     predicate = "_uncategorised";
     rawPredicate = predicateRaw;
