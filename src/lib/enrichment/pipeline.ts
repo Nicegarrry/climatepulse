@@ -284,6 +284,41 @@ export async function runEnrichmentBatch(
             );
           }
 
+          // Step 4d: Graph-RAG spike — extract typed entity-to-entity
+          // relationships and store them in entity_relationships. Gated on
+          // GRAPH_EXTRACTION_ENABLED so production stays inert until we
+          // explicitly turn this on. Failures are warnings, never fatal —
+          // the article remains fully enriched and embedded.
+          if (
+            process.env.GRAPH_EXTRACTION_ENABLED === "true" &&
+            resolvedEntities.length >= 2
+          ) {
+            try {
+              const { extractAndStoreRelationships } = await import(
+                "./relationship-extractor"
+              );
+              const nameToIdMap = new Map<string, number>();
+              for (let i = 0; i < resolvedEntities.length; i++) {
+                const mention = result.entities[i];
+                const resolved = resolvedEntities[i];
+                if (mention && resolved) {
+                  nameToIdMap.set(mention.name, resolved.entityId);
+                }
+              }
+              await extractAndStoreRelationships({
+                enrichedArticleId: enrichedId,
+                title: article.title,
+                body: article.full_text ?? article.snippet ?? "",
+                nameToIdMap,
+              });
+            } catch (graphErr) {
+              console.warn(
+                `[graph-rag-spike] extraction failed for article ${enrichedId}:`,
+                graphErr
+              );
+            }
+          }
+
           processed++;
         }
       } catch (err) {
