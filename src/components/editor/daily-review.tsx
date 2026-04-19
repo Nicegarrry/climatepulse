@@ -32,6 +32,8 @@ export function DailyReviewPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   // Load today's briefing (same endpoint the reader hits)
   useEffect(() => {
@@ -74,7 +76,27 @@ export function DailyReviewPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
+
+  const regenerate = useCallback(async () => {
+    if (!briefing || regenerating) return;
+    setRegenerating(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/briefing/${briefing.id}/regenerate`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Regenerate failed (${res.status})`);
+      }
+      setReloadToken((t) => t + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRegenerating(false);
+    }
+  }, [briefing, regenerating]);
 
   const persist = useCallback(
     async (
@@ -242,14 +264,33 @@ export function DailyReviewPanel() {
             Today&apos;s briefing is live. Edits apply on next load.
           </div>
         </div>
-        {saving && (
-          <span style={{ fontSize: 10, color: COLORS.forest }}>
-            Saving {saving}&hellip;
-          </span>
-        )}
-        {error && (
-          <span style={{ fontSize: 10, color: COLORS.plum }}>{error}</span>
-        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {saving && (
+            <span style={{ fontSize: 10, color: COLORS.forest }}>
+              Saving {saving}&hellip;
+            </span>
+          )}
+          {error && (
+            <span style={{ fontSize: 10, color: COLORS.plum }}>{error}</span>
+          )}
+          <button
+            type="button"
+            onClick={regenerate}
+            disabled={regenerating}
+            style={{
+              padding: "4px 10px",
+              fontSize: 11,
+              fontWeight: 500,
+              color: regenerating ? COLORS.inkFaint : COLORS.plum,
+              background: regenerating ? "transparent" : `${COLORS.plum}10`,
+              border: `1px solid ${regenerating ? COLORS.borderLight : COLORS.plum}`,
+              borderRadius: 4,
+              cursor: regenerating ? "wait" : "pointer",
+            }}
+          >
+            {regenerating ? "Regenerating\u2026" : "Regenerate"}
+          </button>
+        </div>
       </div>
 
       <IntroEditor initial={meta.digest_intro ?? ""} onSave={setIntro} />
