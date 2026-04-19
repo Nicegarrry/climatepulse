@@ -23,6 +23,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   login: (email: string) => Promise<{ ok: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
   verifyCode: (email: string, token: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<AuthUser>) => void;
@@ -133,6 +134,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { ok: true };
   }, []);
 
+  const loginWithGoogle = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: true };
+  }, []);
+
   const verifyCode = useCallback(async (email: string, token: string): Promise<{ ok: boolean; error?: string }> => {
     const supabase = createClient();
 
@@ -175,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, verifyCode, logout, updateUser, refreshProfile }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithGoogle, verifyCode, logout, updateUser, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
