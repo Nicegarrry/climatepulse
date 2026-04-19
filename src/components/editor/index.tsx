@@ -14,6 +14,11 @@ import { StoryPicker } from "./story-picker";
 import { DigestComposer } from "./digest-composer";
 import { PreviewPanel } from "./preview-panel";
 import { DailyReviewPanel } from "./daily-review";
+import { ActivityLogPanel } from "./activity-log-panel";
+import { SourceHealthDot } from "./source-health-dot";
+import { CollapsibleSection } from "./collapsible-section";
+import { BriefingPackView } from "./briefing-pack-view";
+import { ArchetypePreviewSwitcher } from "./archetype-preview-switcher";
 import { currentWeekRange, formatWeekLabel } from "./helpers";
 import type { EditorArticle } from "./types";
 
@@ -396,8 +401,44 @@ export default function EditorTab() {
         </div>
       </div>
 
-      {/* Daily editorial controls (post-publish edits) */}
-      <DailyReviewPanel />
+      {/* Daily editorial controls (post-publish edits) + activity log */}
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          gridTemplateColumns: "minmax(0, 1fr)",
+          marginBottom: 18,
+        }}
+        className="daily-grid"
+      >
+        <CollapsibleSection
+          title="Today's Briefing"
+          subtitle="Intervene on the live daily briefing"
+          storageKey="daily-review"
+          defaultOpen={true}
+        >
+          <DailyReviewPanel />
+        </CollapsibleSection>
+        <CollapsibleSection
+          title="Activity"
+          subtitle="Today's editorial actions"
+          storageKey="activity-log"
+          defaultOpen={true}
+        >
+          <ActivityLogPanel />
+        </CollapsibleSection>
+      </div>
+
+      <div style={{ marginBottom: 18 }}>
+        <CollapsibleSection
+          title="Archetype Preview"
+          subtitle="Commercial · Academic · Policy · General"
+          storageKey="archetype-preview"
+          defaultOpen={false}
+        >
+          <ArchetypePreviewSwitcher />
+        </CollapsibleSection>
+      </div>
 
       {/* Content grid: desktop = split, mobile = toggle */}
       <div
@@ -413,21 +454,50 @@ export default function EditorTab() {
           className={view === "preview" ? "lg:block hidden" : ""}
           style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}
         >
-          <ReportViewer report={report} onUseAsBasis={useReportAsBasis} />
-          <StoryPicker
-            defaultFrom={initialWeek.start}
-            defaultTo={initialWeek.end}
-            onAddSelected={addArticlesToDigest}
-          />
-          <DigestComposer
-            value={draft}
-            onChange={handleChange}
-            onSave={handleManualSave}
-            onPublish={handlePublish}
-            saving={saving}
-            saveStatus={saveStatus}
-            canPublish={canPublish}
-          />
+          <CollapsibleSection
+            title="Weekly Report"
+            subtitle="Auto-generated intelligence basis"
+            storageKey="report-viewer"
+            defaultOpen={true}
+          >
+            <ReportViewer report={report} onUseAsBasis={useReportAsBasis} />
+          </CollapsibleSection>
+          <CollapsibleSection
+            title="Briefing Pack"
+            subtitle="Top-engaged, saves, picks, notes, RAG, angles"
+            storageKey="briefing-pack"
+            defaultOpen={false}
+          >
+            <BriefingPackView />
+          </CollapsibleSection>
+          <CollapsibleSection
+            title="Story Picker"
+            subtitle="Browse & add articles to the digest"
+            storageKey="story-picker"
+            defaultOpen={false}
+          >
+            <StoryPicker
+              defaultFrom={initialWeek.start}
+              defaultTo={initialWeek.end}
+              onAddSelected={addArticlesToDigest}
+            />
+          </CollapsibleSection>
+          <CollapsibleSection
+            title="This Week's Editorial"
+            subtitle="Headline, narrative, curated stories"
+            storageKey="digest-composer"
+            defaultOpen={true}
+          >
+            <DigestComposer
+              value={draft}
+              onChange={handleChange}
+              onSave={handleManualSave}
+              onPublish={handlePublish}
+              saving={saving}
+              saveStatus={saveStatus}
+              canPublish={canPublish}
+            />
+          </CollapsibleSection>
         </div>
 
         {/* Preview column */}
@@ -435,7 +505,14 @@ export default function EditorTab() {
           className={view === "compose" ? "lg:block hidden" : ""}
           style={{ minWidth: 0 }}
         >
-          <PreviewPanel draft={draft} />
+          <CollapsibleSection
+            title="Preview"
+            subtitle="What the reader will see"
+            storageKey="preview-panel"
+            defaultOpen={true}
+          >
+            <PreviewPanel draft={draft} />
+          </CollapsibleSection>
         </div>
       </div>
 
@@ -481,8 +558,14 @@ export default function EditorTab() {
           :global(.editor-grid) {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           }
+          :global(.daily-grid) {
+            grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+          }
         }
       `}</style>
+
+      {/* Persistent corner widget — source health */}
+      <SourceHealthDot />
     </div>
   );
 }

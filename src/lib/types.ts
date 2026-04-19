@@ -646,4 +646,8 @@ export interface WeeklyDigest {
   banner_expires_at: string | null;
   linkedin_draft: string | null;
   created_at: string;
+  // Optional byline + scheduling — populated once migrate-editorial-extras lands.
+  author_user_id?: string | null;
+  author_name?: string | null;
+  scheduled_for?: string | null;
 }

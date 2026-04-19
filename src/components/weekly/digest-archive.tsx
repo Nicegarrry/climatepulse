@@ -12,6 +12,14 @@ function formatWeekRange(weekStart: string, weekEnd: string): string {
   return `${startStr} \u2013 ${endStr}`;
 }
 
+function summarise(narrative: string, maxLen = 140): string {
+  const trimmed = narrative.replace(/\s+/g, " ").trim();
+  if (trimmed.length <= maxLen) return trimmed;
+  const cut = trimmed.slice(0, maxLen);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > 80 ? cut.slice(0, lastSpace) : cut) + "\u2026";
+}
+
 export function DigestArchive({
   digests,
   currentId,
@@ -69,15 +77,43 @@ export function DigestArchive({
               >
                 {digest.headline}
               </div>
+              {digest.editor_narrative && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: COLORS.inkSec,
+                    marginTop: 6,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {summarise(digest.editor_narrative)}
+                </div>
+              )}
               <div
                 style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "baseline",
                   fontSize: 10,
                   color: COLORS.inkFaint,
-                  marginTop: 4,
+                  marginTop: 6,
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {digest.curated_stories.length} stories
+                {digest.author_name && (
+                  <span style={{ color: COLORS.inkMuted, fontStyle: "italic" }}>
+                    by {digest.author_name}
+                  </span>
+                )}
+                <span>{digest.curated_stories.length} stories</span>
+                {digest.published_at && (
+                  <span>
+                    {new Date(digest.published_at).toLocaleDateString("en-AU", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                )}
               </div>
             </div>
           );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { COLORS, FONTS } from "@/lib/design-tokens";
 import { Micro, WobblyRule } from "@/components/intelligence/primitives";
 import type { WeeklyCuratedStory, WeeklyDigest } from "@/lib/types";
@@ -154,6 +154,49 @@ export function DigestComposer({
             rows={8}
             style={{ ...inputStyle, fontFamily: FONTS.serif, lineHeight: 1.55, resize: "vertical" }}
           />
+          <div style={{ marginTop: 6 }}>
+            <label
+              style={{
+                fontSize: 11,
+                color: COLORS.plum,
+                cursor: "pointer",
+                border: `1px dashed ${COLORS.borderLight}`,
+                padding: "4px 10px",
+                borderRadius: 4,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <input
+                type="file"
+                accept=".md,.markdown,text/markdown,text/plain"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const text = typeof reader.result === "string" ? reader.result : "";
+                    if (text) onChange({ editor_narrative: text });
+                  };
+                  reader.readAsText(file);
+                  // Allow picking the same file again
+                  e.target.value = "";
+                }}
+                style={{ display: "none" }}
+              />
+              ↑ Upload markdown
+            </label>
+            <span
+              style={{
+                fontSize: 10,
+                color: COLORS.inkFaint,
+                marginLeft: 8,
+              }}
+            >
+              Replaces the field above
+            </span>
+          </div>
         </Field>
       </div>
 
@@ -298,6 +341,7 @@ export function DigestComposer({
           display: "flex",
           gap: 10,
           flexWrap: "wrap",
+          alignItems: "center",
         }}
       >
         <button onClick={onSave} disabled={saving} style={primaryBtn}>
@@ -312,9 +356,130 @@ export function DigestComposer({
             cursor: canPublish ? "pointer" : "not-allowed",
           }}
         >
-          {"Publish\u2026"}
+          {"Publish now\u2026"}
         </button>
+        {value.id && value.status !== "published" && (
+          <ScheduleControl
+            digestId={value.id}
+            scheduledFor={value.scheduled_for ?? null}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+/* ── Schedule control ──────────────────────────────────────────────── */
+
+function toLocalInputValue(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
+function ScheduleControl({
+  digestId,
+  scheduledFor,
+}: {
+  digestId: string;
+  scheduledFor: string | null;
+}) {
+  const [value, setValue] = useState(toLocalInputValue(scheduledFor));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValue(toLocalInputValue(scheduledFor));
+  }, [scheduledFor]);
+
+  const schedule = async (iso: string | null) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/weekly/digests/${digestId}/schedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduled_for: iso }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `status ${res.status}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onSchedule = () => {
+    if (!value) return;
+    const local = new Date(value);
+    if (Number.isNaN(local.getTime())) {
+      setError("Invalid date/time");
+      return;
+    }
+    void schedule(local.toISOString());
+  };
+
+  const onClear = () => void schedule(null);
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <input
+        type="datetime-local"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        style={{
+          fontSize: 11,
+          padding: "4px 6px",
+          border: `1px solid ${COLORS.borderLight}`,
+          borderRadius: 4,
+          fontFamily: FONTS.sans,
+        }}
+      />
+      <button
+        type="button"
+        onClick={onSchedule}
+        disabled={saving || !value}
+        style={{
+          padding: "4px 10px",
+          fontSize: 11,
+          fontWeight: 500,
+          color: COLORS.plum,
+          background: `${COLORS.plum}10`,
+          border: `1px solid ${COLORS.plum}`,
+          borderRadius: 4,
+          cursor: saving ? "wait" : "pointer",
+        }}
+      >
+        {saving ? "\u2026" : scheduledFor ? "Update schedule" : "Schedule"}
+      </button>
+      {scheduledFor && (
+        <button
+          type="button"
+          onClick={onClear}
+          disabled={saving}
+          style={{
+            padding: "4px 8px",
+            fontSize: 11,
+            color: COLORS.inkMuted,
+            background: "transparent",
+            border: `1px solid ${COLORS.borderLight}`,
+            borderRadius: 4,
+            cursor: "pointer",
+          }}
+        >
+          Clear
+        </button>
+      )}
+      {error && (
+        <span style={{ fontSize: 10, color: "#A03030" }}>{error}</span>
+      )}
     </div>
   );
 }

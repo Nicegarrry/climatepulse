@@ -50,7 +50,21 @@ export async function POST(req: NextRequest) {
       theme_commentary,
       outlook,
       report_id,
-    } = body;
+      scheduled_for,
+      author_user_id,
+    } = body as {
+      week_start?: string;
+      week_end?: string;
+      headline?: string;
+      editor_narrative?: string;
+      weekly_number?: unknown;
+      curated_stories?: unknown;
+      theme_commentary?: unknown;
+      outlook?: string | null;
+      report_id?: string | null;
+      scheduled_for?: string | null;
+      author_user_id?: string | null;
+    };
 
     if (!week_start || !headline || !editor_narrative || !curated_stories) {
       return NextResponse.json(
@@ -66,6 +80,13 @@ export async function POST(req: NextRequest) {
       return d.toISOString().slice(0, 10);
     })();
 
+    // Default byline to the current editor when the client doesn't specify
+    // one. Admins can reassign (e.g. to a guest editor) by passing
+    // author_user_id explicitly.
+    const authorUserId = author_user_id || auth.user.id;
+
+    // Write author + scheduled_for in a second UPDATE so the insert keeps
+    // working on DBs that haven't had migrate-editorial-extras applied yet.
     const { rows } = await pool.query(
       `INSERT INTO weekly_digests (
         id, report_id, week_start, week_end, status,
@@ -95,6 +116,22 @@ export async function POST(req: NextRequest) {
         outlook || null,
       ]
     );
+
+    try {
+      await pool.query(
+        `UPDATE weekly_digests
+            SET author_user_id = COALESCE($2, author_user_id),
+                scheduled_for  = $3
+          WHERE id = $1`,
+        [rows[0].id, authorUserId, scheduled_for || null]
+      );
+      // Reflect in the response so the UI doesn't refetch.
+      rows[0].author_user_id = authorUserId;
+      rows[0].scheduled_for = scheduled_for || null;
+    } catch (err) {
+      // Columns don't exist yet — missing migrate-editorial-extras. Non-fatal.
+      console.warn("[weekly/digests] author/schedule write skipped:", err);
+    }
 
     // Embed weekly digest into RAG corpus (own editorial, feedback loop)
     try {

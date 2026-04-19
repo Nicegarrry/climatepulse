@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import pool from "@/lib/db";
 import type { User } from "@supabase/supabase-js";
+import { hasActiveEditorAssignment } from "@/lib/editorial/assignments";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -75,6 +76,11 @@ export async function requireAuth(minRole?: "reader" | "editor" | "admin") {
     const userRole = profile.user_role || "reader";
 
     if (minRole && (ROLE_LEVEL[userRole] ?? 0) < (ROLE_LEVEL[minRole] ?? 0)) {
+      // Time-boxed escalation: a reader with an active editor_assignments
+      // row is treated as an editor for the duration of the assignment.
+      if (minRole === "editor" && (await hasActiveEditorAssignment(user.id))) {
+        return { user, profile: { ...profile, user_role: "editor" } } as const;
+      }
       return { error: "Insufficient permissions", status: 403 } as const;
     }
 
