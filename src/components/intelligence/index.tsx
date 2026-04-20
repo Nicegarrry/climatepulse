@@ -1,8 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useAnalytics } from "@/lib/analytics/provider";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { COLORS, FONTS, SEVERITY } from "@/lib/design-tokens";
 import type { DailyBriefing, DigestHeroStory, DigestCompactStory, ScoredStory, PodcastEpisode } from "@/lib/types";
 import type { EnergyDashboardData } from "@/lib/energy/openelectricity";
@@ -214,49 +223,67 @@ function DailyNumberSidebar({ data, briefedToday, streakCount }: { data: DailyNu
 function DailyNumberMobile({ data, briefedToday, streakCount }: { data: DailyNumberType; briefedToday?: boolean; streakCount?: number }) {
   return (
     <div style={{ padding: "20px 20px 16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div>
+      {/* Top row: label + briefed badge. Both kept on one line via nowrap so a
+          long `data.change` (rendered below) can't squeeze them into wrapping. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <span style={{ whiteSpace: "nowrap" }}>
           <Micro color={COLORS.plum}>Daily Number</Micro>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 6 }}>
-            <span
-              style={{
-                fontFamily: FONTS.serif,
-                fontSize: 36,
-                fontWeight: 300,
-                color: COLORS.plum,
-                letterSpacing: -1,
-                lineHeight: 1,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {data.value}
+        </span>
+        {briefedToday && (
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" as const, color: COLORS.forest }}>
+              Briefed {"\u2713"}
             </span>
-          </div>
-          <div style={{ fontSize: 11, color: COLORS.inkSec, marginTop: 3 }}>{data.unit}</div>
-        </div>
-        <div style={{ textAlign: "right", paddingBottom: 4 }}>
-          {briefedToday && (
-            <div style={{ marginBottom: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" as const, color: COLORS.forest }}>
-                Briefed {"\u2713"}
+            {streakCount != null && streakCount >= 3 && (
+              <span style={{ fontSize: 11, color: COLORS.inkMuted, fontVariantNumeric: "tabular-nums" }}>
+                Day {streakCount}
               </span>
-              {streakCount != null && streakCount >= 3 && (
-                <div style={{ fontSize: 11, color: COLORS.inkMuted, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-                  Day {streakCount}
-                </div>
-              )}
-            </div>
-          )}
-          {data.change && (
-            <>
-              <span style={{ fontSize: 14, fontWeight: 600, color: COLORS.forest, fontVariantNumeric: "tabular-nums" }}>
-                {data.change}
-              </span>
-              <div style={{ fontSize: 9, color: COLORS.inkMuted, marginTop: 1 }}>{data.changeLabel}</div>
-            </>
-          )}
-        </div>
+            )}
+          </span>
+        )}
       </div>
+
+      {/* Number + unit on their own row, no horizontal pressure from change text */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 8 }}>
+        <span
+          style={{
+            fontFamily: FONTS.serif,
+            fontSize: 36,
+            fontWeight: 300,
+            color: COLORS.plum,
+            letterSpacing: -1,
+            lineHeight: 1,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {data.value}
+        </span>
+        {data.unit && (
+          <span style={{ fontSize: 12, color: COLORS.inkSec, lineHeight: 1.3 }}>{data.unit}</span>
+        )}
+      </div>
+
+      {/* Long-form trend explanation gets the full width — previously crammed
+          into a right-aligned half column where it wrapped awkwardly. */}
+      {data.change && (
+        <p
+          style={{
+            fontFamily: FONTS.sans,
+            fontSize: 13,
+            fontWeight: 500,
+            color: COLORS.forest,
+            lineHeight: 1.4,
+            margin: "10px 0 0",
+          }}
+        >
+          {data.change}
+        </p>
+      )}
+      {data.changeLabel && (
+        <div style={{ fontSize: 10, color: COLORS.inkMuted, marginTop: 4, textAlign: "right" }}>
+          {data.changeLabel}
+        </div>
+      )}
     </div>
   );
 }
@@ -517,17 +544,250 @@ function MobileStoryList({
   );
 }
 
+// ─── Mobile briefing header ─────────────────────────────────────────────────
+// In-flow header at the top of the briefing scroll container (mobile only).
+// Larger logo than the dashboard's compact persistent header — scrolls away
+// with content for an iOS-style large-title feel. Owns its own avatar
+// dropdown so users still have access to profile / settings / sign out.
+
+function MobileBriefingHeader() {
+  const { user, logout } = useAuth();
+  const router = useRouter();
+
+  const initials =
+    (user?.name || user?.email || "")
+      .split(/[\s@]+/)
+      .map((s) => s[0]?.toUpperCase())
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("") || "\u00B7";
+
+  const dateStr = new Date().toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "14px 20px 6px",
+        gap: 12,
+      }}
+    >
+      <img
+        src="/logo.svg"
+        alt="Climate Pulse"
+        style={{ height: 34, width: "auto", display: "block" }}
+      />
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span
+          style={{
+            fontFamily: FONTS.sans,
+            fontSize: 12,
+            color: COLORS.inkMuted,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {dateStr}
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label="Account menu"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <Avatar className="h-9 w-9">
+                <AvatarFallback
+                  style={{
+                    background: COLORS.sageTint,
+                    color: COLORS.forest,
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <div className="px-3 py-2">
+              <p className="text-sm font-medium">{user?.name}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/profile")} className="gap-2 text-sm">
+              Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings")} className="gap-2 text-sm">
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                void logout();
+                router.push("/login");
+              }}
+              className="gap-2 text-sm text-destructive focus:text-destructive"
+            >
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
 // ─── Loading / Error states ─────────────────────────────────────────────────
+
+// Single shimmer-overlay block. Animated via cp-skeleton keyframes injected
+// once at the bottom of LoadingState — keeps the Skeleton component pure JSX
+// so it can be sprinkled freely without each instance re-defining keyframes.
+function Skeleton({
+  width = "100%",
+  height,
+  radius = 6,
+  style,
+}: {
+  width?: number | string;
+  height: number;
+  radius?: number;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div
+      style={{
+        width,
+        height,
+        borderRadius: radius,
+        background: COLORS.borderLight,
+        position: "relative",
+        overflow: "hidden",
+        ...style,
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent)",
+          animation: "cp-skeleton 1.6s linear infinite",
+        }}
+      />
+    </div>
+  );
+}
 
 function LoadingState() {
   return (
-    <div style={{ padding: "40px 32px", color: COLORS.inkMuted, fontSize: 13 }}>
-      <Micro>Loading briefing...</Micro>
-      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-        {[1, 2, 3].map((i) => (
-          <div key={i} style={{ height: 60, background: COLORS.borderLight, borderRadius: 8, animation: "fadeIn 1s ease infinite alternate" }} />
-        ))}
+    <div
+      style={{
+        flex: 1,
+        alignSelf: "stretch",
+        display: "flex",
+        flexDirection: "column",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+      }}
+    >
+      {/* Mobile-only header inside the scroll area so it scrolls away. Desktop
+          layout has its own chrome and doesn't need this. */}
+      <div className="md:hidden">
+        <MobileBriefingHeader />
       </div>
+
+      <div style={{ padding: "8px 20px 40px" }} className="md:px-8 md:py-10">
+        {/* Daily Number block */}
+        <div style={{ paddingTop: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Skeleton width={96} height={10} />
+            <Skeleton width={64} height={10} />
+          </div>
+          <Skeleton width={140} height={36} radius={4} style={{ marginTop: 12 }} />
+          <Skeleton width="55%" height={12} style={{ marginTop: 10 }} />
+          <Skeleton width="85%" height={12} style={{ marginTop: 10 }} />
+        </div>
+
+        <div style={{ height: 1, background: COLORS.borderLight, margin: "22px 0" }} />
+
+        {/* Briefing CTA + podcast skeletons */}
+        <Skeleton height={110} radius={14} />
+        <Skeleton height={56} radius={10} style={{ marginTop: 12 }} />
+
+        <div style={{ height: 1, background: COLORS.borderLight, margin: "22px 0" }} />
+
+        {/* Story rows */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <Skeleton width={90} height={9} />
+              <Skeleton width="92%" height={16} />
+              <Skeleton width="68%" height={16} />
+            </div>
+          ))}
+        </div>
+
+        {/* Subtle status line */}
+        <div
+          style={{
+            marginTop: 28,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: COLORS.inkFaint,
+            fontSize: 11,
+            letterSpacing: 1.2,
+            textTransform: "uppercase",
+            fontFamily: FONTS.sans,
+            fontWeight: 600,
+          }}
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: COLORS.sage,
+              animation: "cp-skeleton-pulse 1.2s ease-in-out infinite",
+            }}
+          />
+          Loading briefing
+        </div>
+      </div>
+
+      <style jsx global>{`
+        @keyframes cp-skeleton {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+        @keyframes cp-skeleton-pulse {
+          0%, 100% { opacity: 0.4; transform: scale(0.85); }
+          50% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -727,6 +987,7 @@ function MobileIntelligence({
   return (
     <>
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <MobileBriefingHeader />
         {topBanner && <div style={{ padding: "12px 16px 0" }}>{topBanner}</div>}
         <DailyNumberMobile data={dailyNumber} briefedToday={briefedToday} streakCount={streakCount} />
         <div style={{ padding: "0 20px" }}><WobblyRule /></div>

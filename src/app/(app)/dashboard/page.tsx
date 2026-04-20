@@ -31,6 +31,18 @@ import {
   EllipsisHorizontalIcon,
   MicrophoneIcon,
 } from "@heroicons/react/24/outline";
+import {
+  NewspaperIcon as NewspaperIconSolid,
+  BoltIcon as BoltIconSolid,
+  ChartBarIcon as ChartBarIconSolid,
+  CalendarDaysIcon as CalendarDaysIconSolid,
+  MagnifyingGlassIcon as MagnifyingGlassIconSolid,
+  TagIcon as TagIconSolid,
+  AdjustmentsHorizontalIcon as AdjustmentsHorizontalIconSolid,
+  RssIcon as RssIconSolid,
+  EllipsisHorizontalIcon as EllipsisHorizontalIconSolid,
+  MicrophoneIcon as MicrophoneIconSolid,
+} from "@heroicons/react/24/solid";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { COLORS, FONTS, GRAIN, NAV_ITEMS } from "@/lib/design-tokens";
 import { DiscoveryTab } from "@/components/discovery-tab";
@@ -49,25 +61,26 @@ import { FlagshipScheduler } from "@/components/flagship-scheduler";
    Config
    ────────────────────────────────────────────────────────────────────────── */
 
-// Tab definitions by access tier
+// Tab definitions by access tier. `iconSolid` is the bolder filled variant
+// shown when the tab is the active one — matches iOS-style tab bar behaviour.
 const readerTabs = [
-  { value: "intelligence", label: "Briefing", icon: NewspaperIcon },
-  { value: "newsroom", label: "Newsroom", icon: RssIcon },
-  { value: "energy", label: "Energy", icon: BoltIcon },
-  { value: "markets", label: "Markets", icon: ChartBarIcon },
-  { value: "weekly", label: "Weekly", icon: CalendarDaysIcon },
+  { value: "intelligence", label: "Briefing", icon: NewspaperIcon, iconSolid: NewspaperIconSolid },
+  { value: "newsroom", label: "Newsroom", icon: RssIcon, iconSolid: RssIconSolid },
+  { value: "energy", label: "Energy", icon: BoltIcon, iconSolid: BoltIconSolid },
+  { value: "markets", label: "Markets", icon: ChartBarIcon, iconSolid: ChartBarIconSolid },
+  { value: "weekly", label: "Weekly", icon: CalendarDaysIcon, iconSolid: CalendarDaysIconSolid },
 ];
 
 const editorTabs = [
-  { value: "editor", label: "Editor", icon: CalendarDaysIcon },
-  { value: "flagship", label: "Flagship", icon: MicrophoneIcon },
+  { value: "editor", label: "Editor", icon: CalendarDaysIcon, iconSolid: CalendarDaysIconSolid },
+  { value: "flagship", label: "Flagship", icon: MicrophoneIcon, iconSolid: MicrophoneIconSolid },
 ];
 
 const adminTabs = [
-  { value: "discovery", label: "Discovery", icon: MagnifyingGlassIcon },
-  { value: "categories", label: "Categories", icon: TagIcon },
-  { value: "taxonomy", label: "Taxonomy", icon: AdjustmentsHorizontalIcon },
-  { value: "podcast-admin", label: "Podcast", icon: MicrophoneIcon },
+  { value: "discovery", label: "Discovery", icon: MagnifyingGlassIcon, iconSolid: MagnifyingGlassIconSolid },
+  { value: "categories", label: "Categories", icon: TagIcon, iconSolid: TagIconSolid },
+  { value: "taxonomy", label: "Taxonomy", icon: AdjustmentsHorizontalIcon, iconSolid: AdjustmentsHorizontalIconSolid },
+  { value: "podcast-admin", label: "Podcast", icon: MicrophoneIcon, iconSolid: MicrophoneIconSolid },
 ];
 
 function getTabsForRole(role: "reader" | "editor" | "admin") {
@@ -90,22 +103,22 @@ function getMobileNavForRole(role: "reader" | "editor" | "admin") {
   // Mobile reserves 3 primary slots + a "More" slot on the right.
   if (role === "admin") {
     return [
-      { icon: NewspaperIcon, label: "Briefing", value: "intelligence" },
-      { icon: MagnifyingGlassIcon, label: "Explore", value: "discovery" },
-      { icon: BoltIcon, label: "Energy", value: "energy" },
+      { icon: NewspaperIcon, iconSolid: NewspaperIconSolid, label: "Briefing", value: "intelligence" },
+      { icon: MagnifyingGlassIcon, iconSolid: MagnifyingGlassIconSolid, label: "Explore", value: "discovery" },
+      { icon: BoltIcon, iconSolid: BoltIconSolid, label: "Energy", value: "energy" },
     ];
   }
   if (role === "editor") {
     return [
-      { icon: NewspaperIcon, label: "Briefing", value: "intelligence" },
-      { icon: CalendarDaysIcon, label: "Editor", value: "editor" },
-      { icon: ChartBarIcon, label: "Markets", value: "markets" },
+      { icon: NewspaperIcon, iconSolid: NewspaperIconSolid, label: "Briefing", value: "intelligence" },
+      { icon: CalendarDaysIcon, iconSolid: CalendarDaysIconSolid, label: "Editor", value: "editor" },
+      { icon: ChartBarIcon, iconSolid: ChartBarIconSolid, label: "Markets", value: "markets" },
     ];
   }
   return [
-    { icon: NewspaperIcon, label: "Briefing", value: "intelligence" },
-    { icon: RssIcon, label: "Newsroom", value: "newsroom" },
-    { icon: BoltIcon, label: "Energy", value: "energy" },
+    { icon: NewspaperIcon, iconSolid: NewspaperIconSolid, label: "Briefing", value: "intelligence" },
+    { icon: RssIcon, iconSolid: RssIconSolid, label: "Newsroom", value: "newsroom" },
+    { icon: BoltIcon, iconSolid: BoltIconSolid, label: "Energy", value: "energy" },
   ];
 }
 
@@ -408,9 +421,11 @@ export default function DashboardPage() {
 
       {/* ── Main content area ──────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
-        {/* Mobile header */}
+        {/* Mobile header — hidden on Intelligence tab; that tab renders its
+            own larger, in-flow header inside the scroll container so the
+            header scrolls away iOS-style and gives more vertical space. */}
         <header
-          className="flex md:hidden"
+          className={isIntelligence ? "hidden" : "flex md:hidden"}
           style={{
             minHeight: 48,
             paddingTop: "env(safe-area-inset-top)",
@@ -544,6 +559,7 @@ export default function DashboardPage() {
         >
           {mobileNav.map((item) => {
             const isActive = activeTab === item.value;
+            const Icon = isActive ? item.iconSolid : item.icon;
             return (
               <button
                 key={item.value}
@@ -564,7 +580,7 @@ export default function DashboardPage() {
                   flex: 1,
                 }}
               >
-                <item.icon
+                <Icon
                   style={{
                     width: 22,
                     height: 22,
@@ -585,39 +601,45 @@ export default function DashboardPage() {
           })}
 
           {/* More — opens sheet with any tabs not in the primary slots */}
-          <button
-            onClick={() => setMoreOpen(true)}
-            aria-label="More tabs"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 3,
-              cursor: "pointer",
-              background: "transparent",
-              border: "none",
-              padding: "6px 10px",
-              minHeight: 44,
-              flex: 1,
-            }}
-          >
-            <EllipsisHorizontalIcon
-              style={{
-                width: 22,
-                height: 22,
-                color: moreTabs.some((t) => t.value === activeTab) ? COLORS.forest : COLORS.inkMuted,
-              }}
-            />
-            <span
-              style={{
-                fontSize: 10,
-                color: moreTabs.some((t) => t.value === activeTab) ? COLORS.forest : COLORS.inkMuted,
-                fontWeight: moreTabs.some((t) => t.value === activeTab) ? 600 : 500,
-              }}
-            >
-              More
-            </span>
-          </button>
+          {(() => {
+            const moreActive = moreTabs.some((t) => t.value === activeTab);
+            const MoreIcon = moreActive ? EllipsisHorizontalIconSolid : EllipsisHorizontalIcon;
+            return (
+              <button
+                onClick={() => setMoreOpen(true)}
+                aria-label="More tabs"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 3,
+                  cursor: "pointer",
+                  background: "transparent",
+                  border: "none",
+                  padding: "6px 10px",
+                  minHeight: 44,
+                  flex: 1,
+                }}
+              >
+                <MoreIcon
+                  style={{
+                    width: 22,
+                    height: 22,
+                    color: moreActive ? COLORS.forest : COLORS.inkMuted,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: moreActive ? COLORS.forest : COLORS.inkMuted,
+                    fontWeight: moreActive ? 600 : 500,
+                  }}
+                >
+                  More
+                </span>
+              </button>
+            );
+          })()}
         </div>
 
         {/* More sheet — all remaining tabs + quick account actions */}
