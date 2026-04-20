@@ -45,9 +45,15 @@ function emitInteraction(
 export function PodcastPlayer({
   episode,
   compact = false,
+  onPlayingChange,
 }: {
   episode: PodcastEpisode;
   compact?: boolean;
+  // Called whenever the underlying <audio> element starts or stops playing.
+  // Used by the mobile briefing shell to make the player sticky-at-top while
+  // audio is live. Not wired to raw React state to keep the internal
+  // event-driven sync the single source of truth.
+  onPlayingChange?: (playing: boolean) => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
@@ -70,11 +76,22 @@ export function PodcastPlayer({
     episodeIdRef.current = episode.id;
   }, [episode.id]);
 
+  // Stable ref to the latest `onPlayingChange` so the listener effect doesn't
+  // have to re-run (and re-attach every handler) when the prop identity changes.
+  const onPlayingChangeRef = useRef(onPlayingChange);
+  useEffect(() => {
+    onPlayingChangeRef.current = onPlayingChange;
+  }, [onPlayingChange]);
+
   // Sync with audio element — mirror *actual* element state so external pauses
   // (phone call, headphones unplugged, lock-screen control) don't desync the UI.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+
+    const notifyPlaying = (playing: boolean) => {
+      onPlayingChangeRef.current?.(playing);
+    };
 
     const onTime = () => setCurrentTime(audio.currentTime);
     const onMeta = () => {
@@ -85,6 +102,7 @@ export function PodcastPlayer({
     const onPlay = () => {
       setPlaying(true);
       setLoading(false);
+      notifyPlaying(true);
       if (!hasStartedRef.current) {
         hasStartedRef.current = true;
         emitInteraction(episodeIdRef.current, "play", audio.currentTime);
@@ -95,10 +113,12 @@ export function PodcastPlayer({
     const onPause = () => {
       setPlaying(false);
       setLoading(false);
+      notifyPlaying(false);
     };
     const onPlaying = () => {
       setPlaying(true);
       setLoading(false);
+      notifyPlaying(true);
     };
     const onWaiting = () => setLoading(true);
     const onStalled = () => setLoading(true);
@@ -106,10 +126,12 @@ export function PodcastPlayer({
     const onError = () => {
       setPlaying(false);
       setLoading(false);
+      notifyPlaying(false);
     };
     const onEnded = () => {
       setPlaying(false);
       setLoading(false);
+      notifyPlaying(false);
       completedRef.current = true;
       emitInteraction(episodeIdRef.current, "complete", audio.duration || audio.currentTime);
     };

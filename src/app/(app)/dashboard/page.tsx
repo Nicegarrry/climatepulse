@@ -543,13 +543,17 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ── Mobile bottom nav ────────────────────────────────────── */}
+        {/* ── Mobile bottom nav ──────────────────────────────────────
+            Uses `calc(env(safe-area-inset-bottom) + 14px)` so the nav sits
+            visibly above the Safari URL bar / home indicator on iOS and
+            still has a comfortable lift on Android / browsers that report
+            no inset. 16px top padding rounds out the vertical symmetry. */}
         <div
           className="flex md:hidden"
           style={{
             minHeight: 60,
-            paddingTop: 6,
-            paddingBottom: "max(env(safe-area-inset-bottom), 10px)",
+            paddingTop: 10,
+            paddingBottom: "calc(env(safe-area-inset-bottom) + 14px)",
             borderTop: `1px solid ${COLORS.border}`,
             background: COLORS.surface,
             alignItems: "center",

@@ -550,6 +550,28 @@ function MobileStoryList({
 // with content for an iOS-style large-title feel. Owns its own avatar
 // dropdown so users still have access to profile / settings / sign out.
 
+// Sticky cover that matches the height of the iOS status bar / Dynamic Island.
+// Without this, content scrolling up would show through behind the translucent
+// status bar once Safari's top chrome auto-hides. Using `position: sticky`
+// (not fixed) keeps it scoped to the scroll container so it can't leak onto
+// desktop or onto other tabs.
+function StatusBarCover() {
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "sticky",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: "env(safe-area-inset-top)",
+        background: COLORS.surface,
+        zIndex: 20,
+      }}
+    />
+  );
+}
+
 function MobileBriefingHeader() {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -574,7 +596,10 @@ function MobileBriefingHeader() {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "14px 20px 6px",
+        // Extra top padding on mobile to clear the status bar / Dynamic Island.
+        // `max(...)` so non-iOS devices (no safe-area inset) still get a
+        // comfortable 14px breathing room.
+        padding: "max(env(safe-area-inset-top), 14px) 20px 6px",
         gap: 12,
       }}
     >
@@ -711,6 +736,7 @@ function LoadingState() {
       {/* Mobile-only header inside the scroll area so it scrolls away. Desktop
           layout has its own chrome and doesn't need this. */}
       <div className="md:hidden">
+        <StatusBarCover />
         <MobileBriefingHeader />
       </div>
 
@@ -971,6 +997,7 @@ function MobileIntelligence({
   const [storiesOpen, setStoriesOpen] = useState(false);
   const [storiesStart, setStoriesStart] = useState(0);
   const [storiesPhase, setStoriesPhase] = useState<"entering" | "active">("entering");
+  const [podcastPlaying, setPodcastPlaying] = useState(false);
 
   const openBriefing = (idx = 0) => {
     setStoriesStart(idx);
@@ -987,14 +1014,29 @@ function MobileIntelligence({
   return (
     <>
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <StatusBarCover />
         <MobileBriefingHeader />
         {topBanner && <div style={{ padding: "12px 16px 0" }}>{topBanner}</div>}
         <DailyNumberMobile data={dailyNumber} briefedToday={briefedToday} streakCount={streakCount} />
         <div style={{ padding: "0 20px" }}><WobblyRule /></div>
         <GlowingBriefingCard onStart={() => openBriefing(0)} todaysRead={todaysRead} storyCount={briefing.length} briefedToday={briefedToday} streakCount={streakCount} articlesAnalysed={articlesAnalysed} />
         {podcastEpisode && (
-          <div style={{ padding: "8px 20px 0" }}>
-            <PodcastPlayer episode={podcastEpisode} compact />
+          <div
+            style={{
+              padding: "8px 20px 0",
+              // Becomes sticky once audio is playing so users can keep
+              // controls in view while scrolling the rest of the briefing.
+              position: podcastPlaying ? "sticky" : "static",
+              top: "env(safe-area-inset-top)",
+              zIndex: 15,
+              background: COLORS.surface,
+            }}
+          >
+            <PodcastPlayer
+              episode={podcastEpisode}
+              compact
+              onPlayingChange={setPodcastPlaying}
+            />
           </div>
         )}
         <div style={{ padding: "0 20px" }}><WobblyRule color={COLORS.borderLight} /></div>
