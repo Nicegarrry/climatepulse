@@ -2,15 +2,19 @@
 
 _Last updated: 2026-04-20. Structural sections finalised; relevance-conditional sections await hand-scoring of the divergent queries (see `03-comparison.md`)._
 
-## Recommendation (preliminary)
+## Recommendation
 
-**Most likely outcome: adopt the Postgres-native graph layer for the Learn feature only, keep pgvector authoritative for the daily briefing / podcast / contradiction-check paths, and shelve LightRAG.**
+**Adopt the Postgres-native graph layer, but route to it selectively — only for queries with explicit multi-hop intent. Keep pgvector as the default everywhere else, including for single-entity-anchored queries. Shelve LightRAG.**
 
-This is the structural read before relevance scoring. Two relevance scenarios shift it:
-- **If hand-scoring shows graph-walk wins on multi-entity / multi-hop queries** (ew-10, mh-01, mh-02, mh-04 in the divergent set): adopt for Learn confidently. Final recommendation as above.
-- **If hand-scoring shows graph-walk's distinct picks are no better than vector** (i.e. graph-walk is just churn): drop the storage and read paths but keep the entity_relationships table populated as a future-options hedge — the cost is trivial ($1.80/mo) and pulling it back out of the system is easy if needed.
+This is a more nuanced call than the structural read suggested. Hand-scoring of 109 cells across 26 query × backend slots showed:
 
-Neither scenario justifies escalating to LightRAG. The structural findings (latency, cost, storage shape) all rule out the conditions that would make a Python sidecar + Neo4j worthwhile.
+- **graph-walk crushes multi-hop**: on `mh-01` ("projects funded by ARENA hitting milestones"), pgvector returned 0.00 mean@3, graph-walk returned 2.00. This is the textbook multi-hop case and it works exactly as graph-RAG is supposed to.
+- **graph-walk hurts entity-walk and contradiction**: paired comparisons lost 3 of 5 — `ew-10` (Origin × Octopus) the worst at −1.00. The 2-hop traversal over-fetches relationships the user didn't want and dilutes the result.
+- **Top-1 inversion**: graph-walk has the highest top-1 mean (1.83) but the lowest mean@3 (1.53). When right at rank 1 it's *very* right; below that, it's noisier than vector.
+
+The recommendation that fits this evidence is **conditional routing**, not a wholesale backend switch. Use a query-classifier (or the seed-entity count, as a cheap proxy: ≥2 distinct seed entities + multi-hop verb pattern → graph-walk; otherwise vector) to decide which backend to call. This gets the multi-hop wins without paying the entity-walk losses.
+
+None of this justifies escalating to LightRAG. The structural findings (latency, cost, storage shape) all rule out the conditions that would make a Python sidecar + Neo4j worthwhile.
 
 ## Evidence — what we measured
 
@@ -62,15 +66,18 @@ These aren't bugs in the spike — they reflect that Stage 2 entity extraction i
 
 Recommended follow-up regardless of the graph-RAG decision: a small Stage 2 prompt iteration to extract more named projects and named regulations as entities, with a specific calibration pass on Australian project names (Snowy 2.0, Loy Yang, Bayswater, Eraring, etc.) and named federal/state legislation.
 
-## If we adopt (Postgres-native, Learn only) — rollout
+## Rollout
 
 1. **Land the spike branch behind `GRAPH_EXTRACTION_ENABLED=false` in prod.** Schema applied, code deployed, no behaviour change until we flip the flag.
 2. **Apply v2 vocab** (see `scripts/migrate-graph-rag-vocab-v2.sql`): adds `competes_with`, `founded`, `opposes`, `researcher_at`, plus prompt update to absorb tense variants of `partners_with`. Cuts spillover from 42% → ~30% on next backfill.
-3. **Shadow mode** (week 1): flip flag in prod. Relationships extracted and stored, no read path uses them. Monitor: extraction cost, `_uncategorised` rate trend, table growth, error rate in `console.warn` logs.
+3. **Shadow mode** (week 1): flip `GRAPH_EXTRACTION_ENABLED=true` in prod. Relationships extracted and stored, no read path uses them. Monitor: extraction cost, `_uncategorised` rate trend, table growth, error rate in `console.warn` logs.
 4. **Backfill** (week 2, off-peak): `npx tsx scripts/backfill-relationships.ts --days 60`. Re-check extraction quality on another 50-triple sample.
-5. **Wire into Learn only** (week 3): use `pgGraphWalkBackend` for Learn's retrieval. All other read paths unchanged.
-6. **Evaluate after a month of real usage.** Compare Learn engagement metrics with and without graph-walk (split test or sequential A/B). If clearly positive, consider extending to the briefing's hero-story prior-coverage lookup.
-7. **In parallel**: Stage 2 entity-extraction iteration to capture more projects/regulations.
+5. **Build the query router** (week 3, ~½ day's work): a small classifier in front of Learn's retrieval that picks the backend per-query. Initial heuristic — use graph-walk when the query contains 2+ named entities resolving to the entity registry AND a multi-hop verb pattern (e.g. "X funded by Y", "operated by subsidiaries of"). Otherwise use vector. Iterate based on real Learn usage logs.
+6. **Wire into Learn only** (week 3): the router decides per-query. All other read paths (briefing, podcast, contradiction-check, the four `/api/intelligence/*` endpoints) stay on `retrieveContent` unchanged.
+7. **Evaluate after a month of real usage.** Track which backend the router picks, and Learn engagement on each. Refine the router if it's mis-routing a meaningful fraction of queries.
+8. **In parallel** (the most important follow-up): Stage 2 entity-extraction iteration to capture more named projects and regulations. The spike's entity-registry coverage gap (Snowy Hydro, Loy Yang, RET, Fortescue Future Industries — all missing from the dev DB) caps how much value graph-walk can deliver until upstream extraction improves.
+
+**What we are explicitly NOT doing**: replacing `retrieveContent` anywhere, exposing graph-walk to non-Learn paths, or attempting to use graph-walk on contradiction queries (where vector clearly wins).
 
 ## If we don't adopt — the cleanup is two SQL statements
 
@@ -87,8 +94,14 @@ The harness at `src/lib/intelligence/evaluation/` stays — the 30-query benchma
 2. **Extraction quality drifts down at scale** as new article topics push the model into unfamiliar predicate territory. Mitigation: weekly check on `_uncategorised` rate; schedule a vocab review every ~2 weeks for the first 2 months.
 3. **The entity-registry coverage gap doesn't get worked on** because it's not visible from Learn's UX → graph-RAG underperforms even after adoption, and gets blamed when the real cause is upstream. Mitigation: explicitly couple the rollout to a Stage 2 prompt iteration in the same sprint.
 
+## Top 3 risks in the recommended path (updated)
+
+1. **The query router mis-routes a non-trivial fraction of queries** — sending entity-walk queries to graph-walk hurts (we measured −1.00 on ew-10) and sending multi-hop queries to vector hurts even more (mh-01 was 0.00 on vector vs 2.00 on graph-walk). Mitigation: log every routing decision in shadow mode for the first month and tune the heuristic against the log.
+2. **Hand-scored sample is small** (5 paired queries; 109 cells of 810). The directional pattern is consistent but the magnitudes have wide CIs. Mitigation: re-score after the v2 vocab + Stage 2 entity-extraction improvements land, since the corpus those decisions inform should look different.
+3. **The entity-registry coverage gap** doesn't get worked on because it's not visible from Learn's UX → graph-RAG underperforms even after adoption, and gets blamed when the real cause is upstream. Mitigation: explicitly couple the rollout to a Stage 2 prompt iteration in the same sprint (see step 8 of rollout).
+
 ## What the user needs to decide after reading this
 
-1. **Do we adopt the Postgres-native graph layer for Learn** (preliminary "yes" above, conditional on hand-scoring of the 4 divergent queries) — or do we wait and re-evaluate after Stage 2 entity-extraction is improved?
-2. **Do we apply the v2 vocab now** (additive migration, low risk) or hold until after a second hand-scored backfill confirms it's worth the change?
-3. **Do we keep the spike branch open** for follow-up work, or merge what we have to main behind the env flag and continue iterations on top?
+1. **Adopt the conditional-routing rollout?** This is the data-supported answer. Alternatives: (a) skip graph-walk entirely if the multi-hop wins don't matter for Learn's UX; (b) adopt unconditionally and accept the entity-walk regression; (c) wait and re-evaluate after Stage 2 entity-extraction improvements.
+2. **Apply v2 vocab now or after another scored backfill?** Vocab v2 is additive and low-risk, and the spillover analysis already justified the 4 new predicates. I'd apply now; the marginal cost of waiting is one more backfill cycle of suboptimal extraction.
+3. **Keep the spike branch open or merge to main behind the env flag?** Merging behind the flag is safer (one less long-lived branch to rebase repeatedly as main moves). The router work in step 5 of rollout can happen on a fresh branch off main.

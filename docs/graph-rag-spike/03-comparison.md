@@ -81,15 +81,52 @@ A follow-up worth budgeting: improve the Stage 2 enricher to extract more named 
 4. For each `(query_id, backend)` pair, compute mean relevance over the top-5 and top-10 results.
 5. Fill in the per-category table below.
 
-## Per-category relevance (to be filled after hand-scoring)
+## Per-category relevance (from `2026-04-20T04-17-51-167Z-results-NP.csv`)
 
-| Category | pgvector-only | pgvector-cooccurrence | pg-graph-walk | Winner | Margin |
+109 cells hand-scored across 26 of 90 query × backend slots — focused on the 4 divergent queries plus a sample of overlap cases (per the strategy in `runs/2026-04-20T04-17-51-167Z-agreement.md`).
+
+**Sample size caveat**: this is a small, deliberately-prioritised sample. Per-category means below are directionally informative but not statistically tight; the per-query head-to-head table is more honest.
+
+### Per-backend mean (over all scored top-3 cells)
+
+| Backend | Mean @3 | Mean @5 | Cells scored @3 | Top-1 mean | Top-1 cells |
 |---|---|---|---|---|---|
-| entity_walk  | TBD | TBD | TBD | TBD | TBD |
-| thematic     | TBD | TBD | TBD | TBD | TBD |
-| multi_hop    | TBD | TBD | TBD | TBD | TBD |
-| contradiction| TBD | TBD | TBD | TBD | TBD |
-| calibration  | TBD | TBD | TBD | TBD | TBD |
+| `pgvector-only` | 1.60 | 1.66 | 15 | 1.73 | 15 |
+| `pgvector-cooccurrence` | 1.70 | 1.66 | 5 | 1.60 | 5 |
+| `pg-graph-walk` | 1.53 | 1.37 | 6 | **1.83** | 6 |
+
+Note the inversion: graph-walk has the **highest top-1 mean** (1.83) but the **lowest mean@3** (1.53). When graph-walk gets it right at rank 1 it's *very* right, but its rank-2 and rank-3 results are noisier than vector's.
+
+### Per-category × backend (mean @3)
+
+| Category | pgvector-only | cooccurrence | pg-graph-walk | Winner | Margin |
+|---|---|---|---|---|---|
+| entity_walk   | **1.63** | 1.17 | 0.94 | pgvector-only | +0.47 |
+| thematic      | 1.56 | — | — | pgvector-only (only one scored) | n/a |
+| multi_hop     | 0.00 | 2.00 | **2.00** | tie graph-walk / cooccurrence | +2.00 over vector |
+| contradiction | **3.00** | 3.00 | 2.33 | tie pgvector-only / cooccurrence | +0.67 over graph-walk |
+| calibration   | — | — | — | — | — |
+
+### Head-to-head: pg-graph-walk vs pgvector-only (paired)
+
+Where both backends had ≥1 top-3 scored result:
+
+| Query | Category | pgvector @3 | graph-walk @3 | Δ |
+|---|---|---|---|---|
+| mh-01 (ARENA-funded project milestones) | multi_hop | 0.00 | 2.00 | 🟢 **+2.00** |
+| ew-06 (AEMO interventions) | entity_walk | 1.33 | 1.50 | 🟢 +0.17 |
+| co-03 (govt net-zero shifts) | contradiction | 3.00 | 2.33 | 🔴 −0.67 |
+| ew-04 (Fortescue green H2) | entity_walk | 1.67 | 1.00 | 🔴 −0.67 |
+| ew-10 (Origin × Octopus) | entity_walk | 1.33 | 0.33 | 🔴 −1.00 |
+
+graph-walk wins 2 / loses 3 on this paired set. But the *kinds* of wins matter: mh-01 is a clean +2.00 on the textbook multi-hop case, exactly what graph-RAG should excel at. The losses cluster on single-entity-anchored queries where the graph walk introduces noise the user didn't want.
+
+## Queries where the backends disagreed — narrative
+
+- **mh-01 (multi_hop)**: graph-walk's killer case. The query "which projects funded by ARENA have hit milestones in the last quarter?" requires walking ARENA →funds→ Project →[milestone signal]. Vector retrieval returned articles that mention ARENA but not funded projects, scoring 0.0. Graph-walk traversed the `funds` edges from ARENA's entity ID, scored 2.0. **This single query justifies keeping graph-walk in the toolkit for multi-hop intent.**
+- **ew-10 (Origin × Octopus)**: the case I expected graph-walk to win and it didn't. Two seed entities, but the actual relationship between Origin and Octopus AU is a single `acquires` edge — the 2-hop walk over-fetches Octopus's other relationships and dilutes the result. Pure vector kept tighter focus on the actual story. Lesson: graph-walk is hurt by hop-2 noise on simple two-entity queries.
+- **ew-04 (Fortescue green H2)**: graph-walk picked an article through the entity chain but the article was about a related Fortescue subsidiary, not the green H2 progress the user asked about. The semantic intent of the query mattered more than the entity overlap.
+- **co-03 (contradiction)**: vector picked a clearly-contradictory article scored 3.0; graph-walk picked entity-related but less contradictory pieces. Suggests contradiction queries are about *semantic* opposition more than *entity* connection — vector's strength.
 
 ## Cost observations (settled)
 
