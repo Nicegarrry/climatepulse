@@ -21,9 +21,11 @@ You MUST use one of these predicates. Anything else will be discarded.
 
 CORPORATE
 - `acquires`: subject (company) buys or merges with object (company / project)
-- `partners_with`: subject and object enter a formal joint venture, MOU, or collaboration agreement
+- `partners_with`: subject and object enter ANY collaboration — joint venture, MOU, partnership announcement, "collaborated with", "partnered with", "joined forces with", "teamed up with". Use this predicate for all tenses and aspects (past, present, ongoing). Do NOT mark these as _uncategorised.
 - `subsidiary_of`: subject (company) is a wholly-owned or majority-controlled unit of object (company)
 - `invests_in`: subject (company / fund) takes an equity stake in object (company / project)
+- `competes_with`: subject (company / project) is in direct market competition with object (company / project) — same product/service category, overlapping customer base
+- `acquires` and `competes_with` are mutually exclusive — if a company acquires its competitor, use `acquires` only
 
 PROJECT
 - `develops`: subject (company / agency) is the developer or proponent of object (project)
@@ -33,12 +35,15 @@ PROJECT
 REGULATORY
 - `regulates`: subject (regulation / agency) governs the conduct or approval of object (company / project)
 - `supersedes`: subject (regulation) replaces, repeals, or amends object (regulation)
+- `opposes`: subject (person / company / agency) publicly opposes object (project / regulation / company action) on the record in this story
 
 JURISDICTIONAL
 - `located_in`: subject (project / company) is physically based in object (jurisdiction-named entity)
 
 PERSONAL
 - `ceo_of`: subject (person) holds the CEO / Managing Director role at object (company)
+- `founded`: subject (person) is a named founder or co-founder of object (company / project)
+- `researcher_at`: subject (person) holds an academic or research position (researcher, professor, fellow, lead researcher) at object (university / research institution)
 
 TECHNOLOGY
 - `uses_technology`: subject (company / project) deploys object (technology) at scale in this story's context
