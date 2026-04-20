@@ -59,6 +59,7 @@ import { NewsroomTab } from "@/components/newsroom/NewsroomTab";
 import { PodcastAdminTab } from "@/components/podcast-admin-tab";
 import { FlagshipScheduler } from "@/components/flagship-scheduler";
 import { LearnTab } from "@/components/learn/learn";
+import { LearnRedirect } from "@/components/learn/learn-redirect";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
@@ -159,7 +160,7 @@ function TabContent({ activeTab }: { activeTab: string }) {
     case "newsroom":
       return <NewsroomTab />;
     case "learn":
-      return <LearnTab />;
+      return <LearnRedirect />;
     case "podcast-admin":
       return <PodcastAdminTab />;
     case "flagship":

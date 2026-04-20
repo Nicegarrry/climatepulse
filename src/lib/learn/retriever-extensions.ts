@@ -91,16 +91,34 @@ export async function retrieveForLearn(
   });
 
   const now = Date.now();
-  const adjusted = results.map((item) => {
+  const editorialBoost = options.editorialBoost ?? 0.15;
+  const allowlistSet = filters.editorialStatusAllowlist
+    ? new Set(filters.editorialStatusAllowlist)
+    : null;
+
+  const filtered = allowlistSet
+    ? results.filter(
+        (item) =>
+          item.editorial_status == null ||
+          allowlistSet.has(item.editorial_status as EditorialStatus),
+      )
+    : results;
+
+  const adjusted = filtered.map((item) => {
     let score = item.combined_score;
     if (freshnessHalfLifeDays != null && item.published_at) {
       const daysOld =
         (now - new Date(item.published_at).getTime()) / (1000 * 60 * 60 * 24);
       score *= Math.exp(-daysOld / freshnessHalfLifeDays);
     }
-    // TODO(Phase 3): apply editorialBoost once editorial_status surfaces in RetrievedContent.
+    if (
+      editorialBoost > 0 &&
+      (item.editorial_status === "editor_authored" ||
+        item.editorial_status === "editor_reviewed")
+    ) {
+      score += editorialBoost;
+    }
     // TODO(Phase 4): inject surfaceId into retrieveContent filter clause.
-    // TODO(Phase 3): filter by editorialStatusAllowlist once status is surfaced.
     return { ...item, combined_score: score };
   });
 
