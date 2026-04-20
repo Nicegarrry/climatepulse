@@ -30,6 +30,7 @@ import {
   ArrowRightOnRectangleIcon,
   EllipsisHorizontalIcon,
   MicrophoneIcon,
+  AcademicCapIcon,
 } from "@heroicons/react/24/outline";
 import {
   NewspaperIcon as NewspaperIconSolid,
@@ -42,6 +43,7 @@ import {
   RssIcon as RssIconSolid,
   EllipsisHorizontalIcon as EllipsisHorizontalIconSolid,
   MicrophoneIcon as MicrophoneIconSolid,
+  AcademicCapIcon as AcademicCapIconSolid,
 } from "@heroicons/react/24/solid";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { COLORS, FONTS, GRAIN, NAV_ITEMS } from "@/lib/design-tokens";
@@ -56,6 +58,7 @@ import IntelligenceTab from "@/components/intelligence";
 import { NewsroomTab } from "@/components/newsroom/NewsroomTab";
 import { PodcastAdminTab } from "@/components/podcast-admin-tab";
 import { FlagshipScheduler } from "@/components/flagship-scheduler";
+import { LearnTab } from "@/components/learn/learn";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
@@ -65,6 +68,7 @@ import { FlagshipScheduler } from "@/components/flagship-scheduler";
 // shown when the tab is the active one — matches iOS-style tab bar behaviour.
 const readerTabs = [
   { value: "intelligence", label: "Briefing", icon: NewspaperIcon, iconSolid: NewspaperIconSolid },
+  { value: "learn", label: "Learn", icon: AcademicCapIcon, iconSolid: AcademicCapIconSolid },
   { value: "newsroom", label: "Newsroom", icon: RssIcon, iconSolid: RssIconSolid },
   { value: "energy", label: "Energy", icon: BoltIcon, iconSolid: BoltIconSolid },
   { value: "markets", label: "Markets", icon: ChartBarIcon, iconSolid: ChartBarIconSolid },
@@ -154,6 +158,8 @@ function TabContent({ activeTab }: { activeTab: string }) {
       return <TaxonomyTab />;
     case "newsroom":
       return <NewsroomTab />;
+    case "learn":
+      return <LearnTab />;
     case "podcast-admin":
       return <PodcastAdminTab />;
     case "flagship":
