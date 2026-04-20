@@ -1,0 +1,18 @@
+Graph-RAG comparison run — 2026-04-20T04:15:37.637Z
+Total wall-clock: 43.4s
+Queries × backends: 30 × 3 = 90
+Total errors: 0
+
+Per-backend summary:
+  pgvector-only                 avg=478ms p95=522ms  errors=0/30  avg_results=9.8
+  pgvector-cooccurrence         avg=485ms p95=551ms  errors=0/30  avg_results=8.3
+  pg-graph-walk                 avg=481ms p95=565ms  errors=0/30  avg_results=8.9
+
+Unresolved seed entity names (5 queries):
+  ew-02: AGL Energy
+  ew-03: Snowy Hydro, Snowy 2.0
+  ew-04: Fortescue Future Industries
+  mh-05: Renewable Energy Target, RET
+  mh-06: Loy Yang
+
+  → Add these as aliases to the relevant entities, OR accept that graph-walk degrades to vector-only for these queries.
