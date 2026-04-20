@@ -470,6 +470,8 @@ export function PodcastPlayer({
                   headline={`ClimatePulse Daily — ${episode.briefing_date}`}
                   sourceName="ClimatePulse"
                   campaign={`podcast-${episode.briefing_date}`}
+                  contentType="podcast"
+                  episodeId={episode.id}
                   compact
                 />
               </div>

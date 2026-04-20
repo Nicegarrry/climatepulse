@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getAuthUser } from "@/lib/supabase/server";
 
-// GET /share/story?u=<url>&utm_source=...&utm_medium=...&utm_campaign=...&ref=<hash>
-// Logs the click and 302-redirects to the original article URL.
+// GET /api/share/click?u=<source_url>&utm_source=...&utm_medium=...&utm_campaign=...&ref=<hash>&kind=story|podcast
+// Logs the click to share_clicks and 302-redirects to the source URL.
+//
+// Split out from /share/story so the preview page itself can be rendered
+// statically without logging on every render.
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
   const target = params.get("u");
 
-  // Validate target URL. Reject anything that isn't an absolute http(s) URL so
-  // the interstitial can't be weaponised as an open redirect.
   let parsed: URL | null = null;
   if (target) {
     try {
@@ -26,7 +27,6 @@ export async function GET(req: NextRequest) {
 
   const user = await getAuthUser();
 
-  // Resolve raw_article_id if the URL matches a known raw article (best-effort).
   let rawArticleId: string | null = null;
   try {
     const match = await pool.query<{ id: string }>(
@@ -55,8 +55,7 @@ export async function GET(req: NextRequest) {
       ]
     );
   } catch (err) {
-    // Don't block the redirect if logging fails — user experience wins over analytics.
-    console.error("[share/story] log failed:", err);
+    console.error("[share/click] log failed:", err);
   }
 
   return NextResponse.redirect(parsed.toString(), 302);

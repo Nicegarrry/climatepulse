@@ -2,6 +2,7 @@
 
 import { COLORS, FONTS, SEVERITY } from "@/lib/design-tokens";
 import type { EditorialStory } from "@/lib/mock-editorial";
+import { ShareButton } from "@/components/share/ShareButton";
 import { Micro } from "./primitives";
 import { ThumbsActions } from "./thumbs-actions";
 
@@ -88,6 +89,14 @@ export function AlsoToday({
                     {story.unit}
                   </span>
                 </span>
+              )}
+              {story.url && (
+                <ShareButton
+                  articleUrl={story.url}
+                  headline={story.headline}
+                  sourceName={story.sources?.[0]}
+                  compact
+                />
               )}
               <ThumbsActions
                 articleUrl={story.url}
