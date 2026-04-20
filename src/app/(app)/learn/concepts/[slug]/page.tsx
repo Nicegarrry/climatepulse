@@ -8,6 +8,7 @@ import {
   type EditorialStatus,
 } from "@/components/learn/editorial-status-badge";
 import { ConceptTooltipScope } from "@/components/learn/inline-concept-tooltip";
+import { ProseWithTooltips } from "@/components/learn/render-prose-with-tooltips";
 import "@/components/learn/learn.css";
 import { KeyMechanismsAccordion } from "./ConceptCardView";
 
@@ -354,11 +355,10 @@ export default async function ConceptCardPage({
                 marginBottom: 40,
               }}
             >
-              {paragraphs.map((p, i) => (
-                <p key={i} style={{ margin: "0 0 1.2em" }}>
-                  {p}
-                </p>
-              ))}
+              <ProseWithTooltips
+                body={paragraphs.join("\n\n")}
+                paragraphStyle={{ margin: "0 0 1.2em" }}
+              />
             </div>
           )}
 

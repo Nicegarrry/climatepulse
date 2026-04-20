@@ -58,7 +58,6 @@ import IntelligenceTab from "@/components/intelligence";
 import { NewsroomTab } from "@/components/newsroom/NewsroomTab";
 import { PodcastAdminTab } from "@/components/podcast-admin-tab";
 import { FlagshipScheduler } from "@/components/flagship-scheduler";
-import { LearnTab } from "@/components/learn/learn";
 import { LearnRedirect } from "@/components/learn/learn-redirect";
 
 /* ──────────────────────────────────────────────────────────────────────────

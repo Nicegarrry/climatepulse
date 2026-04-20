@@ -73,13 +73,27 @@ async function resolveSlugsToIds(
   };
 }
 
+export interface ParseIntentResult {
+  intent: Intent | { clarification_needed: string[] };
+  inputTokens: number;
+  outputTokens: number;
+}
+
 /**
  * Parse free-text learning intent into structured Intent.
- * Returns either Intent or {clarification_needed} when ambiguous.
+ * Returns either Intent or {clarification_needed} when ambiguous, plus
+ * token usage for cost accounting.
  */
 export async function parseIntent(
   freeText: string,
 ): Promise<Intent | { clarification_needed: string[] }> {
+  const { intent } = await parseIntentWithUsage(freeText);
+  return intent;
+}
+
+export async function parseIntentWithUsage(
+  freeText: string,
+): Promise<ParseIntentResult> {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not set");
 
@@ -106,10 +120,17 @@ export async function parseIntent(
 
   const result = await model.generateContent(freeText);
   const raw = result.response.text();
+  const usage = result.response.usageMetadata;
+  const inputTokens = usage?.promptTokenCount ?? 0;
+  const outputTokens = usage?.candidatesTokenCount ?? 0;
   const parsed = JSON.parse(raw) as RawIntentResponse;
 
   if (parsed.clarification_needed && parsed.clarification_needed.length > 0) {
-    return { clarification_needed: parsed.clarification_needed };
+    return {
+      intent: { clarification_needed: parsed.clarification_needed },
+      inputTokens,
+      outputTokens,
+    };
   }
 
   const { resolved, unresolved } = await resolveSlugsToIds(
@@ -118,28 +139,40 @@ export async function parseIntent(
 
   if (unresolved.length > 0) {
     return {
-      clarification_needed: [
-        `These topics weren't found in the taxonomy: ${unresolved.join(", ")}. Try rephrasing.`,
-      ],
+      intent: {
+        clarification_needed: [
+          `These topics weren't found in the taxonomy: ${unresolved.join(", ")}. Try rephrasing.`,
+        ],
+      },
+      inputTokens,
+      outputTokens,
     };
   }
   if (resolved.length === 0) {
     return {
-      clarification_needed: [
-        "Couldn't identify a topic area. Could you describe what you want to learn?",
-      ],
+      intent: {
+        clarification_needed: [
+          "Couldn't identify a topic area. Could you describe what you want to learn?",
+        ],
+      },
+      inputTokens,
+      outputTokens,
     };
   }
 
   return {
-    in_scope_microsectors: resolved,
-    learning_level: VALID_LEVELS.has(parsed.learning_level as LearningLevel)
-      ? (parsed.learning_level as LearningLevel)
-      : "intro",
-    orientation: parsed.orientation?.trim() ?? "",
-    time_budget: VALID_BUDGETS.has(parsed.time_budget as TimeBudget)
-      ? (parsed.time_budget as TimeBudget)
-      : "30m",
-    audience_context: parsed.audience_context?.trim() ?? "",
+    intent: {
+      in_scope_microsectors: resolved,
+      learning_level: VALID_LEVELS.has(parsed.learning_level as LearningLevel)
+        ? (parsed.learning_level as LearningLevel)
+        : "intro",
+      orientation: parsed.orientation?.trim() ?? "",
+      time_budget: VALID_BUDGETS.has(parsed.time_budget as TimeBudget)
+        ? (parsed.time_budget as TimeBudget)
+        : "30m",
+      audience_context: parsed.audience_context?.trim() ?? "",
+    },
+    inputTokens,
+    outputTokens,
   };
 }

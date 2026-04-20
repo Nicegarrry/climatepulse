@@ -14,6 +14,8 @@ export interface CoherencePassResult {
   plan: PathPlan;
   revisions: Revision[];
   warnings: Warning[];
+  inputTokens: number;
+  outputTokens: number;
 }
 
 interface CoherenceResponse {
@@ -101,7 +103,7 @@ export async function coherencePass(
 ): Promise<CoherencePassResult> {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) {
-    return { plan, revisions: [], warnings: [] };
+    return { plan, revisions: [], warnings: [], inputTokens: 0, outputTokens: 0 };
   }
 
   const template = await loadPrompt("learn/path-coherence.md");
@@ -124,6 +126,9 @@ export async function coherencePass(
   const result = await model.generateContent(
     "Review this learning path for coherence.",
   );
+  const usage = result.response.usageMetadata;
+  const inputTokens = usage?.promptTokenCount ?? 0;
+  const outputTokens = usage?.candidatesTokenCount ?? 0;
 
   let parsed: CoherenceResponse;
   try {
@@ -138,11 +143,13 @@ export async function coherencePass(
           message: "Coherence pass response unparseable; plan shipped as-is.",
         },
       ],
+      inputTokens,
+      outputTokens,
     };
   }
 
   if (!parsed.issues_found || !parsed.revised_items) {
-    return { plan, revisions: [], warnings: [] };
+    return { plan, revisions: [], warnings: [], inputTokens, outputTokens };
   }
 
   const revised = parsed.revised_items
@@ -168,5 +175,7 @@ export async function coherencePass(
       code: "residual_coherence_issue",
       message: i,
     })),
+    inputTokens,
+    outputTokens,
   };
 }

@@ -1,5 +1,5 @@
 import { logGeneration } from "@/lib/learn/cost-tracker";
-import { parseIntent } from "./intent-parser";
+import { parseIntentWithUsage } from "./intent-parser";
 import { selectCandidates } from "./substrate-selector";
 import { walkPrerequisites } from "./prereq-walker";
 import { sequence } from "./sequencer";
@@ -32,8 +32,21 @@ export async function generatePath(
   }
   const t0 = Date.now();
 
-  const parseResult = await parseIntent(freeText);
+  const {
+    intent: parseResult,
+    inputTokens: intentIn,
+    outputTokens: intentOut,
+  } = await parseIntentWithUsage(freeText);
   if ("clarification_needed" in parseResult) {
+    await logGeneration({
+      module: "learn-path",
+      stage: "intent",
+      inputTokens: intentIn,
+      outputTokens: intentOut,
+      durationMs: Date.now() - t0,
+      itemsProcessed: 1,
+      errors: 1,
+    });
     return { refused: "off_topic" };
   }
   const intent = parseResult;
@@ -67,6 +80,8 @@ export async function generatePath(
     plan: coherentPlan,
     revisions,
     warnings: coherenceWarnings,
+    inputTokens: coherenceIn,
+    outputTokens: coherenceOut,
   } = await coherencePass(plan, intent);
   plan = coherentPlan;
 
@@ -81,8 +96,8 @@ export async function generatePath(
   await logGeneration({
     module: "learn-path",
     stage: "generate",
-    inputTokens: 0, // TODO: collect from intent-parser + coherence-pass
-    outputTokens: 0,
+    inputTokens: intentIn + coherenceIn,
+    outputTokens: intentOut + coherenceOut,
     durationMs: Date.now() - t0,
     itemsProcessed: 1,
   });

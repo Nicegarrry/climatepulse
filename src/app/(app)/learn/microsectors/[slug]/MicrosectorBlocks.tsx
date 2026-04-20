@@ -7,6 +7,7 @@ import {
   EditorialStatusBadge,
   type EditorialStatus,
 } from "@/components/learn/editorial-status-badge";
+import { ProseWithTooltips } from "@/components/learn/render-prose-with-tooltips";
 
 export type BlockType =
   | "nicks_lens"
@@ -208,20 +209,16 @@ function ProseBody({ body }: { body: string | null }) {
         maxWidth: 680,
       }}
     >
-      {paragraphs.map((p, i) => (
-        <p
-          key={i}
-          style={{
-            fontFamily: FONTS.serif,
-            fontSize: 17,
-            lineHeight: 1.6,
-            color: "var(--ink-2)",
-            margin: 0,
-          }}
-        >
-          {p}
-        </p>
-      ))}
+      <ProseWithTooltips
+        body={paragraphs.join("\n\n")}
+        paragraphStyle={{
+          fontFamily: FONTS.serif,
+          fontSize: 17,
+          lineHeight: 1.6,
+          color: "var(--ink-2)",
+          margin: 0,
+        }}
+      />
     </div>
   );
 }
@@ -247,21 +244,17 @@ function NicksLensBody({ body }: { body: string | null }) {
         maxWidth: 680,
       }}
     >
-      {paragraphs.map((p, i) => (
-        <p
-          key={i}
-          style={{
-            fontFamily: FONTS.serif,
-            fontSize: 19,
-            lineHeight: 1.55,
-            color: COLORS.ink,
-            margin: 0,
-            fontStyle: "italic",
-          }}
-        >
-          {p}
-        </p>
-      ))}
+      <ProseWithTooltips
+        body={paragraphs.join("\n\n")}
+        paragraphStyle={{
+          fontFamily: FONTS.serif,
+          fontSize: 19,
+          lineHeight: 1.55,
+          color: COLORS.ink,
+          margin: 0,
+          fontStyle: "italic",
+        }}
+      />
     </blockquote>
   );
 }
