@@ -9,6 +9,16 @@
     { "path": "/api/weekly/generate", "schedule": "0 19 * * 5" },
     { "path": "/api/weekly/digests/scheduled-send", "schedule": "*/10 * * * *" },
     { "path": "/api/newsroom/ingest", "schedule": "*/30 19-23 * * 1-5" },
-    { "path": "/api/newsroom/ingest", "schedule": "*/30 0-10 * * 2-6" }
+    { "path": "/api/newsroom/ingest", "schedule": "*/30 0-10 * * 2-6" },
+
+    { "path": "/api/markets/prices/fetch",        "schedule": "1 0 * * 1-5" },
+    { "path": "/api/markets/prices/fetch",        "schedule": "1 23 * * 0-4" },
+    { "path": "/api/markets/prices/fetch",        "schedule": "0 3 * * 1-5" },
+    { "path": "/api/markets/prices/fetch",        "schedule": "0 2 * * 1-5" },
+    { "path": "/api/markets/prices/fetch",        "schedule": "15 6 * * 1-5" },
+    { "path": "/api/markets/prices/fetch",        "schedule": "15 5 * * 1-5" },
+
+    { "path": "/api/markets/announcements/fetch", "schedule": "*/30 23 * * 0-4" },
+    { "path": "/api/markets/announcements/fetch", "schedule": "*/30 0-6 * * 1-5" }
   ]
 }
