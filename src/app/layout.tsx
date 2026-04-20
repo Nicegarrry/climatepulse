@@ -3,6 +3,8 @@ import { Crimson_Pro, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import { Providers, AnalyticsBridge } from "@/components/providers";
 import { AuthProvider } from "@/lib/auth-context";
 import { DevLoggerProvider } from "@/lib/dev-logger";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const crimsonPro = Crimson_Pro({
@@ -70,6 +72,8 @@ export default function RootLayout({
             </AnalyticsBridge>
           </AuthProvider>
         </Providers>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
