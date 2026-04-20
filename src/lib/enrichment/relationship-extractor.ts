@@ -4,6 +4,7 @@ import pool from "@/lib/db";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
 
 export const PREDICATE_VOCAB = [
+  // v1
   "acquires",
   "partners_with",
   "subsidiary_of",
@@ -16,6 +17,11 @@ export const PREDICATE_VOCAB = [
   "located_in",
   "ceo_of",
   "uses_technology",
+  // v2 (added alongside scripts/migrate-graph-rag-vocab-v2.sql)
+  "competes_with",
+  "founded",
+  "opposes",
+  "researcher_at",
 ] as const;
 
 export type Predicate = (typeof PREDICATE_VOCAB)[number] | "_uncategorised";
