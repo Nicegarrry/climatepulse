@@ -6,6 +6,17 @@ import "@/components/learn/learn.css";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * True if the error is Postgres "relation does not exist" (SQLSTATE 42P01).
+ * Happens when the Phase 1 Learn migrations haven't been applied yet.
+ * Treated as an empty-data state rather than a crash.
+ */
+function isMissingRelation(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const code = (err as { code?: string }).code;
+  return code === "42P01";
+}
+
 interface LandingConcept {
   id: string;
   slug: string;
@@ -49,47 +60,66 @@ interface Totals {
 }
 
 async function fetchTodayConcept(): Promise<LandingConcept | null> {
-  const { rows } = await pool.query<LandingConcept>(
-    `SELECT id, slug, term, abbrev, inline_summary, editorial_status,
-            updated_at::text AS updated_at, primary_domain
-       FROM concept_cards
-      WHERE superseded_by IS NULL
-      ORDER BY
-        CASE editorial_status
-          WHEN 'editor_authored' THEN 0
-          WHEN 'editor_reviewed' THEN 1
-          WHEN 'previously_reviewed_stale' THEN 2
-          WHEN 'ai_drafted' THEN 3
-          ELSE 4
-        END,
-        updated_at DESC
-      LIMIT 1`,
-  );
-  return rows[0] ?? null;
+  try {
+    const { rows } = await pool.query<LandingConcept>(
+      `SELECT id, slug, term, abbrev, inline_summary, editorial_status,
+              updated_at::text AS updated_at, primary_domain
+         FROM concept_cards
+        WHERE superseded_by IS NULL
+        ORDER BY
+          CASE editorial_status
+            WHEN 'editor_authored' THEN 0
+            WHEN 'editor_reviewed' THEN 1
+            WHEN 'previously_reviewed_stale' THEN 2
+            WHEN 'ai_drafted' THEN 3
+            ELSE 4
+          END,
+          updated_at DESC
+        LIMIT 1`,
+    );
+    return rows[0] ?? null;
+  } catch (err) {
+    if (isMissingRelation(err)) return null;
+    throw err;
+  }
 }
 
 async function fetchFeaturedPaths(limit = 6): Promise<LandingPath[]> {
-  const { rows } = await pool.query<LandingPath>(
-    `SELECT lp.id, lp.slug, lp.title, lp.goal, lp.editorial_status,
-            lp.update_policy,
-            (SELECT COUNT(*)::int FROM learning_path_items lpi
-              WHERE lpi.path_id = lp.id) AS item_count
-       FROM learning_paths lp
-      WHERE lp.editorial_status IN ('editor_authored','editor_reviewed')
-      ORDER BY
-        CASE lp.editorial_status
-          WHEN 'editor_authored' THEN 0
-          WHEN 'editor_reviewed' THEN 1
-          ELSE 2
-        END,
-        lp.updated_at DESC
-      LIMIT $1`,
-    [limit],
-  );
-  return rows;
+  try {
+    const { rows } = await pool.query<LandingPath>(
+      `SELECT lp.id, lp.slug, lp.title, lp.goal, lp.editorial_status,
+              lp.update_policy,
+              (SELECT COUNT(*)::int FROM learning_path_items lpi
+                WHERE lpi.path_id = lp.id) AS item_count
+         FROM learning_paths lp
+        WHERE lp.editorial_status IN ('editor_authored','editor_reviewed')
+        ORDER BY
+          CASE lp.editorial_status
+            WHEN 'editor_authored' THEN 0
+            WHEN 'editor_reviewed' THEN 1
+            ELSE 2
+          END,
+          lp.updated_at DESC
+        LIMIT $1`,
+      [limit],
+    );
+    return rows;
+  } catch (err) {
+    if (isMissingRelation(err)) return [];
+    throw err;
+  }
 }
 
 async function fetchDomainGroups(): Promise<DomainGroup[]> {
+  try {
+    return await fetchDomainGroupsInner();
+  } catch (err) {
+    if (isMissingRelation(err)) return [];
+    throw err;
+  }
+}
+
+async function fetchDomainGroupsInner(): Promise<DomainGroup[]> {
   const { rows } = await pool.query<{
     domain_slug: string;
     domain_name: string;
@@ -143,27 +173,34 @@ async function fetchDomainGroups(): Promise<DomainGroup[]> {
 }
 
 async function fetchTotals(): Promise<Totals> {
-  const { rows } = await pool.query<{
-    concept_count: string;
-    concept_reviewed: string;
-    brief_count: string;
-    path_count: string;
-  }>(
-    `SELECT
-       (SELECT COUNT(*) FROM concept_cards WHERE superseded_by IS NULL) AS concept_count,
-       (SELECT COUNT(*) FROM concept_cards WHERE superseded_by IS NULL
-         AND editorial_status IN ('editor_authored','editor_reviewed')) AS concept_reviewed,
-       (SELECT COUNT(*) FROM microsector_briefs) AS brief_count,
-       (SELECT COUNT(*) FROM learning_paths
-         WHERE editorial_status IN ('editor_authored','editor_reviewed','user_generated')) AS path_count`,
-  );
-  const r = rows[0];
-  return {
-    concept_count: parseInt(r.concept_count, 10),
-    concept_reviewed: parseInt(r.concept_reviewed, 10),
-    brief_count: parseInt(r.brief_count, 10),
-    path_count: parseInt(r.path_count, 10),
-  };
+  try {
+    const { rows } = await pool.query<{
+      concept_count: string;
+      concept_reviewed: string;
+      brief_count: string;
+      path_count: string;
+    }>(
+      `SELECT
+         (SELECT COUNT(*) FROM concept_cards WHERE superseded_by IS NULL) AS concept_count,
+         (SELECT COUNT(*) FROM concept_cards WHERE superseded_by IS NULL
+           AND editorial_status IN ('editor_authored','editor_reviewed')) AS concept_reviewed,
+         (SELECT COUNT(*) FROM microsector_briefs) AS brief_count,
+         (SELECT COUNT(*) FROM learning_paths
+           WHERE editorial_status IN ('editor_authored','editor_reviewed','user_generated')) AS path_count`,
+    );
+    const r = rows[0];
+    return {
+      concept_count: parseInt(r.concept_count, 10),
+      concept_reviewed: parseInt(r.concept_reviewed, 10),
+      brief_count: parseInt(r.brief_count, 10),
+      path_count: parseInt(r.path_count, 10),
+    };
+  } catch (err) {
+    if (isMissingRelation(err)) {
+      return { concept_count: 0, concept_reviewed: 0, brief_count: 0, path_count: 0 };
+    }
+    throw err;
+  }
 }
 
 function relTime(iso: string): string {
@@ -616,7 +653,7 @@ export default async function LearnLandingPage() {
         )}
 
         {/* Empty state */}
-        {!todayConcept && featuredPaths.length === 0 && (
+        {!todayConcept && featuredPaths.length === 0 && domainGroups.length === 0 && (
           <div
             style={{
               padding: "32px 24px",
@@ -624,14 +661,33 @@ export default async function LearnLandingPage() {
               background: COLORS.paperDark,
               fontSize: 14,
               color: COLORS.inkSec,
-              lineHeight: 1.5,
+              lineHeight: 1.6,
             }}
           >
-            No Learn content yet. Seed generation runs via
-            {" "}
-            <code style={{ fontSize: 13 }}>scripts/learn/generate-concept-cards.ts</code>
-            {" "}and{" "}
-            <code style={{ fontSize: 13 }}>scripts/learn/refresh-brief-blocks.ts</code>.
+            <strong style={{ color: COLORS.ink, fontFamily: FONTS.serif, fontSize: 16 }}>
+              Learn is ready — no content yet.
+            </strong>
+            <p style={{ margin: "8px 0 12px" }}>
+              If the Phase 1 migrations haven&rsquo;t been applied to this
+              environment, apply them first:
+            </p>
+            <code style={{ display: "block", fontSize: 12, marginBottom: 16 }}>
+              psql $DATABASE_URL -f scripts/migrations/learn/001-learn-prelude.sql
+              <br />
+              psql $DATABASE_URL -f scripts/migrations/learn/010-concept-cards.sql
+              <br />
+              psql $DATABASE_URL -f scripts/migrations/learn/020-microsector-briefs.sql
+              <br />
+              psql $DATABASE_URL -f scripts/migrations/learn/030-learning-paths.sql
+              <br />
+              psql $DATABASE_URL -f scripts/migrations/learn/040-knowledge-surfaces.sql
+            </code>
+            <p style={{ margin: "8px 0" }}>
+              Then seed candidates + brief rows with{" "}
+              <code>scripts/learn/generate-concept-cards.ts</code> and{" "}
+              <code>scripts/learn/refresh-brief-blocks.ts</code>, or author
+              content directly via <Link href="/teaching" style={{ color: COLORS.forest }}>Teaching</Link>.
+            </p>
           </div>
         )}
 
