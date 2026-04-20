@@ -11,8 +11,8 @@ import {
   type RetrievalFilters,
   type RetrievalOptions,
   type RetrievedContent,
-  type ContentType,
 } from "@/lib/intelligence/retriever";
+import type { ContentType } from "@/lib/intelligence/embedder";
 import type { EditorialStatus } from "./microsector-briefs/types";
 
 /**

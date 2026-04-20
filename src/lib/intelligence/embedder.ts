@@ -20,7 +20,14 @@ export type ContentType =
   | "weekly_report"
   | "report_pdf"
   | "youtube_transcript"
-  | "learn_content";
+  | "learn_content"
+  | "concept_card"
+  | "microsector_brief"
+  | "microsector_brief_block"
+  | "learning_path"
+  | "deep_dive"
+  | "surface_module"
+  | "uploaded_doc";
 
 export interface ContentMetadata {
   primary_domain?: string | null;

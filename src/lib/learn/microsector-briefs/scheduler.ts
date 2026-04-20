@@ -1,5 +1,6 @@
 import pool from "@/lib/db";
 import { generateBlock } from "./block-generator";
+import { deriveRelatedForBrief } from "./related-derivation";
 import {
   BlockType,
   CadencePolicy,
@@ -9,7 +10,7 @@ import {
 
 const CONCURRENCY = 3;
 
-// nicks_lens is manual-only; related is SQL-derived. Neither schedules.
+// nicks_lens is manual-only; related is SQL-derived (handled after the LLM loop).
 const ALL_GENERATED_BLOCK_TYPES: BlockType[] = (
   Object.values(BlockType) as BlockType[]
 ).filter(
@@ -164,6 +165,30 @@ export async function scheduleRefresh(
         }
       }),
     );
+  }
+
+  // Related blocks are SQL-derived. Check quarterly due-ness per-brief and refresh.
+  if (!opts.blockTypeFilter || opts.blockTypeFilter === BlockType.Related) {
+    const relatedWindowMs =
+      CADENCE_WINDOW_MS[DEFAULT_CADENCE[BlockType.Related]];
+    for (const brief of briefs) {
+      const state = blockState.get(`${brief.id}:${BlockType.Related}`);
+      const lastGen = state?.lastGeneratedAt;
+      const isDue = !lastGen || now - lastGen.getTime() >= relatedWindowMs;
+      if (!isDue) continue;
+
+      result.attempted++;
+      try {
+        await deriveRelatedForBrief(brief.id, brief.microsector_id);
+        result.generated++;
+      } catch (err) {
+        result.failed++;
+        console.error(
+          `[scheduler] ${brief.microsector_slug}:related failed:`,
+          err,
+        );
+      }
+    }
   }
 
   return result;
