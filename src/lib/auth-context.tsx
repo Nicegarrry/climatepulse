@@ -165,6 +165,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (data.user) {
+      // Match what /auth/callback does for OAuth users: mark this browser as
+      // returning so the landing page's server-side redirect sends them
+      // straight to /dashboard on future root-URL visits. 1-year lax cookie,
+      // not httpOnly so we can set it from the client. Survives logout.
+      if (typeof document !== "undefined") {
+        const secure = window.location.protocol === "https:" ? "; Secure" : "";
+        document.cookie = `cp_returning=1; Max-Age=${60 * 60 * 24 * 365}; Path=/; SameSite=Lax${secure}`;
+      }
       const profile = await fetchProfile(data.user);
       setUser(profile);
     }

@@ -9,7 +9,12 @@ import type { BriefingDepth } from "@/lib/types";
 interface StepRegionsProps {
   initialJurisdictions?: string[];
   initialDepth?: BriefingDepth;
-  onComplete: (jurisdictions: string[], briefingDepth: BriefingDepth) => void;
+  initialName?: string;
+  onComplete: (
+    jurisdictions: string[],
+    briefingDepth: BriefingDepth,
+    name: string
+  ) => void;
   isSubmitting?: boolean;
 }
 
@@ -66,6 +71,7 @@ const DEPTH_OPTIONS: {
 export function StepRegions({
   initialJurisdictions = ["australia"],
   initialDepth = "standard",
+  initialName = "",
   onComplete,
   isSubmitting = false,
 }: StepRegionsProps) {
@@ -73,6 +79,7 @@ export function StepRegions({
     () => new Set(initialJurisdictions.length > 0 ? initialJurisdictions : ["australia"])
   );
   const [depth, setDepth] = useState<BriefingDepth>(initialDepth);
+  const [name, setName] = useState<string>(initialName);
 
   const toggleJurisdiction = (id: string) => {
     if (id === "australia") return; // locked
@@ -92,11 +99,38 @@ export function StepRegions({
         </h1>
       </div>
 
-      {/* Regions */}
+      {/* Name — optional, matters for greeting copy on the dashboard */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
+        className="mb-8"
+      >
+        <label
+          htmlFor="onboarding-name"
+          className="mb-1 block text-sm font-medium text-foreground"
+        >
+          What should we call you?
+        </label>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Just a first name is fine. You can change this later in settings.
+        </p>
+        <input
+          id="onboarding-name"
+          type="text"
+          autoComplete="given-name"
+          value={name}
+          onChange={(e) => setName(e.target.value.slice(0, 60))}
+          placeholder="First name"
+          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-accent-emerald focus:outline-none focus:ring-2 focus:ring-accent-emerald/30"
+        />
+      </motion.div>
+
+      {/* Regions */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05, duration: 0.3 }}
         className="mb-8"
       >
         <h2 className="mb-1 text-sm font-medium text-foreground">
@@ -225,7 +259,7 @@ export function StepRegions({
         transition={{ delay: 0.2, duration: 0.3 }}
       >
         <Button
-          onClick={() => onComplete(Array.from(jurisdictions), depth)}
+          onClick={() => onComplete(Array.from(jurisdictions), depth, name)}
           disabled={isSubmitting}
           className="h-12 w-full bg-accent-emerald text-base font-medium text-white hover:bg-accent-emerald/90"
         >

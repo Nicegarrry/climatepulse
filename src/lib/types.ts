@@ -458,6 +458,11 @@ export interface DigestOutput {
   hero_stories: DigestHeroStory[];
   compact_stories: DigestCompactStory[];
   cross_story_connections: DigestCrossConnection[] | null;
+  // Set when the briefing falls back to sample content (no pipeline data yet,
+  // zero stories passed personalisation, or Claude errored). The next cron run
+  // overwrites with a real briefing.
+  is_sample?: boolean;
+  sample_reason?: "no_articles" | "no_personalisation_match" | "ai_error";
 }
 
 export interface DailyBriefing {

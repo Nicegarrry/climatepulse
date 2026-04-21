@@ -264,10 +264,12 @@ export function StepSectors({ domains, initialSlugs = [], onNext }: StepSectorsP
         })}
       </div>
 
-      {/* Domain count + Next */}
+      {/* Domain + microsector counts + Next */}
       <div className="mt-8 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          {selectedDomainSlugs.size} of {MAX_DOMAINS} domains selected
+          {selectedDomainSlugs.size} of {MAX_DOMAINS} domains
+          <span className="mx-1.5 text-muted-foreground/60">·</span>
+          {selectedSlugs.size} {selectedSlugs.size === 1 ? "sector" : "sectors"}
         </p>
         <Button
           onClick={() => onNext(Array.from(selectedSlugs))}
