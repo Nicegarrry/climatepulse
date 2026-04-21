@@ -468,6 +468,8 @@ export async function generateBriefingForUser(
   let digest: DigestOutput;
   let articlesAnalysed: number | undefined;
 
+  let sampleReason: DigestOutput["sample_reason"] | undefined;
+
   if (opts.mock) {
     const { MOCK_SCORED_STORIES, MOCK_DIGEST } = await import(
       "@/lib/mock-digest"
@@ -479,77 +481,97 @@ export async function generateBriefingForUser(
     articlesAnalysed = enriched.length;
 
     if (enriched.length === 0) {
-      throw new DigestError(404, "No stories published in the last 32 hours");
-    }
-
-    const [taxonomyTree, interactionSummary] = await Promise.all([
-      getTaxonomyTree(),
-      getInteractionSummary(profile.id).catch((err) => {
-        console.warn("[digest] failed to load interaction summary:", err);
-        return undefined;
-      }),
-    ]);
-    stories = selectBriefingStories(
-      enriched,
-      profile,
-      taxonomyTree,
-      interactionSummary
-    );
-
-    if (stories.length === 0) {
-      throw new DigestError(404, "No stories passed personalisation threshold");
-    }
-
-    const { ROLE_LENS_OPTIONS } = await import("@/lib/types");
-    const roleLens = ROLE_LENS_OPTIONS.find((r) => r.id === profile.role_lens);
-    const roleLensLabel = roleLens?.label ?? "General Interest";
-
-    const thinStories = stories.filter(
-      (s) => getContentDepth(s) !== "full_text"
-    );
-    const webContext =
-      thinStories.length > 0
-        ? await fetchWebContext(thinStories)
-        : new Map<string, string>();
-
-    if (thinStories.length > 0) {
-      console.log(
-        `Digest: ${thinStories.length}/${stories.length} stories lack full text, ` +
-          `web context found for ${webContext.size}`
+      // Brand-new deployment or stale pipeline — serve a sample briefing so
+      // the user has something working instead of a stuck "generating" state.
+      // The next cron run overwrites this with real content.
+      const { MOCK_SCORED_STORIES, MOCK_DIGEST } = await import(
+        "@/lib/mock-digest"
       );
-    }
+      stories = MOCK_SCORED_STORIES;
+      digest = MOCK_DIGEST;
+      sampleReason = "no_articles";
+    } else {
+      const [taxonomyTree, interactionSummary] = await Promise.all([
+        getTaxonomyTree(),
+        getInteractionSummary(profile.id).catch((err) => {
+          console.warn("[digest] failed to load interaction summary:", err);
+          return undefined;
+        }),
+      ]);
+      stories = selectBriefingStories(
+        enriched,
+        profile,
+        taxonomyTree,
+        interactionSummary
+      );
 
-    // Pull prior ClimatePulse coverage for each HERO story so Claude can
-    // reference historical context ("as we covered on April 12…") when it
-    // genuinely reframes today's piece. Non-fatal — if RAG is unavailable
-    // we just skip the block.
-    const priorCoverage = await fetchPriorCoverage(stories).catch((err) => {
-      console.warn("[digest] prior coverage fetch failed:", err);
-      return new Map<string, RetrievedContent[]>();
-    });
-
-    const depthConfig = DEPTH_RANGES[profile.briefing_depth];
-    const prompt = buildDigestPrompt(
-      stories,
-      profile,
-      roleLensLabel,
-      webContext,
-      priorCoverage,
-      depthConfig.analysisDetail
-    );
-
-    try {
-      digest = await callClaude(prompt);
-    } catch (err) {
-      console.error("First digest attempt failed, retrying:", err);
-      try {
-        digest = await callClaude(prompt);
-      } catch (retryErr) {
-        console.error("Retry failed:", retryErr);
-        const { MOCK_DIGEST } = await import("@/lib/mock-digest");
+      if (stories.length === 0) {
+        // Nothing matched this user's sectors today — sample so they get a
+        // readable surface while we widen matching on the next run.
+        const { MOCK_SCORED_STORIES, MOCK_DIGEST } = await import(
+          "@/lib/mock-digest"
+        );
+        stories = MOCK_SCORED_STORIES;
         digest = MOCK_DIGEST;
+        sampleReason = "no_personalisation_match";
+      } else {
+        const { ROLE_LENS_OPTIONS } = await import("@/lib/types");
+        const roleLens = ROLE_LENS_OPTIONS.find((r) => r.id === profile.role_lens);
+        const roleLensLabel = roleLens?.label ?? "General Interest";
+
+        const thinStories = stories.filter(
+          (s) => getContentDepth(s) !== "full_text"
+        );
+        const webContext =
+          thinStories.length > 0
+            ? await fetchWebContext(thinStories)
+            : new Map<string, string>();
+
+        if (thinStories.length > 0) {
+          console.log(
+            `Digest: ${thinStories.length}/${stories.length} stories lack full text, ` +
+              `web context found for ${webContext.size}`
+          );
+        }
+
+        // Pull prior ClimatePulse coverage for each HERO story so Claude can
+        // reference historical context ("as we covered on April 12…") when it
+        // genuinely reframes today's piece. Non-fatal — if RAG is unavailable
+        // we just skip the block.
+        const priorCoverage = await fetchPriorCoverage(stories).catch((err) => {
+          console.warn("[digest] prior coverage fetch failed:", err);
+          return new Map<string, RetrievedContent[]>();
+        });
+
+        const depthConfig = DEPTH_RANGES[profile.briefing_depth];
+        const prompt = buildDigestPrompt(
+          stories,
+          profile,
+          roleLensLabel,
+          webContext,
+          priorCoverage,
+          depthConfig.analysisDetail
+        );
+
+        try {
+          digest = await callClaude(prompt);
+        } catch (err) {
+          console.error("First digest attempt failed, retrying:", err);
+          try {
+            digest = await callClaude(prompt);
+          } catch (retryErr) {
+            console.error("Retry failed:", retryErr);
+            const { MOCK_DIGEST } = await import("@/lib/mock-digest");
+            digest = MOCK_DIGEST;
+            sampleReason = "ai_error";
+          }
+        }
       }
     }
+  }
+
+  if (sampleReason) {
+    digest = { ...digest, is_sample: true, sample_reason: sampleReason };
   }
 
   const now = new Date().toISOString();
