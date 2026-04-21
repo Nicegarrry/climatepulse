@@ -50,7 +50,7 @@ export default function LoginPage() {
     if (result.ok) {
       setState({ step: "code", email });
       setCode("");
-      setResendCooldown(60);
+      setResendCooldown(120);
     } else {
       setError(result.error || "Could not send sign-in code. Please try again.");
     }
@@ -90,7 +90,7 @@ export default function LoginPage() {
     const result = await login(state.email);
     setSubmitting(false);
     if (result.ok) {
-      setResendCooldown(60);
+      setResendCooldown(120);
     } else {
       setError(result.error || "Could not resend. Try again shortly.");
     }
