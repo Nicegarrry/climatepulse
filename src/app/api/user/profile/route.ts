@@ -151,7 +151,13 @@ export async function PUT(req: NextRequest) {
       )
     );
 
-    const currentTier: Tier = existing.rows[0]?.tier ?? "free";
+    // Fallback matches the user_profiles.tier DB DEFAULT (currently 'founder' —
+    // see scripts/migrate-founder-default.sql). If the row doesn't exist yet
+    // (brand-new OTP user's first onboarding PUT), we evaluate the cap as if
+    // they're on the default tier, otherwise the cap fires and the INSERT
+    // below never runs. Flip both this fallback and the DB default together
+    // when billing goes live.
+    const currentTier: Tier = existing.rows[0]?.tier ?? "founder";
     const limit = sectorLimit(currentTier);
     if (
       Array.isArray(body.primary_sectors) &&
