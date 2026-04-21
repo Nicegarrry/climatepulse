@@ -58,7 +58,8 @@ import IntelligenceTab from "@/components/intelligence";
 import { NewsroomTab } from "@/components/newsroom/NewsroomTab";
 import { PodcastAdminTab } from "@/components/podcast-admin-tab";
 import { FlagshipScheduler } from "@/components/flagship-scheduler";
-import { LearnTab } from "@/components/learn/learn";
+import { LearnRedirect } from "@/components/learn/learn-redirect";
+import { TeachingRedirect } from "@/components/learn/teaching-redirect";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
@@ -85,6 +86,7 @@ const adminTabs = [
   { value: "categories", label: "Categories", icon: TagIcon, iconSolid: TagIconSolid },
   { value: "taxonomy", label: "Taxonomy", icon: AdjustmentsHorizontalIcon, iconSolid: AdjustmentsHorizontalIconSolid },
   { value: "podcast-admin", label: "Podcast", icon: MicrophoneIcon, iconSolid: MicrophoneIconSolid },
+  { value: "teaching", label: "Teaching", icon: AcademicCapIcon, iconSolid: AcademicCapIconSolid },
 ];
 
 function getTabsForRole(role: "reader" | "editor" | "admin") {
@@ -159,9 +161,11 @@ function TabContent({ activeTab }: { activeTab: string }) {
     case "newsroom":
       return <NewsroomTab />;
     case "learn":
-      return <LearnTab />;
+      return <LearnRedirect />;
     case "podcast-admin":
       return <PodcastAdminTab />;
+    case "teaching":
+      return <TeachingRedirect />;
     case "flagship":
       return <FlagshipScheduler />;
     default:

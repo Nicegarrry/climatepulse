@@ -57,6 +57,10 @@ export interface RetrievedContent {
   subtitle?: string | null;   // source_name for articles, briefing_date for podcasts, etc.
   url?: string | null;
   snippet?: string | null;
+
+  // Learn-specific fields. Null for non-Learn content_types.
+  slug?: string | null;
+  editorial_status?: string | null;
 }
 
 // ─── Hybrid Retrieval ─────────────────────────────────────────────────────────
@@ -206,7 +210,17 @@ async function resolveDisplayData(rows: Array<Record<string, unknown>>): Promise
   }
 
   // Fetch display data per type
-  const displayMap = new Map<string, { title: string; subtitle?: string | null; url?: string | null; snippet?: string | null }>();
+  const displayMap = new Map<
+    string,
+    {
+      title: string;
+      subtitle?: string | null;
+      url?: string | null;
+      snippet?: string | null;
+      slug?: string | null;
+      editorial_status?: string | null;
+    }
+  >();
 
   // Articles
   const articleIds = bySourceType.get("article");
@@ -313,6 +327,110 @@ async function resolveDisplayData(rows: Array<Record<string, unknown>>): Promise
     }
   }
 
+  // Concept cards
+  const conceptIds = bySourceType.get("concept_card");
+  if (conceptIds?.length) {
+    const { rows: ccRows } = await pool.query<{
+      id: string;
+      slug: string;
+      term: string;
+      inline_summary: string;
+      editorial_status: string;
+    }>(
+      `SELECT id, slug, term, inline_summary, editorial_status
+         FROM concept_cards WHERE id = ANY($1::uuid[])`,
+      [conceptIds],
+    );
+    for (const c of ccRows) {
+      displayMap.set(`concept_card:${c.id}`, {
+        title: c.term,
+        subtitle: "Concept card",
+        snippet: c.inline_summary,
+        slug: c.slug,
+        editorial_status: c.editorial_status,
+      });
+    }
+  }
+
+  // Microsector briefs
+  const briefIds = bySourceType.get("microsector_brief");
+  if (briefIds?.length) {
+    const { rows: mbRows } = await pool.query<{
+      id: string;
+      title: string;
+      tagline: string | null;
+      slug: string;
+      editorial_status: string;
+    }>(
+      `SELECT mb.id, mb.title, mb.tagline, tm.slug, mb.editorial_status
+         FROM microsector_briefs mb
+         JOIN taxonomy_microsectors tm ON tm.id = mb.microsector_id
+        WHERE mb.id = ANY($1::uuid[])`,
+      [briefIds],
+    );
+    for (const b of mbRows) {
+      displayMap.set(`microsector_brief:${b.id}`, {
+        title: b.title,
+        subtitle: b.tagline,
+        slug: b.slug,
+        editorial_status: b.editorial_status,
+      });
+    }
+  }
+
+  // Microsector brief blocks
+  const blockIds = bySourceType.get("microsector_brief_block");
+  if (blockIds?.length) {
+    const { rows: bbRows } = await pool.query<{
+      id: string;
+      block_type: string;
+      editorial_status: string;
+      brief_title: string;
+      microsector_slug: string;
+    }>(
+      `SELECT mbb.id, mbb.block_type, mbb.editorial_status,
+              mb.title AS brief_title, tm.slug AS microsector_slug
+         FROM microsector_brief_blocks mbb
+         JOIN microsector_briefs mb ON mb.id = mbb.brief_id
+         JOIN taxonomy_microsectors tm ON tm.id = mb.microsector_id
+        WHERE mbb.id = ANY($1::uuid[])`,
+      [blockIds],
+    );
+    for (const b of bbRows) {
+      displayMap.set(`microsector_brief_block:${b.id}`, {
+        title: `${b.brief_title} — ${b.block_type.replace(/_/g, " ")}`,
+        subtitle: `Brief block`,
+        slug: b.microsector_slug,
+        editorial_status: b.editorial_status,
+      });
+    }
+  }
+
+  // Learning paths
+  const pathIds = bySourceType.get("learning_path");
+  if (pathIds?.length) {
+    const { rows: lpRows } = await pool.query<{
+      id: string;
+      title: string;
+      slug: string;
+      goal: string | null;
+      editorial_status: string;
+    }>(
+      `SELECT id, title, slug, goal, editorial_status
+         FROM learning_paths WHERE id = ANY($1::uuid[])`,
+      [pathIds],
+    );
+    for (const p of lpRows) {
+      displayMap.set(`learning_path:${p.id}`, {
+        title: p.title,
+        subtitle: "Learning path",
+        snippet: p.goal,
+        slug: p.slug,
+        editorial_status: p.editorial_status,
+      });
+    }
+  }
+
   // Merge display data into rows
   return rows.map((r) => {
     const key = `${r.content_type}:${r.source_id}`;
@@ -343,6 +461,8 @@ async function resolveDisplayData(rows: Array<Record<string, unknown>>): Promise
       subtitle: display.subtitle,
       url: display.url,
       snippet: display.snippet,
+      slug: display.slug ?? null,
+      editorial_status: display.editorial_status ?? null,
     };
   });
 }

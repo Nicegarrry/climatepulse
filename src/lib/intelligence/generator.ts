@@ -40,6 +40,13 @@ const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   report_pdf: "Report",
   youtube_transcript: "YouTube transcript",
   learn_content: "Learn content",
+  concept_card: "Concept card (our editorial)",
+  microsector_brief: "Microsector brief (our editorial)",
+  microsector_brief_block: "Brief block (our editorial)",
+  learning_path: "Learning path (our editorial)",
+  deep_dive: "Deep dive (our editorial)",
+  surface_module: "Knowledge surface module",
+  uploaded_doc: "Uploaded document",
 };
 
 // ─── Context Building ─────────────────────────────────────────────────────────
