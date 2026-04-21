@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,10 @@ type LoginState =
   | { step: "email" }
   | { step: "code"; email: string };
 
+const CALLBACK_ERROR_COPY: Record<string, string> = {
+  auth: "Sign-in didn't complete. The link may have expired or been opened by your email provider's link scanner — please request a fresh code below.",
+};
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -24,7 +28,16 @@ export default function LoginPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const { login, loginWithGoogle, verifyCode } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const codeInputRef = useRef<HTMLInputElement>(null);
+
+  // Surface auth-callback failures that bounced the user back here.
+  useEffect(() => {
+    const code = searchParams?.get("error");
+    if (code && CALLBACK_ERROR_COPY[code]) {
+      setError(CALLBACK_ERROR_COPY[code]);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (state.step === "code") {
@@ -50,7 +63,7 @@ export default function LoginPage() {
     if (result.ok) {
       setState({ step: "code", email });
       setCode("");
-      setResendCooldown(60);
+      setResendCooldown(120);
     } else {
       setError(result.error || "Could not send sign-in code. Please try again.");
     }
@@ -90,7 +103,7 @@ export default function LoginPage() {
     const result = await login(state.email);
     setSubmitting(false);
     if (result.ok) {
-      setResendCooldown(60);
+      setResendCooldown(120);
     } else {
       setError(result.error || "Could not resend. Try again shortly.");
     }
@@ -291,10 +304,6 @@ export default function LoginPage() {
                       )}
                     </Button>
                   </form>
-
-                  <p className="mt-4 text-center text-xs text-muted-foreground">
-                    The email also has a magic link you can click instead.
-                  </p>
 
                   <div className="mt-5 space-y-3">
                     <Button

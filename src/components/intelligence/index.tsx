@@ -818,11 +818,48 @@ function LoadingState() {
   );
 }
 
+// Map raw server errors to user-friendly copy. "Briefing unavailable" is the
+// default headline; detail line softens technical messages like "Profile not
+// found" that can appear during the narrow window between a new user signing
+// up and their first profile write landing.
+function friendlyErrorCopy(raw: string): { headline: string; detail: string } {
+  const lower = raw.toLowerCase();
+  if (lower.includes("profile not found") || lower.includes("not authenticated")) {
+    return {
+      headline: "Setting up your account",
+      detail: "We're finishing setup for your profile. Try again in a few seconds.",
+    };
+  }
+  if (lower.includes("no stories")) {
+    return {
+      headline: "Your first briefing is brewing",
+      detail: "Today's stories haven't finished processing. Your briefing will land shortly.",
+    };
+  }
+  if (lower.includes("timeout") || lower.includes("timed out")) {
+    return {
+      headline: "Taking longer than expected",
+      detail: "The briefing is still being built. Try again, or come back in a minute.",
+    };
+  }
+  if (lower.includes("failed to fetch")) {
+    return {
+      headline: "Can't reach the briefing service",
+      detail: "Check your connection and try again. If it keeps failing, we'll know — this is logged server-side.",
+    };
+  }
+  return {
+    headline: "Briefing unavailable",
+    detail: "Something went wrong loading today's briefing. Tap retry, or refresh the page.",
+  };
+}
+
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const { headline, detail } = friendlyErrorCopy(message);
   return (
-    <div style={{ padding: "40px 32px" }}>
-      <Micro color={COLORS.ink}>Briefing unavailable</Micro>
-      <p style={{ fontSize: 13, color: COLORS.inkSec, marginTop: 8 }}>{message}</p>
+    <div style={{ padding: "40px 32px", maxWidth: 440 }}>
+      <Micro color={COLORS.ink}>{headline}</Micro>
+      <p style={{ fontSize: 13, color: COLORS.inkSec, marginTop: 8, lineHeight: 1.5 }}>{detail}</p>
       <button
         onClick={onRetry}
         style={{
@@ -839,6 +876,44 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       >
         Retry
       </button>
+    </div>
+  );
+}
+
+function SampleBanner({ reason }: { reason: "no_articles" | "no_personalisation_match" | "ai_error" | undefined }) {
+  const copy: Record<string, string> = {
+    no_articles: "Today's stories are still being processed. We've put together a sample briefing so you can see the shape — yours will arrive at 6am AEST.",
+    no_personalisation_match: "No stories matched your sectors today. This sample shows the format — we'll widen the net overnight.",
+    ai_error: "We hit a temporary hiccup generating your briefing. This sample is a stand-in; we'll retry overnight.",
+  };
+  const message = copy[reason ?? ""] ?? "Showing a sample briefing. Your personalised one will arrive shortly.";
+  return (
+    <div
+      role="status"
+      style={{
+        background: COLORS.surface,
+        border: `1px solid ${COLORS.border}`,
+        borderLeft: `3px solid ${COLORS.plum}`,
+        padding: "12px 16px",
+        marginBottom: 16,
+        fontFamily: FONTS.sans,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: 1.6,
+          textTransform: "uppercase",
+          color: COLORS.plum,
+          marginBottom: 4,
+        }}
+      >
+        Sample briefing
+      </div>
+      <div style={{ fontSize: 12.5, color: COLORS.inkSec, lineHeight: 1.5 }}>
+        {message}
+      </div>
     </div>
   );
 }
@@ -1078,7 +1153,7 @@ export default function IntelligenceTab() {
   const [sectorCoverage, setSectorCoverage] = useState<SectorCoverageData | null>(null);
   const [weeklyPulse, setWeeklyPulse] = useState<WeeklyPulse | null>(null);
   const [podcastEpisode, setPodcastEpisode] = useState<PodcastEpisode | null>(null);
-  const [digestStatus, setDigestStatus] = useState<"ready" | "generating" | "unknown">("unknown");
+  const [digestStatus, setDigestStatus] = useState<"ready" | "generating" | "timed_out" | "unknown">("unknown");
   const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
 
   const userId = user?.id;
@@ -1173,12 +1248,17 @@ export default function IntelligenceTab() {
 
   // While a first-time briefing is generating, poll every 6s until it lands.
   // Cap at ~3 minutes so we don't poll forever if something goes wrong server-side.
+  // On timeout, flip to "timed_out" so the UI surfaces a real error + retry
+  // (previously the generating banner just hung forever, which customers read
+  // as "my briefing is still being built" indefinitely).
   useEffect(() => {
     if (digestStatus !== "generating") return;
     const startedAt = generationStartedAt ?? Date.now();
     const id = setInterval(() => {
       if (Date.now() - startedAt > 180_000) {
         clearInterval(id);
+        setDigestStatus("timed_out");
+        setError("timed out");
         return;
       }
       pollDigest();
@@ -1266,10 +1346,16 @@ export default function IntelligenceTab() {
 
   if (loading) return <LoadingState />;
   if (error && !briefing) return <ErrorState message={error} onRetry={fetchData} />;
+  if (digestStatus === "timed_out" && !briefing) {
+    return <ErrorState message="timed out" onRetry={fetchData} />;
+  }
 
-  const generatingBanner =
+  const isSampleBriefing = briefing?.digest?.is_sample === true;
+  const topBanner =
     digestStatus === "generating" && generationStartedAt ? (
       <GeneratingBanner startedAt={generationStartedAt} estimatedSeconds={60} />
+    ) : isSampleBriefing ? (
+      <SampleBanner reason={briefing?.digest?.sample_reason} />
     ) : null;
 
   return (
@@ -1288,7 +1374,7 @@ export default function IntelligenceTab() {
           weeklyPulse={weeklyPulse}
           podcastEpisode={podcastEpisode}
           articlesAnalysed={briefing?.articles_analysed}
-          topBanner={generatingBanner}
+          topBanner={topBanner}
         />
       </div>
       {/* Mobile */}
@@ -1305,7 +1391,7 @@ export default function IntelligenceTab() {
           streakCount={streakCount}
           podcastEpisode={podcastEpisode}
           articlesAnalysed={briefing?.articles_analysed}
-          topBanner={generatingBanner}
+          topBanner={topBanner}
         />
       </div>
       <DailyFeedbackPrompt
