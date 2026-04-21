@@ -42,6 +42,7 @@ export default function OnboardingPage() {
   const [microsectorSlugs, setMicrosectorSlugs] = useState<string[]>([]);
   const [taxonomy, setTaxonomy] = useState<TaxonomyTree | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Fetch taxonomy on mount
   useEffect(() => {
@@ -76,14 +77,16 @@ export default function OnboardingPage() {
     briefingDepth: BriefingDepth
   ) => {
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       if (!user?.id) {
         console.error("Onboarding: no authenticated user");
+        setSubmitError("You're not signed in. Please refresh and try again.");
         setIsSubmitting(false);
         return;
       }
 
-      await fetch("/api/user/profile", {
+      const res = await fetch("/api/user/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -98,13 +101,28 @@ export default function OnboardingPage() {
         }),
       });
 
-      // Update auth context
-      updateUser({ onboardedAt: new Date().toISOString() });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (res.status === 402 && body?.error === "SECTOR_LIMIT_EXCEEDED") {
+          const limit = typeof body.limit === "number" ? body.limit : 3;
+          setSubmitError(
+            `You picked ${microsectorSlugs.length} sectors, but your plan supports up to ${limit}. Tap back and narrow your selection.`
+          );
+          setStep(1);
+        } else {
+          setSubmitError(
+            body?.message || body?.error || "We couldn't save your preferences. Please try again."
+          );
+        }
+        setIsSubmitting(false);
+        return;
+      }
 
-      // Navigate to dashboard
+      updateUser({ onboardedAt: new Date().toISOString() });
       router.push("/dashboard");
     } catch (err) {
       console.error("Onboarding save failed:", err);
+      setSubmitError("Network error. Check your connection and try again.");
       setIsSubmitting(false);
     }
   };
@@ -149,6 +167,18 @@ export default function OnboardingPage() {
           ))}
         </div>
       </div>
+
+      {/* Error banner — shown when save fails (e.g. SECTOR_LIMIT_EXCEEDED) */}
+      {submitError && (
+        <div className="mx-auto mt-2 w-full max-w-lg px-4">
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            {submitError}
+          </div>
+        </div>
+      )}
 
       {/* Step content */}
       <div className="flex flex-1 items-start justify-center px-4 pt-8 pb-16 sm:pt-16">
