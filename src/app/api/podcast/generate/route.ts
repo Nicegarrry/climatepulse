@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
+import { sydneyDateString } from "@/lib/podcast/date";
 import type { DigestOutput } from "@/lib/types";
 
 export const maxDuration = 300; // Script gen (~15s) + TTS (~2-3 min for 5-min episode)
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const useMock = body.mock === true;
-    const date = body.date ?? new Date().toISOString().split("T")[0];
+    const date = body.date ?? sydneyDateString();
 
     if (useMock) {
       const { MOCK_PODCAST_EPISODE } = await import("@/lib/mock-podcast");

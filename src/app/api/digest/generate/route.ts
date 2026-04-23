@@ -3,6 +3,7 @@ import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
 import { generateBriefingForUser, DigestError } from "@/lib/digest/generate";
 import { applyEditorialOverrides } from "@/lib/digest/editorial-overrides";
+import { sydneyDateString } from "@/lib/podcast/date";
 import type { DailyBriefing } from "@/lib/types";
 
 // Claude Sonnet + optional web-search pre-pass can take >60s for a single user.
@@ -73,7 +74,10 @@ export async function GET(req: NextRequest) {
   const userId = requestedUserId || auth.user.id;
 
   try {
-    const today = new Date().toISOString().split("T")[0];
+    // Briefings are keyed by Sydney date (see generate.ts and step5Podcast).
+    // Using UTC here returned yesterday's row for users who opened the app
+    // between 00:00–10:00 AEST.
+    const today = sydneyDateString();
     let result;
     try {
       result = await pool.query(
