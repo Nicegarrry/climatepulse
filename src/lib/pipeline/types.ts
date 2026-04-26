@@ -1,4 +1,10 @@
-export type StepName = "ingest" | "fulltext" | "enrichment" | "digest" | "podcast";
+export type StepName =
+  | "ingest"
+  | "fulltext"
+  | "enrichment"
+  | "detect_indicators"
+  | "digest"
+  | "podcast";
 
 export type StepStatus = "completed" | "failed" | "skipped";
 
