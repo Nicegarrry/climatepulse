@@ -24,6 +24,14 @@ export interface EditorialStory {
   // Post-publish editorial overrides (Daily Review panel)
   editorsPick?: boolean;
   editorialNote?: string | null;
+  // Set when this story's article triggered an indicator update today.
+  triggeredIndicatorUpdate?: {
+    indicator_slug: string;
+    indicator_name: string;
+    new_value: number;
+    unit: string;
+    direction_good: "down" | "up" | "neutral";
+  } | null;
 }
 
 export interface DailyNumber {

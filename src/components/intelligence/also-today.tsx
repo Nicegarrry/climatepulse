@@ -5,6 +5,7 @@ import type { EditorialStory } from "@/lib/mock-editorial";
 import { ShareButton } from "@/components/share/ShareButton";
 import { Micro } from "./primitives";
 import { ThumbsActions } from "./thumbs-actions";
+import { IndicatorUpdateBadge } from "./indicator-update-badge";
 
 export function AlsoToday({
   stories,
@@ -72,6 +73,11 @@ export function AlsoToday({
                 <p style={{ fontSize: 11, color: COLORS.inkMuted, margin: "3px 0 0", lineHeight: 1.4 }}>
                   {story.summary}
                 </p>
+              )}
+              {story.triggeredIndicatorUpdate && (
+                <div style={{ marginTop: 4 }}>
+                  <IndicatorUpdateBadge update={story.triggeredIndicatorUpdate} size="sm" />
+                </div>
               )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, marginLeft: 12 }}>
