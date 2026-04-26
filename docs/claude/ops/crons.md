@@ -32,6 +32,14 @@ Route: `/api/newsroom/ingest` (GET or POST, requires `CRON_SECRET`).
 
 Dedicated cron for prices + announcements refresh (landed in commit `bc55d9f`). Check `vercel.json` for the exact schedule.
 
+## Indicator scrapers (bypass path)
+
+Direct-scraper updates that bypass article inference. Each scraper has its own cron, writes `indicator_values` rows with `source_type='scraper'`, and logs to `scraper_runs`.
+
+| Time | Route | Scraper | Indicators updated |
+|---|---|---|---|
+| `0 21 * * *` | `/api/scrapers/aemo-grid-mix` | `aemo_grid_mix` | `grid_renewables_share_au`, `grid_emissions_intensity_au` |
+
 ## Manual trigger recipe
 
 ```

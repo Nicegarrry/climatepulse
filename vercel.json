@@ -20,6 +20,8 @@
     { "path": "/api/markets/prices/fetch",        "schedule": "15 5 * * 1-5" },
 
     { "path": "/api/markets/announcements/fetch", "schedule": "*/30 23 * * 0-4" },
-    { "path": "/api/markets/announcements/fetch", "schedule": "*/30 0-6 * * 1-5" }
+    { "path": "/api/markets/announcements/fetch", "schedule": "*/30 0-6 * * 1-5" },
+
+    { "path": "/api/scrapers/aemo-grid-mix", "schedule": "0 21 * * *" }
   ]
 }

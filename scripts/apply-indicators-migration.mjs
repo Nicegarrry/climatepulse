@@ -27,6 +27,7 @@ const pool = new Pool({
 const FILES = [
   "./migrations/indicators/001-indicators.sql",
   "./migrations/indicators/002-seed-catalogue.sql",
+  "./migrations/indicators/003-scrapers.sql",
 ];
 
 const client = await pool.connect();
