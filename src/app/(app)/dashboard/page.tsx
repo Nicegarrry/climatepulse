@@ -18,6 +18,7 @@ import {
   NewspaperIcon,
   BoltIcon,
   ChartBarIcon,
+  ChartPieIcon,
   CalendarDaysIcon,
   MagnifyingGlassIcon,
   TagIcon,
@@ -36,6 +37,7 @@ import {
   NewspaperIcon as NewspaperIconSolid,
   BoltIcon as BoltIconSolid,
   ChartBarIcon as ChartBarIconSolid,
+  ChartPieIcon as ChartPieIconSolid,
   CalendarDaysIcon as CalendarDaysIconSolid,
   MagnifyingGlassIcon as MagnifyingGlassIconSolid,
   TagIcon as TagIconSolid,
@@ -50,6 +52,7 @@ import { COLORS, FONTS, GRAIN, NAV_ITEMS } from "@/lib/design-tokens";
 import { DiscoveryTab } from "@/components/discovery-tab";
 import { CategoriesTab } from "@/components/categories-tab";
 import { EnergyTab } from "@/components/energy-tab";
+import { IndicatorsTab } from "@/components/indicators-tab";
 import { TaxonomyTab } from "@/components/taxonomy-tab";
 import { MarketsTab } from "@/components/markets-tab";
 import WeeklyTab from "@/components/weekly";
@@ -72,6 +75,7 @@ const readerTabs = [
   { value: "learn", label: "Learn", icon: AcademicCapIcon, iconSolid: AcademicCapIconSolid },
   { value: "newsroom", label: "Newsroom", icon: RssIcon, iconSolid: RssIconSolid },
   { value: "energy", label: "Energy", icon: BoltIcon, iconSolid: BoltIconSolid },
+  { value: "indicators", label: "Indicators", icon: ChartPieIcon, iconSolid: ChartPieIconSolid },
   { value: "markets", label: "Markets", icon: ChartBarIcon, iconSolid: ChartBarIconSolid },
   { value: "weekly", label: "Weekly", icon: CalendarDaysIcon, iconSolid: CalendarDaysIconSolid },
 ];
@@ -150,6 +154,8 @@ function TabContent({ activeTab }: { activeTab: string }) {
       return <CategoriesTab />;
     case "energy":
       return <EnergyTab />;
+    case "indicators":
+      return <IndicatorsTab />;
     case "markets":
       return <MarketsTab />;
     case "weekly":
