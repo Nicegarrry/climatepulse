@@ -126,10 +126,10 @@ Do NOT:
     headers: {
       "Content-Type": "application/json",
       "x-api-key": apiKey,
-      "anthropic-version": "2025-01-01",
+      "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 3000,
       system: systemPrompt,
       messages: [
@@ -210,7 +210,7 @@ export async function generateAnswer(
   if (mode === "research") {
     const result = await generateWithSonnet(query, context, items.length, hasOwnEditorial);
     answer = result.answer;
-    modelUsed = "claude-sonnet-4-20250514";
+    modelUsed = "claude-sonnet-4-6";
     inputTokens = result.input_tokens;
     outputTokens = result.output_tokens;
   } else {

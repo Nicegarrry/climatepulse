@@ -111,7 +111,7 @@ async function main() {
     [
       id, date, JSON.stringify(script), `/podcasts/${filename}`,
       durationSeconds, audioBuffer.length, format,
-      "gemini-2.5-flash-preview-tts", "claude-sonnet-4-20250514",
+      "gemini-2.5-flash-preview-tts", "claude-sonnet-4-6",
       new Date().toISOString(),
     ]
   );
