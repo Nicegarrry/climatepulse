@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
@@ -20,6 +20,14 @@ const CALLBACK_ERROR_COPY: Record<string, string> = {
 };
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [state, setState] = useState<LoginState>({ step: "email" });
