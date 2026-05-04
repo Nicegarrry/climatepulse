@@ -6,6 +6,7 @@ import type { EditorialStory } from "@/lib/mock-editorial";
 import { Micro, SourceTag } from "./primitives";
 import { ThumbsActions } from "./thumbs-actions";
 import { ShareButton } from "@/components/share/ShareButton";
+import { IndicatorUpdateBadge } from "./indicator-update-badge";
 
 export function LeadStories({
   stories,
@@ -152,6 +153,12 @@ export function LeadStories({
               )}
               {story.sources.length > 1 && ` +${story.sources.length - 1}`}
             </div>
+
+            {story.triggeredIndicatorUpdate && (
+              <div style={{ marginTop: 6 }} onClick={(e) => e.stopPropagation()}>
+                <IndicatorUpdateBadge update={story.triggeredIndicatorUpdate} />
+              </div>
+            )}
 
             {/* Expanded content — animated */}
             <div

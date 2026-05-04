@@ -192,6 +192,16 @@ export async function step3Enrich(): Promise<StepResult> {
   });
 }
 
+// ─── Step 3b: Indicator Change Detection ───────────────────────────────────
+
+export async function step3bDetectIndicators(): Promise<StepResult> {
+  return runStep("detect_indicators", async () => {
+    const { runDetectorBatch } = await import("@/lib/indicators/detector");
+    const result = await runDetectorBatch();
+    return result as unknown as Record<string, unknown>;
+  });
+}
+
 // ─── Step 4: Digest Generation ──────────────────────────────────────────────
 
 export async function step4Digest(): Promise<StepResult> {

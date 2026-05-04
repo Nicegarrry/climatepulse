@@ -3,6 +3,7 @@
     { "path": "/api/pipeline/ingest",   "schedule": "0 19 * * *" },
     { "path": "/api/pipeline/fulltext", "schedule": "5 19 * * *" },
     { "path": "/api/pipeline/enrich",   "schedule": "10 19 * * *" },
+    { "path": "/api/pipeline/detect-indicators", "schedule": "22 19 * * *" },
     { "path": "/api/pipeline/digest",   "schedule": "25 19 * * *" },
     { "path": "/api/pipeline/podcast",  "schedule": "40 19 * * *" },
     { "path": "/api/analytics/weekly-pulse/generate", "schedule": "0 20 * * 0" },
@@ -19,6 +20,8 @@
     { "path": "/api/markets/prices/fetch",        "schedule": "15 5 * * 1-5" },
 
     { "path": "/api/markets/announcements/fetch", "schedule": "*/30 23 * * 0-4" },
-    { "path": "/api/markets/announcements/fetch", "schedule": "*/30 0-6 * * 1-5" }
+    { "path": "/api/markets/announcements/fetch", "schedule": "*/30 0-6 * * 1-5" },
+
+    { "path": "/api/scrapers/aemo-grid-mix", "schedule": "0 21 * * *" }
   ]
 }

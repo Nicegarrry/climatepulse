@@ -126,6 +126,7 @@ function heroToEditorial(hero: DigestHeroStory, idx: number, scoredStories: Scor
     entitiesMentioned: hero.entities_mentioned,
     editorsPick: ed.editors_pick,
     editorialNote: ed.editorial_note ?? null,
+    triggeredIndicatorUpdate: hero.triggered_indicator_update ?? null,
   };
 }
 
@@ -150,6 +151,7 @@ function compactToEditorial(compact: DigestCompactStory, idx: number, offset: nu
     url: compact.url,
     editorsPick: ed.editors_pick,
     editorialNote: ed.editorial_note ?? null,
+    triggeredIndicatorUpdate: compact.triggered_indicator_update ?? null,
   };
 }
 
@@ -880,6 +882,47 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   );
 }
 
+function IndicatorsUpdatedStrip({ count }: { count: number }) {
+  return (
+    <a
+      href="/dashboard?tab=indicators"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        background: COLORS.sageTint,
+        border: `1px solid ${COLORS.border}`,
+        borderLeft: `3px solid ${COLORS.forest}`,
+        padding: "10px 14px",
+        marginBottom: 12,
+        fontFamily: FONTS.sans,
+        textDecoration: "none",
+        color: "inherit",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <span
+          style={{
+            fontSize: 18,
+            fontWeight: 600,
+            color: COLORS.forest,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {count}
+        </span>
+        <span style={{ fontSize: 13, color: COLORS.ink }}>
+          indicator{count === 1 ? "" : "s"} updated today
+        </span>
+      </div>
+      <span style={{ fontSize: 11, color: COLORS.forest, fontWeight: 500 }}>
+        View →
+      </span>
+    </a>
+  );
+}
+
 function SampleBanner({ reason }: { reason: "no_articles" | "no_personalisation_match" | "ai_error" | undefined }) {
   const copy: Record<string, string> = {
     no_articles: "Today's stories are still being processed. We've put together a sample briefing so you can see the shape — yours will arrive at 6am AEST.",
@@ -1351,11 +1394,23 @@ export default function IntelligenceTab() {
   }
 
   const isSampleBriefing = briefing?.digest?.is_sample === true;
-  const topBanner =
+  const indicatorsCount = briefing?.digest?.indicators_updated_today ?? 0;
+  const indicatorsStrip =
+    indicatorsCount > 0 && !isSampleBriefing ? (
+      <IndicatorsUpdatedStrip count={indicatorsCount} />
+    ) : null;
+  const baseBanner =
     digestStatus === "generating" && generationStartedAt ? (
       <GeneratingBanner startedAt={generationStartedAt} estimatedSeconds={60} />
     ) : isSampleBriefing ? (
       <SampleBanner reason={briefing?.digest?.sample_reason} />
+    ) : null;
+  const topBanner =
+    baseBanner || indicatorsStrip ? (
+      <>
+        {baseBanner}
+        {indicatorsStrip}
+      </>
     ) : null;
 
   return (

@@ -48,6 +48,12 @@ PostgreSQL via the `pg` driver (no ORM). Prod is Supabase (`sixyxxuvplvpjcnkthed
 - `editor_assignments` — guest editor week-based access
 - `share_clicks` — share-link click tracking
 
+### Indicators
+- `indicators` — catalogue of tracked quantitative climate/energy indicators (slug, sector, geography, unit, value_type, direction_good, status); `current_value`/`prior_value`/`last_updated_at` are denormalised caches kept in sync by `trg_indicator_values_update_cache`
+- `indicator_values` — append-only history; provenance enforced at DB level via `indicator_values_provenance_check` (article rows require `source_article_id` + `evidence_quote`; scraper rows require `source_scraper`)
+- `indicator_review_queue` — uncertain detections (confidence 0.6–0.85 or unit/geo mismatch) awaiting editor approval; mirrors the `concept_card_candidates` review pattern
+- `scraper_runs` — telemetry for direct-scraper indicator updates (bypass path); one row per scraper run, mirrors `pipeline_runs` shape
+
 ## Migrations (`scripts/`)
 
 | File | Purpose |
@@ -62,6 +68,7 @@ PostgreSQL via the `pg` driver (no ORM). Prod is Supabase (`sixyxxuvplvpjcnkthed
 | `migrate-weekly-digest.sql` | `weekly_reports` + `weekly_digests` |
 | `migrate-markets.sql` | Markets tables |
 | `migrate-graph-rag.sql` + `migrate-graph-rag-vocab-v2.sql` | Graph-RAG entity relation schema |
+| `migrations/indicators/001-indicators.sql` + `002-seed-catalogue.sql` + `003-scrapers.sql` | Indicators system: catalogue, append-only history with DB-enforced provenance, review queue, scraper telemetry. Apply via `pnpm tsx scripts/apply-indicators-migration.mjs` |
 
 ## Seed + apply wrappers
 

@@ -456,6 +456,86 @@ async function fetchUserProfile(userId: string): Promise<UserProfile> {
   return { ...MOCK_USER_PROFILE, id: userId };
 }
 
+// ─── Indicator update annotation ───────────────────────────────────────────
+
+async function annotateIndicatorUpdates(
+  digest: DigestOutput,
+  stories: ScoredStory[]
+): Promise<DigestOutput> {
+  try {
+    const articleIds = stories.map((s) => s.id).filter(Boolean);
+    const updateByUrl = new Map<
+      string,
+      {
+        indicator_slug: string;
+        indicator_name: string;
+        new_value: number;
+        unit: string;
+        direction_good: "down" | "up" | "neutral";
+      }
+    >();
+
+    if (articleIds.length > 0) {
+      const { rows } = await pool.query<{
+        article_url: string;
+        slug: string;
+        name: string;
+        value: string;
+        unit: string;
+        direction_good: "down" | "up" | "neutral";
+      }>(
+        `SELECT
+           ra.article_url,
+           i.slug,
+           i.name,
+           iv.value::text AS value,
+           iv.unit,
+           i.direction_good
+         FROM indicator_values iv
+         JOIN indicators i ON i.id = iv.indicator_id
+         JOIN raw_articles ra ON ra.id = iv.source_article_id
+         WHERE iv.source_article_id = ANY($1::uuid[])
+           AND iv.source_type = 'article'
+           AND iv.created_at::date = CURRENT_DATE
+         ORDER BY iv.created_at DESC`,
+        [articleIds]
+      );
+      for (const r of rows) {
+        if (updateByUrl.has(r.article_url)) continue;
+        updateByUrl.set(r.article_url, {
+          indicator_slug: r.slug,
+          indicator_name: r.name,
+          new_value: Number(r.value),
+          unit: r.unit,
+          direction_good: r.direction_good,
+        });
+      }
+    }
+
+    const { rows: countRows } = await pool.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM indicator_values
+       WHERE source_type = 'article' AND created_at::date = CURRENT_DATE`
+    );
+    const totalToday = countRows[0]?.n ?? 0;
+
+    return {
+      ...digest,
+      indicators_updated_today: totalToday,
+      hero_stories: digest.hero_stories.map((h) => {
+        const u = updateByUrl.get(h.url);
+        return u ? { ...h, triggered_indicator_update: u } : h;
+      }),
+      compact_stories: digest.compact_stories.map((c) => {
+        const u = updateByUrl.get(c.url);
+        return u ? { ...c, triggered_indicator_update: u } : c;
+      }),
+    };
+  } catch (err) {
+    console.warn("[digest] indicator annotation failed:", err);
+    return digest;
+  }
+}
+
 // ─── Public entry point ────────────────────────────────────────────────────
 
 export async function generateBriefingForUser(
@@ -573,6 +653,10 @@ export async function generateBriefingForUser(
   if (sampleReason) {
     digest = { ...digest, is_sample: true, sample_reason: sampleReason };
   }
+
+  // Annotate digest with indicator updates triggered by today's articles.
+  // Non-fatal: any DB error here just leaves the digest unannotated.
+  digest = await annotateIndicatorUpdates(digest, stories);
 
   const now = new Date().toISOString();
   const today = sydneyDateString();

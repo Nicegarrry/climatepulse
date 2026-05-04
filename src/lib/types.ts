@@ -425,6 +425,14 @@ export interface DigestDailyNumber {
   trend: string | null;
 }
 
+export interface TriggeredIndicatorUpdate {
+  indicator_slug: string;
+  indicator_name: string;
+  new_value: number;
+  unit: string;
+  direction_good: "down" | "up" | "neutral";
+}
+
 export interface DigestHeroStory {
   rank: number;
   headline: string;
@@ -436,6 +444,7 @@ export interface DigestHeroStory {
   connected_storyline: { title: string; context: string } | null;
   micro_sectors: string[];
   entities_mentioned: string[];
+  triggered_indicator_update?: TriggeredIndicatorUpdate | null;
 }
 
 export interface DigestCompactStory {
@@ -445,6 +454,7 @@ export interface DigestCompactStory {
   url: string;
   one_line_take: string;
   key_metric: { value: string; unit: string; delta?: string } | null;
+  triggered_indicator_update?: TriggeredIndicatorUpdate | null;
 }
 
 export interface DigestCrossConnection {
@@ -463,6 +473,9 @@ export interface DigestOutput {
   // overwrites with a real briefing.
   is_sample?: boolean;
   sample_reason?: "no_articles" | "no_personalisation_match" | "ai_error";
+  // Annotated post-Claude in src/lib/digest/generate.ts: total indicator
+  // values inserted today across all articles. Hidden in the UI when 0.
+  indicators_updated_today?: number;
 }
 
 export interface DailyBriefing {

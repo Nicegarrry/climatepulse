@@ -15,6 +15,7 @@ import { DigestComposer } from "./digest-composer";
 import { PreviewPanel } from "./preview-panel";
 import { DailyReviewPanel } from "./daily-review";
 import { ActivityLogPanel } from "./activity-log-panel";
+import { IndicatorReviewPanel } from "./indicator-review-panel";
 import { SourceHealthDot } from "./source-health-dot";
 import { CollapsibleSection } from "./collapsible-section";
 import { BriefingPackView } from "./briefing-pack-view";
@@ -426,6 +427,17 @@ export default function EditorTab() {
           defaultOpen={true}
         >
           <ActivityLogPanel />
+        </CollapsibleSection>
+      </div>
+
+      <div style={{ marginBottom: 18 }}>
+        <CollapsibleSection
+          title="Indicator Review"
+          subtitle="Detector hints awaiting approval"
+          storageKey="indicator-review"
+          defaultOpen={false}
+        >
+          <IndicatorReviewPanel />
         </CollapsibleSection>
       </div>
 

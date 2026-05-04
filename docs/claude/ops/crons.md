@@ -11,6 +11,7 @@ All times UTC. Sydney offset: 05:00 AEST = 19:00 UTC (AEDT is +11, so summer sch
 | `0 19 * * *`  | `/api/pipeline/ingest`   | 300s | RSS + scrape + 2 APIs in parallel |
 | `5 19 * * *`  | `/api/pipeline/fulltext` | 300s | 3-min internal budget |
 | `10 19 * * *` | `/api/pipeline/enrich`   | **800s** | 12-min internal budget leaves headroom for the active Gemini batch |
+| `22 19 * * *` | `/api/pipeline/detect-indicators` | 300s | LLM scan of last-24h enriched articles for indicator value updates; gated to live (≥0.85) vs review queue |
 | `25 19 * * *` | `/api/pipeline/digest`   | 300s | Per-user Sonnet calls, direct function invocation (no self-fetch) |
 | `40 19 * * *` | `/api/pipeline/podcast`  | 300s | Sonnet script + Gemini TTS → Vercel Blob |
 
@@ -31,6 +32,14 @@ Route: `/api/newsroom/ingest` (GET or POST, requires `CRON_SECRET`).
 
 Dedicated cron for prices + announcements refresh (landed in commit `bc55d9f`). Check `vercel.json` for the exact schedule.
 
+## Indicator scrapers (bypass path)
+
+Direct-scraper updates that bypass article inference. Each scraper has its own cron, writes `indicator_values` rows with `source_type='scraper'`, and logs to `scraper_runs`.
+
+| Time | Route | Scraper | Indicators updated |
+|---|---|---|---|
+| `0 21 * * *` | `/api/scrapers/aemo-grid-mix` | `aemo_grid_mix` | `grid_renewables_share_au`, `grid_emissions_intensity_au` |
+
 ## Manual trigger recipe
 
 ```
@@ -38,7 +47,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
      -X POST https://climatepulse-iota.vercel.app/api/pipeline/<step>
 ```
 
-…where `<step>` is `ingest`, `fulltext`, `enrich`, `digest`, or `podcast`.
+…where `<step>` is `ingest`, `fulltext`, `enrich`, `detect-indicators`, `digest`, or `podcast`.
 
 ## Hard rules
 
