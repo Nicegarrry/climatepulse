@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       audio_size_bytes: audioBuffer.length,
       audio_format: format,
       model_tts: "gemini-2.5-flash-preview-tts",
-      model_script: "claude-sonnet-4-20250514",
+      model_script: "claude-sonnet-4-6",
       generated_at: new Date().toISOString(),
     });
 
