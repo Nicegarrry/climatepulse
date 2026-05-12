@@ -4,6 +4,12 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { Lever } from '@/lib/automacc/types';
 
+function fmtCapex(aud: number): string {
+  if (aud === 0) return 'no capex';
+  if (aud >= 1_000_000) return `$${(aud / 1_000_000).toFixed(aud >= 10_000_000 ? 0 : 1)}M capex`;
+  return `$${(aud / 1_000).toFixed(0)}k capex`;
+}
+
 function LeverCard({
   lever,
   allocated,
@@ -33,6 +39,7 @@ function LeverCard({
       style={style}
       {...listeners}
       {...attributes}
+      suppressHydrationWarning
       className="border border-[var(--color-border-light)] bg-white p-3 hover:border-[var(--color-forest-mid)]"
       data-testid={`lever-${lever.leverId}`}
     >
@@ -59,11 +66,7 @@ function LeverCard({
       <div className="text-sm font-medium text-[var(--color-ink)] leading-tight">{lever.name}</div>
       <div className="mt-2 flex gap-3 text-[10px] text-[var(--color-ink-sec)]">
         <span>~{lever.typicalAbatementPct}% abatement</span>
-        <span>
-          {lever.capexAud === 0
-            ? 'no capex'
-            : `$${(lever.capexAud / 1000).toFixed(0)}k capex`}
-        </span>
+        <span>{fmtCapex(lever.capexAud)}</span>
       </div>
     </div>
   );

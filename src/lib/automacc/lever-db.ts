@@ -1003,18 +1003,29 @@ export const leverDbV2: Lever[] = [
   },
 ];
 
+// Map fixture orgSector values to the v2 YAML sector taxonomy (which differs).
+const SECTOR_ALIASES: Record<string, string[]> = {
+  professional_services: ['services'],
+  finance: ['services'],
+  consulting: ['services'],
+};
+
 // Filter levers applicable to a given sector and set of source rows.
 export function getLeversForFixture(
   orgSector: string,
   sourcesPresent: Array<{ source: string; endUse: string | null }>,
 ): Lever[] {
+  const sectorVariants = [orgSector, ...(SECTOR_ALIASES[orgSector] ?? [])];
   return leverDbV2.filter(lever => {
-    const sectorMatch = lever.sectorApplicability.includes(orgSector);
+    const sectorMatch = lever.sectorApplicability.some(s => sectorVariants.includes(s));
     const sourceMatch = lever.applicableTo.some(a =>
       sourcesPresent.some(
         s => s.source === a.source && (a.endUse === null || a.endUse === s.endUse),
       ),
     );
-    return sectorMatch || sourceMatch;
+    // If the lever declares sector scope, require both sector + source match.
+    // Levers with empty sectorApplicability are universal — source match alone is enough.
+    if (lever.sectorApplicability.length === 0) return sourceMatch;
+    return sectorMatch && sourceMatch;
   });
 }
