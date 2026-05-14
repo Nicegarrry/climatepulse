@@ -4,41 +4,115 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
-import { PulseArt } from "./pulse-art";
 import { SampleBriefingModal } from "./sample-modal";
 import "./landing.css";
 
-const ArrowRight = () => (
-  <svg className="arrow" width="16" height="10" viewBox="0 0 16 10" fill="none" aria-hidden>
+const Arrow = ({ size = 14 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill="none"
+    aria-hidden
+    style={{ display: "inline-block", verticalAlign: -1 }}
+  >
     <path
-      d="M1 5h14M10 1l5 4-5 4"
+      d="M3 8h10M9 4l4 4-4 4"
       stroke="currentColor"
-      strokeWidth="1.6"
+      strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
   </svg>
 );
 
+const Mortarboard = () => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 16 16"
+    fill="none"
+    aria-hidden
+    style={{ display: "inline-block", verticalAlign: -1, marginRight: 4 }}
+  >
+    <path
+      d="M1 6.5l7-3.5 7 3.5-7 3.5-7-3.5zM3.5 8v3.5c0 1 2 2 4.5 2s4.5-1 4.5-2V8"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const PulseDot = ({ size = 6 }: { size?: number }) => (
+  <span
+    className="cp-pulse-dot"
+    style={{ width: size, height: size }}
+    aria-hidden
+  />
+);
+
+// ─── Pillar data ──────────────────────────────────────────────────────────
+
+type PillarId = "intel" | "learn" | "serve";
+
+type PillarItem = { name: string; tag: string };
+
+const PILLARS: { id: PillarId; num: string; name: string; promise: string }[] = [
+  {
+    id: "intel",
+    num: "01",
+    name: "Live intelligence",
+    promise: "What changed overnight, and what's moving now.",
+  },
+  {
+    id: "learn",
+    num: "02",
+    name: "Learning",
+    promise: "Catch up on the concepts, the players, and the long arc.",
+  },
+  {
+    id: "serve",
+    num: "03",
+    name: "Beyond the briefing",
+    promise: "Founder-led work for teams that need more than a newsletter.",
+  },
+];
+
+const PILLAR_ITEMS: Record<PillarId, PillarItem[]> = {
+  intel: [
+    { name: "Daily briefing", tag: "Live" },
+    { name: "Newsroom", tag: "Live" },
+    { name: "Energy", tag: "Live" },
+    { name: "Markets", tag: "Live" },
+  ],
+  learn: [
+    { name: "Learn", tag: "Live" },
+    { name: "Research", tag: "Live" },
+    { name: "Weekly Pulse", tag: "Sun" },
+    { name: "Teaching", tag: "Jul" },
+  ],
+  serve: [
+    { name: "AutoMACC", tag: "Live" },
+    { name: "Private briefings", tag: "Req" },
+    { name: "Sector deep reads", tag: "Req" },
+    { name: "Workshops", tag: "Q3" },
+  ],
+};
+
+// ─── Landing root ─────────────────────────────────────────────────────────
+
 export function Landing() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
-  const [pastHero, setPastHero] = useState(false);
-  const finalCtaRef = useRef<HTMLElement | null>(null);
+  const ctaRef = useRef<HTMLElement | null>(null);
 
-  // Authed users still route to /dashboard
+  // Authed users land on /launchpad — the post-auth router page.
   useEffect(() => {
-    if (!isLoading && user) router.replace("/dashboard");
+    if (!isLoading && user) router.replace("/launchpad");
   }, [user, isLoading, router]);
-
-  // Reveal the sticky CTA + topbar Sample button after the hero scrolls past
-  useEffect(() => {
-    const onScroll = () => setPastHero(window.scrollY > 500);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   if (user) {
     return (
@@ -67,56 +141,51 @@ export function Landing() {
 
   const openSample = () => setModalOpen(true);
   const closeSample = () => setModalOpen(false);
-  const goEarlyAccess = () => {
-    finalCtaRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const scrollToCTA = () => ctaRef.current?.scrollIntoView({ behavior: "smooth" });
 
   return (
-    <div className="cp-landing">
-      <header className="topbar">
-        <div className="topbar-logo">
-          <Image
-            src="/leaf only.svg"
-            alt=""
-            width={24}
-            height={24}
-            className="mark"
-            priority
-          />
-          <span>climate pulse</span>
-        </div>
-        <button
-          type="button"
-          className={`topbar-cta ${pastHero ? "visible" : ""}`}
-          onClick={openSample}
-        >
-          Sample →
-        </button>
-      </header>
-
-      <Hero onSampleClick={openSample} onCTAClick={goEarlyAccess} />
-      <Problem />
-      <HowItWorks />
-      <WhatYouGet />
-      <Personas />
+    <div className="cp-launchpad">
+      <TopNav onScrollToCTA={scrollToCTA} />
+      <Hero onSampleClick={openSample} onCTAClick={scrollToCTA} />
+      <Pillars onSampleClick={openSample} />
       <Moat />
-      <FAQ />
-      <FinalCTA sectionRef={finalCtaRef} onCTAClick={() => router.push("/login")} />
+      <CTA sectionRef={ctaRef} onCTAClick={() => router.push("/login")} />
       <Footer />
-
-      <div className={`sticky-cta ${pastHero ? "visible" : ""}`} aria-hidden={!pastHero}>
-        <button type="button" className="btn-primary" onClick={goEarlyAccess}>
-          Get early access
-          <ArrowRight />
-        </button>
-      </div>
-
       <SampleBriefingModal open={modalOpen} onClose={closeSample} />
     </div>
   );
 }
 
-// ─── Section components ────────────────────────────────────────────────────
+// ─── Top nav ──────────────────────────────────────────────────────────────
+
+function TopNav({ onScrollToCTA }: { onScrollToCTA: () => void }) {
+  const handleCTA = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    onScrollToCTA();
+  };
+  return (
+    <header className="pl-top">
+      <div className="left">
+        <Image src="/leaf only.svg" alt="" width={22} height={22} priority />
+        <span>climate pulse</span>
+      </div>
+      <nav className="right">
+        <a href="#how">How it works</a>
+        <a href="#pillars">What you get</a>
+        <a href="#moat">Why it&rsquo;s different</a>
+        <a className="login-link" href="/login">
+          <Mortarboard />
+          Student login
+        </a>
+        <a className="cta" href="#cta" onClick={handleCTA}>
+          Get early access
+        </a>
+      </nav>
+    </header>
+  );
+}
+
+// ─── Hero ─────────────────────────────────────────────────────────────────
 
 function Hero({
   onSampleClick,
@@ -126,372 +195,134 @@ function Hero({
   onCTAClick: () => void;
 }) {
   return (
-    <section className="hero">
-      <div className="hero-eyebrow">
-        <span className="dot" aria-hidden />
-        <span>Pre-launch · Early access open</span>
-      </div>
-      <PulseArt />
-      <h1 className="hero-title">
-        The daily brief for Australia&rsquo;s <em>energy transition.</em>
-      </h1>
-      <p className="hero-sub">
-        ClimatePulse reads the policy drops, market moves, and project news shaping your
-        sector — then sends you only what matters. Paired with a live NEM + ASX energy
-        dashboard. Built by someone who&rsquo;s worked inside it, not another aggregator.
-      </p>
-      <div className="hero-cta-stack">
-        <button type="button" className="btn-primary" onClick={onCTAClick}>
-          Get early access
-          <ArrowRight />
-        </button>
-        <button type="button" className="btn-ghost" onClick={onSampleClick}>
-          See a sample briefing <span className="arrow">→</span>
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function Problem() {
-  const sources: { label: string; strike?: boolean }[] = [
-    { label: "RenewEconomy" },
-    { label: "AFR" },
-    { label: "AEMO" },
-    { label: "DCCEEW" },
-    { label: "pv magazine" },
-    { label: "LinkedIn", strike: true },
-    { label: "3 Substacks", strike: true },
-    { label: "AER" },
-    { label: "2 WhatsApps", strike: true },
-    { label: "CER" },
-    { label: "The Australian" },
-    { label: "…" },
-  ];
-  return (
-    <section className="problem">
-      <div className="section-num">02 · The problem</div>
-      <h2 className="section-title">
-        There&rsquo;s too much, and most of it <em>isn&rsquo;t for you.</em>
-      </h2>
-      <p className="section-lede">
-        RenewEconomy, AFR, AEMO, DCCEEW, LinkedIn, three Substacks, two WhatsApp groups.
-        Every day more gets published — and the fraction relevant to your work keeps
-        shrinking.
-      </p>
-      <div className="problem-sources">
-        {sources.map((s, i) => (
-          <span key={i} className="source-chip">
-            <span className={s.strike ? "strike" : ""}>{s.label}</span>
-          </span>
-        ))}
-      </div>
-      <p className="section-lede" style={{ fontSize: 17 }}>
-        Most people respond by skimming more. ClimatePulse flips it: ingest everything,
-        surface only what matters for your specific sector and role.
-      </p>
-    </section>
-  );
-}
-
-function HowItWorks() {
-  return (
-    <section>
-      <div className="section-num">03 · How it works</div>
-      <h2 className="section-title">Three beats, one briefing.</h2>
-      <div className="how-cards">
-        <div className="how-card">
-          <span className="badge">Pipeline</span>
-          <span className="how-num">01</span>
-          <h3 className="how-heading">We read everything.</h3>
-          <p className="how-body">
-            Our pipeline ingests hundreds of Australian and global sources daily:
-            regulators, utilities, research institutions, trade press, and international
-            coverage that moves the Australian market. Two-tier retrieval so
-            JavaScript-heavy sites and podcasts don&rsquo;t slip through.
-          </p>
+    <section className="pl-hero" id="how">
+      <div className="container">
+        <div className="eyebrow">
+          <PulseDot />
+          &nbsp; PRE-LAUNCH · EARLY ACCESS OPEN
         </div>
-        <div className="how-card">
-          <span className="badge">Model</span>
-          <span className="how-num">02</span>
-          <h3 className="how-heading">We classify and score.</h3>
-          <p className="how-body">
-            Every item is tagged across 108 micro-sectors and scored for significance on
-            a 0–100 index. The taxonomy was built from scratch for Australian energy
-            transition — not borrowed from a generic news ontology.
-          </p>
-          <div className="score-visual" aria-hidden>
-            <div className="score-row">
-              <span style={{ minWidth: 120 }}>CIS auction closes</span>
-              <div className="score-bar">
-                <div className="score-fill" style={{ width: "94%", animationDelay: "0.1s" }} />
-              </div>
-              <span className="score-val">94</span>
-            </div>
-            <div className="score-row">
-              <span style={{ minWidth: 120 }}>AEMC rule change</span>
-              <div className="score-bar">
-                <div className="score-fill" style={{ width: "71%", animationDelay: "0.25s" }} />
-              </div>
-              <span className="score-val">71</span>
-            </div>
-            <div className="score-row">
-              <span style={{ minWidth: 120 }}>Offshore wind EIS</span>
-              <div className="score-bar">
-                <div className="score-fill" style={{ width: "43%", animationDelay: "0.4s" }} />
-              </div>
-              <span className="score-val">43</span>
-            </div>
-          </div>
-        </div>
-        <div className="how-card">
-          <span className="badge">Delivery</span>
-          <span className="how-num">03</span>
-          <h3 className="how-heading">You get what matters.</h3>
-          <p className="how-body">
-            Your daily briefing is personalised to the sectors and topics you choose,
-            ranked by significance to you. Five-minute read, in your inbox before 6am AEST.
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function WhatYouGet() {
-  const features: { name: string; desc: string; soon?: boolean }[] = [
-    {
-      name: "Daily brief",
-      desc: "The core product. Personalised, ranked, five minutes long. Email and dashboard.",
-    },
-    {
-      name: "Weekly digest",
-      desc: "Longer-form editorial analysis every Sunday. Themes, patterns, what's quietly building.",
-    },
-    {
-      name: "Daily audio",
-      desc: "The brief as a short podcast, for the commute. Plus weekly themed episodes that go deeper on a single story.",
-    },
-    {
-      name: "Live energy dashboard",
-      desc: "NEM generation mix, wholesale spot prices by state, and the renewables share — updated every five-minute dispatch interval. Opens today's brief with the at-a-glance snapshot.",
-    },
-    {
-      name: "ASX energy tickers",
-      desc: "Daily market data for the ASX-listed energy, utilities, and critical-minerals stocks that move with your sector — Origin, Santos, Pilbara, Lynas, IGO, AGL, and more.",
-    },
-    {
-      name: "Storylines",
-      soon: true,
-      desc: "Follow a narrative across weeks. How a policy fight, project saga, or market shift is actually developing over time.",
-    },
-    {
-      name: "Learn",
-      soon: true,
-      desc: "Short primers on the concepts, bodies, and acronyms behind the headlines — so new team members can catch up fast.",
-    },
-  ];
-  return (
-    <section>
-      <div className="section-num">04 · What you get</div>
-      <h2 className="section-title">
-        A briefing, <em>and a data dashboard.</em>
-      </h2>
-      <div className="features">
-        {features.map((f, i) => (
-          <div className="feature-row" key={i} data-soon={f.soon ? "true" : "false"}>
-            <div className="feature-mark">{String(i + 1).padStart(2, "0")}</div>
-            <div className="feature-body">
-              <h3 className="feature-name">
-                {f.name}
-                {f.soon && <span className="tag">Coming soon</span>}
-              </h3>
-              <p className="feature-desc">{f.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-const PERSONAS = [
-  {
-    id: "invest",
-    tab: "Investors",
-    role: "Investors & analysts",
-    what: "Deal flow, policy signals, and the market moves that shape Australian energy thesis work.",
-    bullets: [
-      "Capital raises, term sheets, M&A",
-      "Regulator signals before consensus",
-      "ASX energy tickers & sparklines",
-    ],
-  },
-  {
-    id: "corp",
-    tab: "Corporate",
-    role: "Corporate sustainability leads",
-    what: "What regulators, peers, and supply chains are doing — before it lands on your CEO's desk.",
-    bullets: [
-      "Disclosure & reporting rule changes",
-      "Peer moves: science-based targets, offtakes",
-      "Supply-chain decarb, Scope 3",
-    ],
-  },
-  {
-    id: "policy",
-    tab: "Policy",
-    role: "Policy analysts",
-    what: "Consultation openings, draft determinations, parliamentary movement, state-vs-federal dynamics.",
-    bullets: [
-      "Consultation & submission windows",
-      "Draft determinations, final rules",
-      "Senate committees, state ministers",
-    ],
-  },
-  {
-    id: "dev",
-    tab: "Developers",
-    role: "Project developers",
-    what: "Grid connection, planning, offtake, and permitting signals across the technologies you work in.",
-    bullets: [
-      "AEMO GPS process & grid connection",
-      "Planning approvals & EIS timelines",
-      "Offtake markets, CIS outcomes",
-    ],
-  },
-  {
-    id: "res",
-    tab: "Research",
-    role: "Researchers & academics",
-    what: "Funding calls, adjacent research, and the policy-industry interface your grants need to track.",
-    bullets: [
-      "ARENA, ARC, CRC funding rounds",
-      "Adjacent research, preprints, data",
-      "Policy-industry interface for grants",
-    ],
-  },
-];
-
-function Personas() {
-  const [activeId, setActiveId] = useState(PERSONAS[0].id);
-  const p = PERSONAS.find((x) => x.id === activeId) ?? PERSONAS[0];
-  return (
-    <section className="personas">
-      <div className="section-num">05 · Built for your role</div>
-      <h2 className="section-title">
-        Five entry points. <em>One of them is yours.</em>
-      </h2>
-      <div className="persona-tabs" role="tablist">
-        {PERSONAS.map((x) => (
-          <button
-            key={x.id}
-            type="button"
-            role="tab"
-            aria-selected={x.id === activeId}
-            className={`persona-tab ${x.id === activeId ? "active" : ""}`}
-            onClick={() => setActiveId(x.id)}
-          >
-            {x.tab}
+        <h1>
+          The daily brief for Australia&rsquo;s <em>energy transition.</em>
+        </h1>
+        <p className="sub">
+          ClimatePulse reads the policy drops, market moves, and project news shaping
+          your sector — then sends you only what matters. Paired with a live NEM + ASX
+          energy dashboard, deeper learning, and founder-led services for teams that
+          need more than a newsletter.
+        </p>
+        <div className="ctas">
+          <button type="button" className="btn-primary" onClick={onCTAClick}>
+            Get early access <Arrow />
           </button>
-        ))}
-      </div>
-      <div className="persona-panel" role="tabpanel">
-        <div className="persona-role">{p.role}</div>
-        <p className="persona-what">{p.what}</p>
-        <ul className="persona-list">
-          {p.bullets.map((b, i) => (
-            <li key={i}>{b}</li>
-          ))}
-        </ul>
+          <button type="button" className="btn-ghost" onClick={onSampleClick}>
+            See a sample briefing →
+          </button>
+        </div>
       </div>
     </section>
   );
 }
+
+// ─── Three-pillar architecture section ───────────────────────────────────
+
+function Pillars({ onSampleClick }: { onSampleClick: () => void }) {
+  const [activePillar, setActivePillar] = useState<PillarId>("intel");
+
+  return (
+    <section className="pl-architecture" id="pillars">
+      <div className="container">
+        <div className="pl-arch-head">
+          <div>
+            <div className="eyebrow">04 · WHAT YOU GET</div>
+            <h2>
+              A briefing, a classroom, <em>and a workshop.</em>
+            </h2>
+          </div>
+          <p className="copy">
+            Climate Pulse is three things on one masthead. A daily intelligence product
+            for the morning read. A learning surface for the long arc. And a small set
+            of founder-led services for teams that want a more direct line.
+          </p>
+        </div>
+
+        <div className="pl-arch-switch" role="tablist" aria-label="Preview a pillar">
+          {PILLARS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="tab"
+              aria-selected={activePillar === p.id}
+              className={`pl-switch-btn ${activePillar === p.id ? "active" : ""}`}
+              onClick={() => setActivePillar(p.id)}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="pl-arch-grid">
+          {PILLARS.map((p) => {
+            const isActive = p.id === activePillar;
+            return (
+              <article
+                key={p.id}
+                className={`pl-pillar-card ${isActive ? "active" : ""}`}
+              >
+                <span className="num">{p.num.replace("0", "")}.</span>
+                <h3>{p.name}</h3>
+                <p className="promise">{p.promise}</p>
+                <ul>
+                  {PILLAR_ITEMS[p.id].map((it) => (
+                    <li key={it.name}>
+                      <span>{it.name}</span>
+                      <span className="tag">{it.tag}</span>
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" className="open" onClick={onSampleClick}>
+                  {p.id === "serve" ? "Talk to us" : "Sample it"} <Arrow />
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Moat ─────────────────────────────────────────────────────────────────
 
 function Moat() {
   return (
-    <section className="moat">
-      <div className="section-num">06 · The moat</div>
-      <h2 className="section-title">
-        Not another <em>AI news aggregator.</em>
-      </h2>
-      <p>
-        Most climate newsletters built in 2025 are a ChatGPT prompt wrapped around an RSS
-        feed.
-      </p>
-      <div className="pull">
-        ClimatePulse is different in the parts that matter: the 108-sector taxonomy, the
-        significance scoring model, and the source list.
-      </div>
-      <p>
-        These are the product of years working inside Australian energy transition as a
-        strategy consultant. AI does the heavy lifting of reading and classifying.
-        Editorial judgment — mine — defines what &ldquo;significant&rdquo; means.
-      </p>
-      <p>
-        That&rsquo;s the difference between a briefing that feels curated and a feed that
-        feels algorithmic.
-      </p>
-      <div className="sig">Nick · Founder, ClimatePulse</div>
-    </section>
-  );
-}
-
-const FAQS = [
-  { q: "When does it arrive?", a: "Every morning before 6am AEST, seven days a week." },
-  {
-    q: "What sources do you cover?",
-    a: "Australian regulators and policy bodies (DCCEEW, AEMO, AER, CER, state equivalents), utilities, industry associations, trade press (RenewEconomy, pv magazine Australia, etc.), major mastheads, research institutions, and select international sources that affect Australian markets. Full list available on request.",
-  },
-  {
-    q: "How does personalisation work?",
-    a: "You pick sectors and topics during onboarding. Significance scoring gets boosted for your areas. The system refines over time based on what you open and read.",
-  },
-  {
-    q: "What does it cost?",
-    a: "Early access is free while we shape the product. Paid tiers will be introduced later — early access users will get preferential pricing.",
-  },
-  {
-    q: "Is my data private?",
-    a: "Yes. Your personalisation choices and engagement data are never shared or sold. Email delivery is via Resend over a custom domain.",
-  },
-  {
-    q: "Who's behind it?",
-    a: "A solo operator with a background in Australian energy strategy consulting. More on the About page.",
-  },
-];
-
-function FAQ() {
-  const [openIdx, setOpenIdx] = useState<number>(0);
-  return (
-    <section>
-      <div className="section-num">07 · Frequently asked</div>
-      <h2 className="section-title">Questions, pre-empted.</h2>
-      <div className="faq-list">
-        {FAQS.map((item, i) => {
-          const isOpen = openIdx === i;
-          return (
-            <div key={i} className={`faq-item ${isOpen ? "open" : ""}`}>
-              <button
-                type="button"
-                className="faq-q"
-                aria-expanded={isOpen}
-                onClick={() => setOpenIdx(isOpen ? -1 : i)}
-              >
-                {item.q}
-                <span className="plus" aria-hidden />
-              </button>
-              <div className="faq-a">{item.a}</div>
-            </div>
-          );
-        })}
+    <section className="pl-moat" id="moat">
+      <div className="container">
+        <div className="eyebrow">05 · THE MOAT</div>
+        <h2>
+          Not another <em>AI news aggregator.</em>
+        </h2>
+        <p className="lede">
+          Most climate newsletters built in 2025 are a ChatGPT prompt wrapped around an
+          RSS feed. ClimatePulse is different in the parts that matter: the 108-sector
+          taxonomy, the significance scoring model, and the source list. These are the
+          product of years working inside Australian energy transition.
+        </p>
+        <p className="pull">
+          AI does the heavy lifting of reading and classifying. Editorial judgement —
+          mine — defines what &ldquo;significant&rdquo; means.
+        </p>
+        <div className="attribution">
+          <span className="rule" aria-hidden />
+          Nick · Founder, Climate Pulse
+        </div>
       </div>
     </section>
   );
 }
 
-function FinalCTA({
+// ─── Final CTA ────────────────────────────────────────────────────────────
+
+function CTA({
   sectionRef,
   onCTAClick,
 }: {
@@ -499,42 +330,34 @@ function FinalCTA({
   onCTAClick: () => void;
 }) {
   return (
-    <section className="final-cta" ref={sectionRef}>
-      <div className="section-num" style={{ justifyContent: "center" }}>
-        08 · Start here
+    <section className="pl-cta" id="cta" ref={sectionRef}>
+      <div className="container">
+        <div className="eyebrow">06 · START HERE</div>
+        <h2>
+          Start your morning with <em>signal, not noise.</em>
+        </h2>
+        <p>
+          Early access is open. Takes 30 seconds — drop your email and pick the sectors
+          you care about.
+        </p>
+        <button type="button" className="btn-primary" onClick={onCTAClick}>
+          Get early access <Arrow />
+        </button>
+        <div className="stamp">NO SPAM · UNSUBSCRIBE ANY TIME</div>
       </div>
-      <h2 className="section-title">
-        Start your morning with <em>signal, not noise.</em>
-      </h2>
-      <p>
-        Early access is open. Takes 30 seconds — drop your email and pick the sectors you
-        care about.
-      </p>
-      <button type="button" className="btn-primary" onClick={onCTAClick}>
-        Get early access
-        <ArrowRight />
-      </button>
-      <div className="fine">NO SPAM · UNSUBSCRIBE ANY TIME</div>
     </section>
   );
 }
 
+// ─── Footer ───────────────────────────────────────────────────────────────
+
 function Footer() {
   return (
-    <footer>
-      <div className="foot-row">
-        <div>CLIMATEPULSE</div>
-        <div>BUILT IN AUSTRALIA</div>
-      </div>
-      <div className="foot-links">
-        <a href="/privacy">Privacy</a>
-        <a href="/terms">Terms</a>
+    <footer className="pl-foot">
+      <span>CLIMATE PULSE · BUILT IN AUSTRALIA</span>
+      <span>
         <a href="mailto:hello@climatepulse.app">hello@climatepulse.app</a>
-      </div>
-      <p className="foot-colophon">
-        A small, serious publication for Australian energy transition. Assembled daily in
-        Sydney.
-      </p>
+      </span>
     </footer>
   );
 }

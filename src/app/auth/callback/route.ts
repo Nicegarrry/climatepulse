@@ -63,9 +63,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.redirect(`${origin}/dashboard`);
+  const response = NextResponse.redirect(`${origin}/launchpad`);
   // Mark this browser as a returning user so the landing page can
-  // redirect them straight to /dashboard on future root-URL visits.
+  // redirect them straight to /launchpad on future root-URL visits.
   // Functional cookie — survives logout, cleared only by the user.
   response.cookies.set("cp_returning", "1", {
     maxAge: 60 * 60 * 24 * 365, // 1 year

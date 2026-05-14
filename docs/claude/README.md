@@ -30,6 +30,7 @@ Long-form reference for future-Claude. CLAUDE.md is the thin index; this tree ho
 - [`share.md`](features/share.md) — AI-drafted blurbs + `/share/*` preview pages
 - [`editor.md`](features/editor.md) — editor dashboard, assignments, briefing pack
 - [`landing.md`](features/landing.md) — marketing landing, scoped design system, returning-user redirect
+- [`launchpad.md`](features/launchpad.md) — post-login triptych, opt-in digest, /automacc fast path
 
 ### `ops/` — how to run, deploy, and diagnose
 - [`deployment.md`](ops/deployment.md) — Vercel Pro, Supabase Marketplace integration, env vars
