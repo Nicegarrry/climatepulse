@@ -5,7 +5,8 @@ import { COLORS, FONTS } from "@/lib/design-tokens";
 
 interface Props {
   value: LeverApproach | null;
-  onChange: (approach: LeverApproach) => void;
+  // Pass `null` to clear the selection (clicking the active chip).
+  onChange: (approach: LeverApproach | null) => void;
 }
 
 export function ApproachChips({ value, onChange }: Props) {
@@ -28,7 +29,7 @@ export function ApproachChips({ value, onChange }: Props) {
             role="radio"
             aria-checked={selected}
             title={chip.blurb}
-            onClick={() => onChange(chip.id)}
+            onClick={() => onChange(selected ? null : chip.id)}
             style={{
               padding: "6px 12px",
               borderRadius: 999,

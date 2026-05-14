@@ -14,6 +14,8 @@ import { newSourceId } from "@/lib/automacc/v4-store";
 import {
   SOURCE_BUCKETS,
   INDUSTRIES,
+  AUSTRALIAN_STATES,
+  type AustralianState,
   type CompanyMeta,
   type EmployeeRange,
   type RevenueRange,
@@ -90,7 +92,8 @@ export function BaselineScreen({ store }: { store: MaccStore }) {
     return m;
   }, [sources]);
 
-  const canSubmit = Boolean(meta.industry) && sources.length > 0 && !submitting;
+  const canSubmit =
+    Boolean(meta.industry) && Boolean(meta.state) && sources.length > 0 && !submitting;
 
   function handleAdd(bucketId: SourceBucketId, factor: SourceFactor) {
     const entry: SourceEntry = {
@@ -216,6 +219,39 @@ export function BaselineScreen({ store }: { store: MaccStore }) {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label htmlFor="cm-state" style={labelStyle}>
+              State (primary operations)
+            </label>
+            <select
+              id="cm-state"
+              value={meta.state}
+              onChange={(e) =>
+                setMeta({ state: e.target.value as AustralianState | "" })
+              }
+              style={{ ...inputBase, width: "100%", appearance: "auto" }}
+            >
+              <option value="">Select a state…</option>
+              {AUSTRALIAN_STATES.map((s) => (
+                <option key={s} value={s}>
+                  {s === "mixed" ? "Mixed / multi-state" : s}
+                </option>
+              ))}
+            </select>
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: 11,
+                color: COLORS.inkMuted,
+                fontFamily: FONTS.sans,
+                lineHeight: 1.4,
+              }}
+            >
+              Used to apply your state&rsquo;s grid intensity to electricity
+              sources.
+            </p>
           </div>
 
           <div>
@@ -385,6 +421,8 @@ export function BaselineScreen({ store }: { store: MaccStore }) {
           >
             {!meta.industry
               ? "Pick an industry to continue."
+              : !meta.state
+              ? "Pick a state to continue."
               : sources.length === 0
               ? "Add at least one emission source."
               : ""}

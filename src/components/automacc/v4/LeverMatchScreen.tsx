@@ -29,13 +29,25 @@ export function LeverMatchScreen({ store }: { store: MaccStore }) {
     return m;
   }, [session.levers]);
 
-  const allReady = useMemo(() => {
-    if (session.sources.length === 0) return false;
-    return session.sources.every((s) => {
+  // A lever is "valid" when the student picked an approach + >0% abatement +
+  // at least one of (description, capex). Sources without an approach are
+  // intentionally skipped — students can leave levers off sources they
+  // don't plan to abate.
+  const validLeverCount = useMemo(() => {
+    let n = 0;
+    for (const s of session.sources) {
       const l = leverBySourceId.get(s.id);
-      return !!l && l.approach !== null && l.capexAud != null && l.abatementPct > 0;
-    });
+      if (!l || l.approach === null) continue;
+      if (l.abatementPct <= 0) continue;
+      const hasCapex = l.capexAud != null;
+      const hasDesc = (l.description ?? "").trim().length > 0;
+      if (!hasCapex && !hasDesc) continue;
+      n += 1;
+    }
+    return n;
   }, [session.sources, leverBySourceId]);
+
+  const allReady = validLeverCount > 0;
 
   const handleBuild = useCallback(async () => {
     if (!allReady || submitting) return;
@@ -128,9 +140,9 @@ export function LeverMatchScreen({ store }: { store: MaccStore }) {
             maxWidth: 720,
           }}
         >
-          For each emission source, choose the most plausible <em>approach</em> — don&apos;t
-          worry about exact technologies yet. You&apos;ll see a typical cost range and refine
-          later.
+          For sources you want to abate, pick an <em>approach</em> and describe what you&apos;d
+          do in plain English (e.g. &quot;switch to a corporate PPA&quot;). Capex is optional —
+          leave it blank and we&apos;ll estimate. Skip any source you don&apos;t plan to address.
         </p>
       </div>
 
@@ -168,8 +180,8 @@ export function LeverMatchScreen({ store }: { store: MaccStore }) {
           onClick={handleBuild}
           title={
             allReady
-              ? undefined
-              : "Set an approach, capex, and >0% abatement for every source."
+              ? `Build MACC for ${validLeverCount} lever${validLeverCount === 1 ? "" : "s"}`
+              : "Pick an approach + abatement + (description or capex) for at least one source."
           }
           style={{
             padding: "10px 22px",

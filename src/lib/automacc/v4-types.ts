@@ -61,6 +61,7 @@ export const LEVER_APPROACHES: { id: LeverApproach; label: string; blurb: string
 
 export type EmployeeRange = "1-50" | "51-200" | "201-1000" | "1001-10000" | "10000+";
 export type RevenueRange = "<10M" | "10-100M" | "100M-1B" | "1B-10B" | ">10B";
+export type AustralianState = "NSW" | "VIC" | "QLD" | "WA" | "SA" | "TAS" | "NT" | "ACT" | "mixed";
 
 export interface CompanyMeta {
   industry: string;          // one of dropdown values
@@ -68,6 +69,7 @@ export interface CompanyMeta {
   employees: EmployeeRange | "";
   revenue: RevenueRange | "";
   buildings: number;         // count
+  state: AustralianState | "";
 }
 
 // A single emission source row entered by the student.
@@ -123,6 +125,7 @@ export const EMPTY_SESSION: MaccSession = {
     employees: "",
     revenue: "",
     buildings: 0,
+    state: "",
   },
   sources: [],
   levers: [],
@@ -197,4 +200,16 @@ export const INDUSTRIES = [
   "Energy & utilities",
   "Agriculture",
   "Other",
+] as const;
+
+export const AUSTRALIAN_STATES = [
+  "NSW",
+  "VIC",
+  "QLD",
+  "WA",
+  "SA",
+  "TAS",
+  "NT",
+  "ACT",
+  "mixed",
 ] as const;

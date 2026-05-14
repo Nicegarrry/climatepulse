@@ -81,12 +81,15 @@ function validateBody(body: unknown): MaccRequest | { error: string } {
   if (!Array.isArray(b.levers)) return { error: "levers must be an array" };
   if (b.levers.length === 0) return { error: "levers must not be empty" };
   if (b.levers.length > 60) return { error: "levers exceeds 60 (limit)" };
-  for (const l of b.levers as LeverChoice[]) {
-    if (!l || typeof l !== "object") return { error: "lever entries must be objects" };
-    if (!l.sourceId || typeof l.sourceId !== "string") return { error: "lever.sourceId required" };
-    if (!l.approach) return { error: `lever for source ${l.sourceId} missing approach` };
-  }
-  return b as unknown as MaccRequest;
+  // Filter out levers with no approach (student skipped that source). Reject
+  // only if NONE remain — the route requires at least one buildable lever.
+  const filtered = (b.levers as LeverChoice[]).filter((l) => {
+    if (!l || typeof l !== "object") return false;
+    if (!l.sourceId || typeof l.sourceId !== "string") return false;
+    return !!l.approach;
+  });
+  if (filtered.length === 0) return { error: "no levers with an approach selected" };
+  return { ...(b as unknown as MaccRequest), levers: filtered };
 }
 
 function fmtCapex(t: LeverRef["typicalCapex"]): string {
@@ -127,7 +130,7 @@ function buildPrompt(req: MaccRequest): string {
     ``,
     `RULES:`,
     `- One row per source_id, returning source_id EXACTLY as given.`,
-    `- refined_capex_aud: if student_capex is within ~50% of typical mid (scaled by numerical × ref unit), keep it; otherwise nudge toward typical mid. All-in AUD, not per-unit.`,
+    `- refined_capex_aud: if student_capex is provided and within ~50% of typical mid (scaled by numerical × ref unit), keep it; otherwise nudge toward typical mid. If student_capex is "blank", estimate from student_desc + numerical + ref typicalCapex. All-in AUD, not per-unit. Always return a number, never null.`,
     `- lifetime_opex_delta_aud_annual: positive = annual saving, negative = annual cost. Compute as: (a) annual_avoided_fuel_cost_hint (already positive when there's a saving) PLUS (b) -1 × (ref opexDeltaPctOfCapex × refined_capex_aud / 100). Note (b) flips the sign of the ref pct: ref opexDeltaPctOfCapex is "negative = saving" so multiplying by -1 converts to our "positive = saving" total.`,
     `- library_lever_id: cite closest ref id if matching, else null.`,
     `- rationale: ONE concise sentence (no em dashes, no hedging) covering capex + opex logic.`,

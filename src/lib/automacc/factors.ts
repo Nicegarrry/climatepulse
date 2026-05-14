@@ -9,113 +9,80 @@ import type { SourceFactor } from "./v4-types";
 
 export const SOURCE_FACTORS: SourceFactor[] = [
   // ─── 1. Stationary electricity ─────────────────────────────────────────────
+  // Usage-based entries. State grid intensity is applied as a multiplier at
+  // compute time via STATE_GRID_INTENSITY (see below). The factor value here
+  // is the national-average grid intensity used when state = "mixed" or unset.
   {
-    id: "elec_grid_nsw",
+    id: "elec_building",
     bucket: "stationary_electricity",
-    label: "Grid electricity — NSW (Scope 2)",
+    label: "Grid electricity — building (HVAC, lighting, plug load)",
     numerical: {
       name: "Annual electricity use",
       unit: "MWh",
       hint: "e.g. 1,200 MWh for a mid-size office",
     },
     factor: {
-      value: 0.66,
+      value: 0.62,
       unitOut: "tCO2e",
       source: "AEMO",
       year: 2024,
-      notes: "NEM NSW1 residual mix, FY24.",
-    },
-    costFactorAudPerUnit: 200,
-  },
-  {
-    id: "elec_grid_vic",
-    bucket: "stationary_electricity",
-    label: "Grid electricity — VIC (Scope 2)",
-    numerical: {
-      name: "Annual electricity use",
-      unit: "MWh",
-      hint: "e.g. 1,200 MWh for a mid-size office",
-    },
-    factor: {
-      value: 0.85,
-      unitOut: "tCO2e",
-      source: "AEMO",
-      year: 2024,
-      notes: "Brown-coal heavy mix; highest in NEM.",
-    },
-    costFactorAudPerUnit: 200,
-  },
-  {
-    id: "elec_grid_qld",
-    bucket: "stationary_electricity",
-    label: "Grid electricity — QLD (Scope 2)",
-    numerical: {
-      name: "Annual electricity use",
-      unit: "MWh",
-      hint: "e.g. 1,200 MWh for a mid-size office",
-    },
-    factor: {
-      value: 0.71,
-      unitOut: "tCO2e",
-      source: "AEMO",
-      year: 2024,
-      notes: "Black-coal dominant FY24.",
-    },
-    costFactorAudPerUnit: 200,
-  },
-  {
-    id: "elec_grid_wa",
-    bucket: "stationary_electricity",
-    label: "Grid electricity — WA (Scope 2)",
-    numerical: {
-      name: "Annual electricity use",
-      unit: "MWh",
-      hint: "e.g. 1,200 MWh for a mid-size office",
-    },
-    factor: {
-      value: 0.51,
-      unitOut: "tCO2e",
-      source: "NGER",
-      year: 2024,
-      notes: "SWIS grid factor; lower than NEM east coast.",
+      notes: "National-average grid intensity; state-specific value applied at compute time.",
     },
     costFactorAudPerUnit: 220,
   },
   {
-    id: "elec_grid_sa",
+    id: "elec_process",
     bucket: "stationary_electricity",
-    label: "Grid electricity — SA (Scope 2)",
+    label: "Grid electricity — industrial process",
     numerical: {
       name: "Annual electricity use",
       unit: "MWh",
-      hint: "e.g. 800 MWh for a mid-size office",
+      hint: "e.g. 1,200 MWh for a mid-size office",
     },
     factor: {
-      value: 0.21,
+      value: 0.62,
       unitOut: "tCO2e",
       source: "AEMO",
       year: 2024,
-      notes: "High wind + solar penetration drives FY24 low value.",
+      notes: "National-average grid intensity; state-specific value applied at compute time.",
+    },
+    costFactorAudPerUnit: 180,
+  },
+  {
+    id: "elec_datacentre",
+    bucket: "stationary_electricity",
+    label: "Data-centre IT load (colocated)",
+    numerical: {
+      name: "Annual electricity use",
+      unit: "MWh",
+      hint: "rack-kW × 8,760 h ÷ 1,000",
+    },
+    factor: {
+      value: 0.93,
+      unitOut: "tCO2e",
+      source: "AEMO",
+      year: 2024,
+      notes: "National-average grid intensity (incl. PUE ~1.5 uplift); state-specific value applied at compute time.",
     },
     costFactorAudPerUnit: 220,
   },
   {
-    id: "elec_grid_tas",
+    id: "elec_other",
     bucket: "stationary_electricity",
-    label: "Grid electricity — TAS (Scope 2)",
+    label: "Grid electricity — other / mixed",
     numerical: {
       name: "Annual electricity use",
       unit: "MWh",
-      hint: "e.g. 500 MWh for a small site",
+      hint: "e.g. 1,200 MWh for a mid-size office",
     },
     factor: {
-      value: 0.15,
+      value: 0.62,
       unitOut: "tCO2e",
       source: "AEMO",
       year: 2024,
-      notes: "Hydro-dominant Tasmanian system.",
+      notes: "National-average grid intensity; state-specific value applied at compute time.",
     },
-    costFactorAudPerUnit: 200,
+    costFactorAudPerUnit: 220,
   },
   {
     id: "elec_onsite_solar_offset",
@@ -134,24 +101,6 @@ export const SOURCE_FACTORS: SourceFactor[] = [
       notes: "Negative entry; NSW-equivalent displaced grid factor.",
     },
     costFactorAudPerUnit: -180,
-  },
-  {
-    id: "elec_datacentre_it",
-    bucket: "stationary_electricity",
-    label: "Data-centre IT load (colocated)",
-    numerical: {
-      name: "Annual IT load energy",
-      unit: "MWh",
-      hint: "rack-kW × 8,760 h ÷ 1,000",
-    },
-    factor: {
-      value: 0.75,
-      unitOut: "tCO2e",
-      source: "NGER",
-      year: 2024,
-      notes: "Includes PUE ~1.5 uplift over national-average grid.",
-    },
-    costFactorAudPerUnit: 220,
   },
 
   // ─── 2. Stationary fuel use ────────────────────────────────────────────────
@@ -443,7 +392,6 @@ export const SOURCE_FACTORS: SourceFactor[] = [
       year: 2024,
       notes: "~0.142 kg/pkm × ~1,000 km avg + RFI uplift ~1.9×.",
     },
-    costFactorAudPerUnit: 350,
   },
   {
     id: "mob_flight_domestic_long",
@@ -461,7 +409,6 @@ export const SOURCE_FACTORS: SourceFactor[] = [
       year: 2024,
       notes: "~0.12 kg/pkm × ~3,500 km + RFI uplift.",
     },
-    costFactorAudPerUnit: 700,
   },
   {
     id: "mob_flight_intl_short",
@@ -479,7 +426,6 @@ export const SOURCE_FACTORS: SourceFactor[] = [
       year: 2024,
       notes: "Economy; premium cabins ~2-3× higher.",
     },
-    costFactorAudPerUnit: 1500,
   },
   {
     id: "mob_flight_intl_long",
@@ -497,7 +443,6 @@ export const SOURCE_FACTORS: SourceFactor[] = [
       year: 2024,
       notes: "Economy class; business ~2.5×, first ~4×.",
     },
-    costFactorAudPerUnit: 3500,
   },
   {
     id: "mob_rail_pax",
@@ -515,7 +460,6 @@ export const SOURCE_FACTORS: SourceFactor[] = [
       year: 2024,
       notes: "Electric, AU grid weighted.",
     },
-    costFactorAudPerUnit: 0.1,
   },
   {
     id: "mob_rail_freight_diesel",
@@ -952,6 +896,22 @@ export const SOURCE_FACTORS: SourceFactor[] = [
     },
   },
 ];
+
+/** State grid intensities (tCO2e/MWh) applied as multipliers to any
+ *  stationary_electricity source. Mixed = national-average passthrough.
+ *  Sources: AEMO FY24 NEM regional intensity + NGER WA SWIS.
+ */
+export const STATE_GRID_INTENSITY: Record<string, number> = {
+  NSW: 0.66,
+  VIC: 0.85,
+  QLD: 0.71,
+  WA: 0.51,
+  SA: 0.21,
+  TAS: 0.15,
+  NT: 0.61,
+  ACT: 0.66,
+  mixed: 0.62,
+};
 
 export const SOURCE_FACTOR_BY_ID: Record<string, SourceFactor> = Object.fromEntries(
   SOURCE_FACTORS.map((f) => [f.id, f]),

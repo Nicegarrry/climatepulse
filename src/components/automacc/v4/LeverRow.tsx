@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { LeverChoice, LeverApproach, SourceEntry } from "@/lib/automacc/v4-types";
+import type { LeverChoice, SourceEntry } from "@/lib/automacc/v4-types";
 import { SOURCE_FACTOR_BY_ID } from "@/lib/automacc/factors";
 import { leversForApproachAndSource } from "@/lib/automacc/levers";
 import { lifetimeAvoidedCost } from "@/lib/automacc/v4-math";
@@ -49,6 +49,7 @@ export function LeverRow({ entry, lever, onChange }: Props) {
 
   const approach = lever?.approach ?? null;
   const capex = lever?.capexAud ?? null;
+  const description = lever?.description ?? "";
   const abatementPct = lever?.abatementPct ?? 0;
 
   // Typical capex range from first matching lever in library.
@@ -133,8 +134,27 @@ export function LeverRow({ entry, lever, onChange }: Props) {
         </div>
         <ApproachChips
           value={approach}
-          onChange={(a: LeverApproach) => onChange({ approach: a })}
+          onChange={(a) => {
+            if (a === null) {
+              // Deselect: wipe lever-specific fields but keep the row.
+              onChange({ approach: null, description: "", capexAud: null, abatementPct: 0 });
+            } else {
+              onChange({ approach: a });
+            }
+          }}
         />
+        {!approach && (
+          <div
+            style={{
+              fontSize: 11,
+              color: COLORS.inkMuted,
+              marginTop: 8,
+              fontStyle: "italic",
+            }}
+          >
+            Skip this source if you don&apos;t plan to abate it.
+          </div>
+        )}
       </div>
 
       {/* Right: inputs (only when approach selected) */}
@@ -153,7 +173,29 @@ export function LeverRow({ entry, lever, onChange }: Props) {
                   marginBottom: 4,
                 }}
               >
-                Capex guess (AUD)
+                What would you do?
+              </label>
+              <textarea
+                rows={2}
+                value={description}
+                onChange={(e) => onChange({ description: e.target.value })}
+                placeholder='e.g. "Switch electricity supply to a corporate PPA" or "Replace gas boiler with heat pump"'
+                style={{ ...inputBase, resize: "vertical", lineHeight: 1.4 }}
+              />
+            </div>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: COLORS.inkMuted,
+                  marginBottom: 4,
+                }}
+              >
+                Capex guess (AUD) <span style={{ color: COLORS.inkFaint, fontWeight: 500 }}>· optional</span>
               </label>
               <input
                 type="number"
@@ -164,7 +206,7 @@ export function LeverRow({ entry, lever, onChange }: Props) {
                   const v = e.target.value;
                   onChange({ capexAud: v === "" ? null : Number(v) });
                 }}
-                placeholder="e.g. 250000"
+                placeholder="Leave blank if you're not sure"
                 style={inputBase}
               />
               {typicalRange && (
@@ -225,7 +267,7 @@ export function LeverRow({ entry, lever, onChange }: Props) {
               paddingTop: 12,
             }}
           >
-            Pick an approach to set capex + abatement.
+            Pick an approach above to describe + size the lever.
           </div>
         )}
 

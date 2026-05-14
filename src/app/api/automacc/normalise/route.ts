@@ -5,7 +5,7 @@ import {
   type Schema,
 } from "@google/generative-ai";
 import { GEMINI_MODEL } from "@/lib/ai-models";
-import { SOURCE_FACTOR_BY_ID } from "@/lib/automacc/factors";
+import { SOURCE_FACTOR_BY_ID, STATE_GRID_INTENSITY } from "@/lib/automacc/factors";
 import type {
   CompanyMeta,
   SourceEntry,
@@ -172,9 +172,36 @@ async function callGemini(prompt: string): Promise<GeminiRow[] | null> {
   }
 }
 
+// National-average grid intensity baked into electricity factors. Used as the
+// denominator when scaling the data-centre PUE uplift to the chosen state.
+const NATIONAL_GRID_INTENSITY = 0.62;
+
+function effectiveFactorValue(
+  factor: SourceFactor,
+  state: CompanyMeta["state"],
+): number {
+  if (factor.bucket !== "stationary_electricity") return factor.factor.value;
+  if (!state) return factor.factor.value;
+  const stateIntensity = STATE_GRID_INTENSITY[state];
+  if (stateIntensity === undefined) return factor.factor.value;
+
+  // elec_datacentre: preserve PUE uplift ratio over national average.
+  if (factor.id === "elec_datacentre") {
+    const pueRatio = factor.factor.value / NATIONAL_GRID_INTENSITY;
+    return stateIntensity * pueRatio;
+  }
+  // elec_onsite_solar_offset: stays negative — offsets displace state grid.
+  if (factor.id === "elec_onsite_solar_offset") {
+    return -stateIntensity;
+  }
+  // All other electricity sources: plain override.
+  return stateIntensity;
+}
+
 function compute(
   geminiRows: GeminiRow[],
   sources: SourceEntry[],
+  meta: CompanyMeta,
 ): NormalisedRow[] {
   const sourceById = new Map<string, SourceEntry>(sources.map((s) => [s.id, s]));
   const seen = new Set<string>();
@@ -194,15 +221,19 @@ function compute(
     }
     seen.add(row.source_id);
 
-    // Deterministic server-side math. Factor sign is preserved (e.g. solar offset is negative).
-    const tco2yRaw = row.numerical_value * factor.factor.value;
+    // Deterministic server-side math. For electricity sources we override the
+    // factor value with the state grid intensity (or PUE-scaled state intensity
+    // for data-centre / negative state intensity for on-site solar). All other
+    // sources keep the curated factor.value. Sign is preserved either way.
+    const factorValue = effectiveFactorValue(factor, meta.state);
+    const tco2yRaw = row.numerical_value * factorValue;
     const tco2y = Math.round(tco2yRaw * 10) / 10;
 
     out.push({
       source_id: row.source_id,
       numerical_value: row.numerical_value,
       numerical_unit: factor.numerical.unit,
-      factor_used: factor.factor.value,
+      factor_used: factorValue,
       tco2y,
       confidence: row.confidence,
       rationale: row.rationale.trim(),
@@ -241,7 +272,7 @@ export async function POST(
     return NextResponse.json({ error: "normalisation failed" }, { status: 500 });
   }
 
-  const normalised = compute(geminiRows, validated.sources);
+  const normalised = compute(geminiRows, validated.sources, validated.meta);
   return NextResponse.json({ normalised }, { status: 200 });
 }
 
