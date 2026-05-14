@@ -130,6 +130,52 @@ export const EMPTY_SESSION: MaccSession = {
   aggressivenessPct: 100,
 };
 
+// ─── Reference data shapes (consumed by factors.ts / levers.ts) ──────────────
+
+export type FactorCitation = "NGER" | "AEMO" | "IEA" | "IPCC" | "ABS" | "ClimateActive" | "DCCEEW" | "Other";
+
+export interface SourceFactor {
+  id: string;                   // stable slug, referenced from SourceEntry.sourceId
+  bucket: SourceBucket;
+  label: string;                // human-readable display label
+  // The single numerical the student is asked for (after normalisation by Gemini Call 1).
+  numerical: {
+    name: string;               // e.g. "Annual gas use"
+    unit: string;               // e.g. "GJ"
+    hint: string;               // UI placeholder / example, e.g. "e.g. 8,000 GJ for a 5,000 m² office"
+  };
+  // tCO2e per unit of `numerical`. Multiplied directly.
+  factor: {
+    value: number;
+    unitOut: "tCO2e";
+    source: FactorCitation;
+    year: number;               // factor vintage
+    notes?: string;             // 1-line caveat or geographic scope
+  };
+  // Optional: avoided cost factor when this source is reduced.
+  // Used by Screen 2 lifetime-savings calc. Currency = AUD.
+  costFactorAudPerUnit?: number;
+}
+
+export interface LeverRef {
+  id: string;
+  name: string;
+  approach: LeverApproach;
+  appliesToSourceIds: string[];        // matches SourceFactor.id
+  // Cost reference for sanity-check pill on Screen 2.
+  typicalCapex: {
+    unit: string;                       // e.g. "AUD/kW installed", "AUD per vehicle"
+    low: number;
+    mid: number;
+    high: number;
+  };
+  opexDeltaPctOfCapex: number;          // annual opex change as % of capex (negative = savings)
+  abatementEfficiencyPct: number;       // share of source emissions removed (0-100)
+  lifetimeYears: number;
+  evidenceSource: FactorCitation;
+  evidenceNote?: string;
+}
+
 export const INDUSTRIES = [
   "Consulting & professional services",
   "Manufacturing",
