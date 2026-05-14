@@ -1,0 +1,64 @@
+/* AutoMACC v4 — print mode for Screen 3.
+   Goal: an A4-portrait friendly snapshot of the MACC, top-3, and summary. */
+
+@media print {
+  /* Hide chrome */
+  nav,
+  [data-automacc-stepper],
+  [data-print-hide="true"] {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  main {
+    max-width: 100% !important;
+    padding: 12mm !important;
+    margin: 0 !important;
+  }
+
+  .macc-print-root {
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .macc-print-root section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .macc-print-root .macc-chart-section {
+    page-break-after: always;
+  }
+
+  /* Buttons that don't make sense on paper */
+  button {
+    display: none !important;
+  }
+
+  /* Tables: keep them tidy */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt !important;
+  }
+  th,
+  td {
+    border: 1px solid #ccc !important;
+    padding: 4px 6px !important;
+  }
+
+  input,
+  textarea {
+    border: none !important;
+    background: transparent !important;
+    color: #000 !important;
+    padding: 0 !important;
+  }
+}

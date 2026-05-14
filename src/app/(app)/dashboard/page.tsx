@@ -63,6 +63,7 @@ import { PodcastAdminTab } from "@/components/podcast-admin-tab";
 import { FlagshipScheduler } from "@/components/flagship-scheduler";
 import { LearnRedirect } from "@/components/learn/learn-redirect";
 import { TeachingRedirect } from "@/components/learn/teaching-redirect";
+import { AutomaccTab } from "@/components/automacc/AutomaccTab";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Config
@@ -93,8 +94,12 @@ const adminTabs = [
   { value: "teaching", label: "Teaching", icon: AcademicCapIcon, iconSolid: AcademicCapIconSolid },
 ];
 
-function getTabsForRole(role: "reader" | "editor" | "admin") {
-  // Order: Briefing, (admin tabs between), Energy, Markets, Editor, Weekly
+const founderTabs = [
+  { value: "automacc", label: "AutoMACC", icon: CommandLineIcon, iconSolid: CommandLineIcon },
+];
+
+function getTabsForRole(role: "reader" | "editor" | "admin", tier?: string) {
+  // Order: Briefing, (admin tabs between), Energy, Markets, Editor, Weekly, (founder tabs at end)
   const base = [...readerTabs];
   if (role === "admin") {
     // Insert admin tabs between Briefing (index 0) and Energy (index 1)
@@ -105,6 +110,9 @@ function getTabsForRole(role: "reader" | "editor" | "admin") {
     const weeklyIdx = base.findIndex((t) => t.value === "weekly");
     if (weeklyIdx >= 0) base.splice(weeklyIdx, 0, ...editorTabs);
     else base.push(...editorTabs);
+  }
+  if (tier === "founder" || role === "admin") {
+    base.push(...founderTabs);
   }
   return base;
 }
@@ -174,6 +182,8 @@ function TabContent({ activeTab }: { activeTab: string }) {
       return <TeachingRedirect />;
     case "flagship":
       return <FlagshipScheduler />;
+    case "automacc":
+      return <AutomaccTab />;
     default:
       return null;
   }
@@ -191,7 +201,8 @@ export default function DashboardPage() {
   const { log, isOpen, setIsOpen, logs } = useDevLogger();
   const { user, logout } = useAuth();
   const role = user?.role ?? "reader";
-  const tabConfig = getTabsForRole(role);
+  const tier = user?.tier;
+  const tabConfig = getTabsForRole(role, tier);
   const mobileNav = getMobileNavForRole(role);
   const isAdmin = role === "admin";
   const router = useRouter();
