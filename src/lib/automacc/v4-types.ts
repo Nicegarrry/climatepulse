@@ -132,7 +132,17 @@ export const EMPTY_SESSION: MaccSession = {
 
 // ─── Reference data shapes (consumed by factors.ts / levers.ts) ──────────────
 
-export type FactorCitation = "NGER" | "AEMO" | "IEA" | "IPCC" | "ABS" | "ClimateActive" | "DCCEEW" | "Other";
+export type FactorCitation =
+  | "NGER"
+  | "AEMO"
+  | "IEA"
+  | "IPCC"
+  | "ABS"
+  | "ARENA"
+  | "ClimateActive"
+  | "CSIRO"
+  | "DCCEEW"
+  | "Other";
 
 export interface SourceFactor {
   id: string;                   // stable slug, referenced from SourceEntry.sourceId
