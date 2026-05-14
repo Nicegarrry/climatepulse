@@ -29,17 +29,17 @@ function sourceLabel(sources: SourceEntry[], sourceId: string): string {
 }
 
 // Recompute NPV & $/t given the editable fields.
+// Convention (set in /api/automacc/macc and v4-math): positive
+// lifetimeOpexDeltaAudAnnual = annual saving. Feed it straight into flatNpv as
+// the annual cashflow so client and server agree on NPV sign.
 function recompute(patch: {
   refinedCapexAud: number;
   lifetimeOpexDeltaAudAnnual: number;
   abatementTco2yFinal: number;
 }): { npvAud: number; costPerTco2: number } {
-  // Convention in this codebase: opex delta annual = change in operating cost.
-  // A negative value = annual saving. So treat -delta as annual cashflow.
-  const annualCashflow = -patch.lifetimeOpexDeltaAudAnnual;
   const npv = flatNpv(
     patch.refinedCapexAud,
-    annualCashflow,
+    patch.lifetimeOpexDeltaAudAnnual,
     DEFAULT_HURDLE_RATE,
     DEFAULT_HORIZON_YEARS,
   );

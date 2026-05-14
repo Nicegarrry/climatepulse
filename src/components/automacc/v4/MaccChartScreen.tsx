@@ -314,7 +314,7 @@ export function MaccChartScreen({ store }: { store: MaccStore }) {
         </h2>
         <p style={{ margin: "0 0 16px", color: COLORS.inkSec, fontSize: 12 }}>
           Edit capex, annual opex delta, or annual abatement and the chart, NPV and $/t recompute live.
-          Annual opex Δ uses sign convention: negative = cost saving.
+          Annual opex Δ uses sign convention: positive = annual saving (avoided fuel/electricity + lever opex change combined).
         </p>
         <MaccTable levers={levers} sources={sources} onChangeLever={setLever} />
       </section>

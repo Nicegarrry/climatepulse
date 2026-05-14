@@ -128,7 +128,7 @@ function buildPrompt(req: MaccRequest): string {
     `RULES:`,
     `- One row per source_id, returning source_id EXACTLY as given.`,
     `- refined_capex_aud: if student_capex is within ~50% of typical mid (scaled by numerical × ref unit), keep it; otherwise nudge toward typical mid. All-in AUD, not per-unit.`,
-    `- lifetime_opex_delta_aud_annual: positive = annual saving. Fold in (a) avoided fuel/electricity cost ≈ annual_avoided_fuel_cost_hint, and (b) opex implied by ref opexDeltaPctOfCapex × refined_capex_aud / 100 (negative pct = saving).`,
+    `- lifetime_opex_delta_aud_annual: positive = annual saving, negative = annual cost. Compute as: (a) annual_avoided_fuel_cost_hint (already positive when there's a saving) PLUS (b) -1 × (ref opexDeltaPctOfCapex × refined_capex_aud / 100). Note (b) flips the sign of the ref pct: ref opexDeltaPctOfCapex is "negative = saving" so multiplying by -1 converts to our "positive = saving" total.`,
     `- library_lever_id: cite closest ref id if matching, else null.`,
     `- rationale: ONE concise sentence (no em dashes, no hedging) covering capex + opex logic.`,
     `- JSON only.`,
