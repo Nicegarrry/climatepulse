@@ -35,7 +35,8 @@ docs/claude/
 │   ├── markets.md         ← Markets tab + cron
 │   ├── share.md           ← AI-drafted blurbs + /share/* preview pages
 │   ├── editor.md          ← editor dashboard, assignments, briefing pack
-│   └── landing.md         ← marketing landing, scoped design system
+│   ├── landing.md         ← marketing landing, scoped design system
+│   └── launchpad.md       ← post-login triptych, opt-in digest, /automacc fast path
 │
 └── ops/
     ├── deployment.md      ← Vercel Pro, Supabase Marketplace integration, env vars

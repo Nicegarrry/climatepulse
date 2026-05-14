@@ -11,6 +11,8 @@ Concentrate surprises here. When you learn something non-obvious, add a bullet (
 
 ## Digest
 
+- DO NOT auto-fire digest generation on the briefing tab for un-onboarded users — `src/components/intelligence/index.tsx` checks `user.onboardedAt` and short-circuits `fetchData()`, rendering an opt-in CTA card instead. If you remove that gate, every cold-start on /launchpad → briefing tab will trigger a per-user Gemini call. See [`features/launchpad.md`](features/launchpad.md).
+- DO NOT widen the digest cron user-list query past `WHERE onboarded_at IS NOT NULL AND COALESCE(array_length(primary_sectors, 1), 0) > 0`. Un-onboarded users have no sectors so the digest would just fail per-user, and any new signup burst would balloon the serial loop. See `src/lib/pipeline/steps.ts` step4Digest + [`features/launchpad.md`](features/launchpad.md).
 - DO NOT send more than 15 articles to Sonnet regardless of sector count. See [`features/digest.md`](features/digest.md).
 - DO NOT `fetch('http://localhost:...')` from inside a serverless function — there's no localhost server in a Vercel invocation. Call shared lib functions directly. Digest used to hit this and 500'd every run.
 - `published_at` must be coerced to ISO string before going into the prior-coverage block.

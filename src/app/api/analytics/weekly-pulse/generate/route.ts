@@ -31,9 +31,14 @@ export async function POST(req: NextRequest) {
     const weekStart = getLastWeekStart();
     const weekEnd = getLastWeekEnd(weekStart);
 
-    // Get all active users
+    // Only summarise users who have actually onboarded. Users sitting on
+    // /launchpad or using AutoMACC without completing onboarding have no
+    // briefing activity to roll up yet — they pick themselves up once
+    // onboarded_at gets stamped.
     const { rows: users } = await pool.query(
-      `SELECT id, primary_sectors FROM user_profiles`
+      `SELECT id, primary_sectors FROM user_profiles
+        WHERE onboarded_at IS NOT NULL
+          AND COALESCE(array_length(primary_sectors, 1), 0) > 0`
     );
 
     let generated = 0;

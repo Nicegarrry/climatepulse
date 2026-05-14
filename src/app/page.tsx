@@ -40,10 +40,10 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   // Returning users (cookie set at /auth/callback) skip the landing entirely.
-  // If their session is gone, /dashboard will bounce them to /login.
+  // If their session is gone, /launchpad will bounce them to /login.
   const cookieStore = await cookies();
   if (cookieStore.get("cp_returning")?.value === "1") {
-    redirect("/dashboard");
+    redirect("/launchpad");
   }
 
   return (

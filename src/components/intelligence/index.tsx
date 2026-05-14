@@ -1200,6 +1200,12 @@ export default function IntelligenceTab() {
   const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
 
   const userId = user?.id;
+  // Users who reach the briefing tab without finishing onboarding (e.g. they
+  // landed on /launchpad from /automacc and clicked through) get an opt-in
+  // card instead of an auto-generated digest. This keeps per-user Gemini
+  // cost gated to users who actually asked for a briefing.
+  const notOnboarded = !!user && !user.onboardedAt;
+  const router = useRouter();
 
   // Poll-only digest fetch. Used by the generating-state poll loop so we
   // don't re-trigger the sidebar/energy/podcast fetches on every tick.
@@ -1221,6 +1227,12 @@ export default function IntelligenceTab() {
 
   const fetchData = useCallback(async () => {
     if (!userId) return;
+    if (notOnboarded) {
+      // Don't trigger digest generation for un-onboarded users — the gate
+      // below renders a "Personalise my briefing" CTA instead.
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -1385,6 +1397,87 @@ export default function IntelligenceTab() {
     allStories = MOCK_BRIEFING;
     dailyNumber = MOCK_DAILY_NUMBER;
     todaysRead = MOCK_TODAYS_READ;
+  }
+
+  if (notOnboarded) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "48px 24px",
+          background: COLORS.surface,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 480,
+            textAlign: "center",
+            border: `1px solid ${COLORS.borderLight}`,
+            borderRadius: 12,
+            padding: "32px 28px",
+            background: COLORS.surface,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+              fontSize: 10.5,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: COLORS.inkFaint,
+              marginBottom: 14,
+            }}
+          >
+            Your briefing &middot; not yet personalised
+          </div>
+          <h2
+            style={{
+              fontFamily: FONTS.serif,
+              fontWeight: 400,
+              fontSize: 26,
+              lineHeight: 1.15,
+              letterSpacing: "-0.018em",
+              margin: "0 0 14px",
+              color: COLORS.ink,
+            }}
+          >
+            Tell us your sectors and we&rsquo;ll build your first briefing.
+          </h2>
+          <p
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 15,
+              lineHeight: 1.55,
+              color: COLORS.inkSec,
+              margin: "0 0 22px",
+            }}
+          >
+            Two minutes of setup. Your first digest lands tomorrow morning,
+            ranked by significance across the sectors you choose.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/onboarding")}
+            style={{
+              fontFamily: FONTS.sans,
+              fontSize: 14,
+              fontWeight: 500,
+              padding: "10px 18px",
+              border: 0,
+              borderRadius: 6,
+              background: COLORS.ink,
+              color: COLORS.surface,
+              cursor: "pointer",
+            }}
+          >
+            Personalise my briefing &rarr;
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (loading) return <LoadingState />;

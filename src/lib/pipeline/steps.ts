@@ -209,9 +209,16 @@ export async function step4Digest(): Promise<StepResult> {
     const pool = (await import("@/lib/db")).default;
     const { generateBriefingForUser } = await import("@/lib/digest/generate");
 
-    // Fetch all user profiles
+    // Only generate digests for users who have opted in via onboarding.
+    // Users who land on /launchpad and go straight to /automacc (or just
+    // bounce off without personalising) have onboarded_at = NULL and stay
+    // out of the cron's per-user loop — they pick themselves up the day
+    // after they complete onboarding.
     const usersResult = await pool.query(
-      `SELECT id, name FROM user_profiles ORDER BY id`
+      `SELECT id, name FROM user_profiles
+        WHERE onboarded_at IS NOT NULL
+          AND COALESCE(array_length(primary_sectors, 1), 0) > 0
+        ORDER BY id`
     );
     const users = usersResult.rows as Array<{ id: string; name: string }>;
 
@@ -247,6 +254,10 @@ export async function step4Digest(): Promise<StepResult> {
     }
 
     // Fail only if ALL users failed
+    // TODO(reliability): "successes > 0 = step completed" masks partial failures.
+    // During the student burst (and generally) we should surface failure counts
+    // and possibly fail the step above some failure-rate threshold. Tracked
+    // separately — do not fix in this PR.
     if (successes === 0 && failures > 0) {
       throw new Error(`Digest generation failed for all ${failures} users`);
     }

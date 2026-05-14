@@ -24,6 +24,11 @@ function stripSslmode(url: string): string {
 const pool = new Pool({
   connectionString: stripSslmode(rawUrl),
   ssl: isLocal ? false : { rejectUnauthorized: false },
+  // Burst headroom: each Function instance can hold up to 20 connections.
+  // Cap kept ≤20 because Supabase's transaction pooler tops out around 200
+  // total project connections and several Function instances run in parallel.
+  max: 20,
+  idleTimeoutMillis: 30_000,
 });
 
 export default pool;

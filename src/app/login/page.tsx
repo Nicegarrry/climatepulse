@@ -87,7 +87,7 @@ function LoginInner() {
     setSubmitting(false);
 
     if (result.ok) {
-      router.push("/dashboard");
+      router.push("/launchpad");
     } else {
       setError(result.error || "That code didn't work. Check the email and try again.");
     }
