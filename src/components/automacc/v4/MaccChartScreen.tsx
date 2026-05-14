@@ -29,8 +29,8 @@ function approachLabel(id: string | null): string {
 }
 
 export function MaccChartScreen({ store }: { store: MaccStore }) {
-  const { session, setLever } = store;
-  const { levers, sources } = session;
+  const { session, setLever, setAggressiveness } = store;
+  const { levers, sources, aggressivenessPct } = session;
 
   const ready = useMemo(
     () =>
@@ -43,22 +43,50 @@ export function MaccChartScreen({ store }: { store: MaccStore }) {
     [levers],
   );
 
+  // Pick the cheapest-first prefix of `ready` whose cumulative abatement reaches
+  // `aggressivenessPct`% of total ready abatement. 100% = include everything,
+  // 0% = include nothing (clamped to at least the single cheapest lever so the
+  // chart never becomes empty when the student has built levers).
+  const { filteredLevers, totalReadyAbatement, cutoffCost } = useMemo(() => {
+    const sorted = [...ready].sort((a, b) => (a.costPerTco2 ?? 0) - (b.costPerTco2 ?? 0));
+    const total = sorted.reduce((acc, l) => acc + (l.abatementTco2yFinal ?? 0), 0);
+    if (total <= 0) {
+      return { filteredLevers: sorted, totalReadyAbatement: 0, cutoffCost: 0 };
+    }
+    const target = total * (aggressivenessPct / 100);
+    const out: LeverChoice[] = [];
+    let cum = 0;
+    for (const l of sorted) {
+      if (cum >= target && out.length > 0) break;
+      out.push(l);
+      cum += l.abatementTco2yFinal ?? 0;
+    }
+    return {
+      filteredLevers: out,
+      totalReadyAbatement: total,
+      cutoffCost: out.length > 0 ? out[out.length - 1].costPerTco2 ?? 0 : 0,
+    };
+  }, [ready, aggressivenessPct]);
+
   const totals = useMemo(() => {
-    const totalCapex = levers.reduce((acc, l) => acc + (l.refinedCapexAud ?? 0), 0);
-    const totalNpv = levers.reduce((acc, l) => acc + (l.npvAud ?? 0), 0);
-    const totalAbatement = ready.reduce((acc, l) => acc + (l.abatementTco2yFinal ?? 0), 0);
+    const totalCapex = filteredLevers.reduce((acc, l) => acc + (l.refinedCapexAud ?? 0), 0);
+    const totalNpv = filteredLevers.reduce((acc, l) => acc + (l.npvAud ?? 0), 0);
+    const totalAbatement = filteredLevers.reduce(
+      (acc, l) => acc + (l.abatementTco2yFinal ?? 0),
+      0,
+    );
     const baseline = sources.reduce((acc, s) => acc + (s.tco2y ?? 0), 0);
     const pct = baseline > 0 ? (totalAbatement / baseline) * 100 : 0;
     return { totalCapex, totalNpv, totalAbatement, baseline, pct };
-  }, [levers, ready, sources]);
+  }, [filteredLevers, sources]);
 
   const top3 = useMemo(() => {
     const threshold = totals.totalAbatement * 0.01;
-    return [...ready]
+    return [...filteredLevers]
       .filter((l) => (l.abatementTco2yFinal ?? 0) > threshold)
       .sort((a, b) => (a.costPerTco2 ?? 0) - (b.costPerTco2 ?? 0))
       .slice(0, 3);
-  }, [ready, totals.totalAbatement]);
+  }, [filteredLevers, totals.totalAbatement]);
 
   if (levers.length === 0) {
     return (
@@ -117,6 +145,81 @@ export function MaccChartScreen({ store }: { store: MaccStore }) {
         </button>
       </header>
 
+      {/* Aggressiveness slider */}
+      <section
+        data-print-hide="true"
+        style={{
+          background: COLORS.surface,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: 8,
+          padding: 16,
+          marginBottom: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ minWidth: 180 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              color: COLORS.inkSec,
+            }}
+          >
+            How aggressive?
+          </p>
+          <p style={{ margin: "2px 0 0", fontSize: 13, color: COLORS.ink }}>
+            Including the <strong>{filteredLevers.length}</strong>
+            {filteredLevers.length === 1 ? " lever" : " cheapest levers"} —{" "}
+            cutoff at <strong>${Math.round(cutoffCost).toLocaleString()}</strong>/tCO₂.
+          </p>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={aggressivenessPct}
+          onChange={(e) => setAggressiveness(Number(e.target.value))}
+          aria-label="Aggressiveness percentage"
+          style={{ flex: 1, minWidth: 220, accentColor: COLORS.forest }}
+        />
+        <div
+          style={{
+            minWidth: 88,
+            textAlign: "right",
+            fontSize: 18,
+            fontWeight: 700,
+            fontFamily: FONTS.serif,
+            color: COLORS.forest,
+          }}
+        >
+          {aggressivenessPct}%
+        </div>
+        <button
+          type="button"
+          onClick={() => setAggressiveness(100)}
+          disabled={aggressivenessPct === 100}
+          style={{
+            background: "transparent",
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 4,
+            padding: "4px 10px",
+            fontSize: 11,
+            color: aggressivenessPct === 100 ? COLORS.inkFaint : COLORS.inkSec,
+            cursor: aggressivenessPct === 100 ? "default" : "pointer",
+            fontFamily: FONTS.sans,
+          }}
+        >
+          Reset
+        </button>
+      </section>
+
       {/* Chart */}
       <section
         className="macc-chart-section"
@@ -128,7 +231,7 @@ export function MaccChartScreen({ store }: { store: MaccStore }) {
           marginBottom: 24,
         }}
       >
-        <MaccHistogram levers={levers} sources={sources} />
+        <MaccHistogram levers={filteredLevers} sources={sources} />
       </section>
 
       {/* Top-3 */}
