@@ -318,6 +318,14 @@ export function MaccChartScreen({ store }: { store: MaccStore }) {
         </p>
         <MaccTable levers={levers} sources={sources} onChangeLever={setLever} />
       </section>
+
+      {/* Print-only credit footer. Hidden on screen via PrintLayout.css. */}
+      <footer className="macc-print-credit" aria-hidden>
+        <img src="/leaf only.svg" alt="" />
+        <span>
+          Made with <strong>ClimatePulse</strong> AutoMACC · climatepulse.app
+        </span>
+      </footer>
     </div>
   );
 }

@@ -1,12 +1,25 @@
 /* AutoMACC v4 — print mode for Screen 3.
-   Goal: an A4-portrait friendly snapshot of the MACC, top-3, and summary. */
+   Goal: an A4-portrait friendly snapshot of the MACC, top-3, summary and
+   detail table, with a ClimatePulse credit footer. */
 
 @media print {
-  /* Hide chrome */
+  /* Hide chrome: workbench header, sidebar, stepper, any element opted out. */
+  .automacc-header,
+  .automacc-sidebar,
   nav,
   [data-automacc-stepper],
   [data-print-hide="true"] {
     display: none !important;
+  }
+
+  /* Main pane should take the full page width once the sidebar is gone. */
+  .automacc-body {
+    display: block !important;
+  }
+  .automacc-main-pane {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   html,
@@ -19,7 +32,7 @@
 
   main {
     max-width: 100% !important;
-    padding: 12mm !important;
+    padding: 10mm 12mm !important;
     margin: 0 !important;
   }
 
@@ -28,25 +41,24 @@
     box-shadow: none !important;
   }
 
+  /* Keep each section together where possible; do NOT force a page break. */
   .macc-print-root section {
     page-break-inside: avoid;
     break-inside: avoid;
+    margin-bottom: 6mm !important;
   }
 
-  .macc-print-root .macc-chart-section {
-    page-break-after: always;
-  }
-
-  /* Buttons that don't make sense on paper */
+  /* Buttons that don't make sense on paper. The credit footer's image
+     is not a button so it stays. */
   button {
     display: none !important;
   }
 
-  /* Tables: keep them tidy */
+  /* Tables: keep them tidy. */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
-    font-size: 10pt !important;
+    font-size: 9pt !important;
   }
   th,
   td {
@@ -54,6 +66,7 @@
     padding: 4px 6px !important;
   }
 
+  /* Editable inputs in the detail table — render as plain text on paper. */
   input,
   textarea {
     border: none !important;
@@ -61,4 +74,27 @@
     color: #000 !important;
     padding: 0 !important;
   }
+
+  /* Credit footer: visible only in print. */
+  .macc-print-credit {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8mm !important;
+    padding-top: 4mm !important;
+    border-top: 1px solid #ddd !important;
+    color: #666 !important;
+    font-size: 9pt !important;
+    page-break-inside: avoid;
+  }
+  .macc-print-credit img {
+    height: 14px;
+    width: auto;
+  }
+}
+
+/* On screen, hide the credit footer entirely. */
+.macc-print-credit {
+  display: none;
 }
