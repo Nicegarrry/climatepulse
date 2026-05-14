@@ -1008,6 +1008,9 @@ const SECTOR_ALIASES: Record<string, string[]> = {
   professional_services: ['services'],
   finance: ['services'],
   consulting: ['services'],
+  industrial: ['services', 'built_environment'],
+  transport: ['services'],
+  agriculture: ['services'],
 };
 
 // Filter levers applicable to a given sector and set of source rows.

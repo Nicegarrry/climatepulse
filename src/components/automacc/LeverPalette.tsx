@@ -14,10 +14,12 @@ function LeverCard({
   lever,
   allocated,
   mutexBlocked,
+  rationale,
 }: {
   lever: Lever;
   allocated: boolean;
   mutexBlocked: boolean;
+  rationale?: string;
 }) {
   const disabled = mutexBlocked;
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -68,6 +70,11 @@ function LeverCard({
         <span>~{lever.typicalAbatementPct}% abatement</span>
         <span>{fmtCapex(lever.capexAud)}</span>
       </div>
+      {rationale && (
+        <div className="mt-1.5 text-[10px] text-[var(--color-ink-muted)] leading-snug line-clamp-2">
+          {rationale}
+        </div>
+      )}
     </div>
   );
 }
@@ -76,10 +83,12 @@ export function LeverPalette({
   levers,
   allocatedLeverIds,
   mutexBlocked,
+  matchRationale,
 }: {
   levers: Lever[];
   allocatedLeverIds: Set<string>;
   mutexBlocked: Set<string>;
+  matchRationale?: Record<string, string>;
 }) {
   return (
     <div className="flex flex-col h-full border-l border-[var(--color-border-light)] bg-[var(--color-paper-dark)]">
@@ -98,6 +107,7 @@ export function LeverPalette({
             lever={l}
             allocated={allocatedLeverIds.has(l.leverId)}
             mutexBlocked={mutexBlocked.has(l.leverId)}
+            rationale={matchRationale?.[l.leverId]}
           />
         ))}
       </div>

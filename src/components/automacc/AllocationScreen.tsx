@@ -1,26 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { consultcoFixture } from '@/lib/automacc/fixture-consultco';
 import { useAllocationStore } from '@/lib/automacc/store';
 import { LeverPalette } from './LeverPalette';
 import { SourceRows } from './SourceRows';
 import { MaccStrip } from './MaccStrip';
 import { SensitivityTornado } from './SensitivityTornado';
 import { UndoBar } from './UndoBar';
-import type { SessionContext } from '@/lib/automacc/types';
+import { ProgressStepper } from './ProgressStepper';
+import type { Fixture, MaccPackage, SessionContext } from '@/lib/automacc/types';
 
-const CTX: SessionContext = {
-  discountRate: 0.08,
-  horizonYears: 10,
-  carbonCeilingAud: 82.68,
-  orgSector: consultcoFixture.orgSector,
+type Props = {
+  fixture: Fixture;
+  matchRationale?: Record<string, string>;
+  onFinalize: (pkg: MaccPackage) => void;
 };
 
-export function AllocationScreen() {
-  const fixture = consultcoFixture;
-  const store = useAllocationStore(fixture, CTX);
+export function AllocationScreen({ fixture, matchRationale, onFinalize }: Props) {
+  const ctx = useMemo<SessionContext>(
+    () => ({ discountRate: 0.08, horizonYears: 10, carbonCeilingAud: 82.68, orgSector: fixture.orgSector }),
+    [fixture.orgSector],
+  );
+  const store = useAllocationStore(fixture, ctx);
   const [recomputing, setRecomputing] = useState(false);
   const [lastAction, setLastAction] = useState<number>(0);
 
@@ -81,18 +83,28 @@ export function AllocationScreen() {
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-screen bg-[var(--color-background)]">
+        <ProgressStepper currentStep="allocation" />
         <div className="border-b border-[var(--color-border-light)] bg-white px-6 py-4">
           <div className="flex items-baseline justify-between">
             <div>
               <div className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-ink-muted)]">
-                AutoMACC v3 — D2 allocation
+                AutoMACC v3 — Lever allocation
               </div>
               <h1 className="text-xl font-display text-[var(--color-ink)]">
                 Build the marginal abatement curve for {fixture.orgName}
               </h1>
             </div>
-            <div className="text-xs text-[var(--color-ink-sec)] font-mono">
-              {fixture.orgSector} · {CTX.horizonYears}-year horizon · ${CTX.carbonCeilingAud}/tCO2e ceiling
+            <div className="flex items-center gap-6">
+              <div className="text-xs text-[var(--color-ink-sec)] font-mono">
+                {fixture.orgSector} · {ctx.horizonYears}-year horizon · ${ctx.carbonCeilingAud}/tCO2e ceiling
+              </div>
+              <button
+                type="button"
+                onClick={() => onFinalize(store.maccPackage)}
+                className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-white shrink-0"
+              >
+                Generate summary →
+              </button>
             </div>
           </div>
         </div>
@@ -109,6 +121,7 @@ export function AllocationScreen() {
             levers={fixture.levers}
             allocatedLeverIds={store.allocatedLeverIds}
             mutexBlocked={store.mutexBlocked}
+            matchRationale={matchRationale}
           />
         </div>
 
