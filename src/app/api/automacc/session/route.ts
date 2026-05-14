@@ -8,15 +8,25 @@ export const runtime = "nodejs";
 
 interface SessionRow {
   payload: MaccSession;
+  session_id: string;
   updated_at: string;
+}
+
+function isValidSession(payload: unknown): payload is MaccSession {
+  if (!payload || typeof payload !== "object") return false;
+  const p = payload as Record<string, unknown>;
+  if (p.version !== 4) return false;
+  if (typeof p.id !== "string" || p.id.length === 0) return false;
+  return true;
 }
 
 /**
  * GET /api/automacc/session
- * Reads the authenticated user's MaccSession row.
- * - 401 if no auth.
- * - 200 { session: MaccSession | null } on success.
- * - 200 { session: null, error } on DB failure (client falls back to localStorage).
+ * Lists all MaccSessions belonging to the authenticated user.
+ * Always 200 — empty list on no rows or DB error so client can degrade to
+ * localStorage. Legacy single-row installs (session_id = 'default', payload
+ * missing id/name from the v0 schema) are sanitised on the fly so they don't
+ * disappear for users mid-upgrade.
  */
 export async function GET() {
   const user = await getAuthUser();
@@ -26,32 +36,45 @@ export async function GET() {
 
   try {
     const { rows } = await pool.query<SessionRow>(
-      `SELECT payload, updated_at
+      `SELECT payload, session_id, updated_at
          FROM public.macc_sessions
         WHERE user_id = $1
-        LIMIT 1`,
+        ORDER BY updated_at DESC
+        LIMIT 100`,
       [user.id],
     );
 
-    const row = rows[0];
-    if (!row) {
-      return NextResponse.json({ session: null }, { status: 200 });
+    const sessions: MaccSession[] = [];
+    for (const row of rows) {
+      const payload = row.payload as MaccSession | null;
+      if (!payload || (payload as { version?: number }).version !== 4) {
+        // Legacy / corrupted row — drop quietly.
+        console.warn("[api/automacc/session GET] dropping non-v4 row", row.session_id);
+        continue;
+      }
+      // Sanitise legacy v4 rows that pre-date the multi-session schema:
+      // they lack id, name, createdAt. Backfill from the row's session_id.
+      const sanitised: MaccSession = {
+        id: payload.id || row.session_id || `legacy_${Date.now()}`,
+        name: payload.name || "My company",
+        version: 4,
+        createdAt: payload.createdAt || row.updated_at,
+        updatedAt: payload.updatedAt || row.updated_at,
+        meta: payload.meta,
+        sources: payload.sources ?? [],
+        levers: payload.levers ?? [],
+        step: payload.step ?? 1,
+        aggressivenessPct: payload.aggressivenessPct ?? 100,
+      };
+      sessions.push(sanitised);
     }
 
-    // Defensive: only return v4 payloads. Anything else looks like corruption
-    // or a stale shape — let the client fall back to localStorage.
-    const payload = row.payload;
-    if (!payload || payload.version !== 4) {
-      return NextResponse.json({ session: null }, { status: 200 });
-    }
-
-    return NextResponse.json({ session: payload }, { status: 200 });
+    return NextResponse.json({ sessions }, { status: 200 });
   } catch (err) {
     console.error("[api/automacc/session GET] failed", err);
-    // Never throw — client must degrade gracefully to localStorage.
     return NextResponse.json(
       {
-        session: null,
+        sessions: [],
         error: err instanceof Error ? err.message : "Database error",
       },
       { status: 200 },
@@ -62,7 +85,7 @@ export async function GET() {
 /**
  * PUT /api/automacc/session
  * Body: { session: MaccSession }
- * Upserts the row for the authenticated user.
+ * Upserts by (user_id, session.id). Returns { ok, updated_at }.
  */
 export async function PUT(req: NextRequest) {
   const user = await getAuthUser();
@@ -70,36 +93,27 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  let body: { session?: MaccSession };
+  let body: { session?: unknown };
   try {
-    body = (await req.json()) as { session?: MaccSession };
+    body = (await req.json()) as { session?: unknown };
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const session = body.session;
-  if (!session || typeof session !== "object") {
-    return NextResponse.json(
-      { error: "session required" },
-      { status: 400 },
-    );
-  }
-  if (session.version !== 4) {
-    return NextResponse.json(
-      { error: "Unsupported session version" },
-      { status: 400 },
-    );
+  if (!isValidSession(session)) {
+    return NextResponse.json({ error: "Invalid session payload" }, { status: 400 });
   }
 
   try {
     const { rows } = await pool.query<{ updated_at: string }>(
-      `INSERT INTO public.macc_sessions (user_id, payload)
-            VALUES ($1, $2::jsonb)
-       ON CONFLICT (user_id) DO UPDATE
+      `INSERT INTO public.macc_sessions (user_id, session_id, payload)
+            VALUES ($1, $2, $3::jsonb)
+       ON CONFLICT (user_id, session_id) DO UPDATE
               SET payload = EXCLUDED.payload,
                   updated_at = NOW()
         RETURNING updated_at`,
-      [user.id, JSON.stringify(session)],
+      [user.id, session.id, JSON.stringify(session)],
     );
 
     return NextResponse.json(
@@ -108,6 +122,34 @@ export async function PUT(req: NextRequest) {
     );
   } catch (err) {
     console.error("[api/automacc/session PUT] failed", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Database error" },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * DELETE /api/automacc/session?id=<sessionId>
+ * Idempotent — 200 even when no row matches.
+ */
+export async function DELETE(req: NextRequest) {
+  const user = await getAuthUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "id query param required" }, { status: 400 });
+  }
+  try {
+    await pool.query(
+      `DELETE FROM public.macc_sessions WHERE user_id = $1 AND session_id = $2`,
+      [user.id, id],
+    );
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (err) {
+    console.error("[api/automacc/session DELETE] failed", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Database error" },
       { status: 500 },

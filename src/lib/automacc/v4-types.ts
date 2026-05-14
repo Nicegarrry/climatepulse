@@ -105,19 +105,56 @@ export interface LeverChoice {
   geminiRationale: string | null;
 }
 
+// A single company's full workspace state. Users can have many of these
+// (case study + own company + scenarios). One row per (user, session_id) in
+// the macc_sessions table.
 export interface MaccSession {
+  id: string;                   // uuid-ish; companies are addressable
+  name: string;                 // user-editable display label
   version: 4;
+  createdAt: string;            // ISO
   updatedAt: string;            // ISO
   meta: CompanyMeta;
   sources: SourceEntry[];
   levers: LeverChoice[];        // 1:1 with sources after Screen 2
   step: 1 | 2 | 3;
-  // Screen 3 controls
   aggressivenessPct: number;    // 0-100, default 100 (build all levers)
 }
 
+export function newSessionId(): string {
+  return `co_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function emptySession(name = "Untitled company"): MaccSession {
+  const now = new Date().toISOString();
+  return {
+    id: newSessionId(),
+    name,
+    version: 4,
+    createdAt: now,
+    updatedAt: now,
+    meta: {
+      industry: "",
+      description: "",
+      employees: "",
+      revenue: "",
+      buildings: 0,
+      state: "",
+    },
+    sources: [],
+    levers: [],
+    step: 1,
+    aggressivenessPct: 100,
+  };
+}
+
+// Legacy single-instance back-compat. New code should call emptySession()
+// so each session gets a unique id.
 export const EMPTY_SESSION: MaccSession = {
+  id: "_empty",
+  name: "Untitled company",
   version: 4,
+  createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
   meta: {
     industry: "",

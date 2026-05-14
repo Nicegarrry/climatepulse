@@ -1,101 +1,193 @@
 "use client";
 
-import { useEffect, useReducer, useRef, useCallback } from "react";
-import { EMPTY_SESSION, type MaccSession, type CompanyMeta, type SourceEntry, type LeverChoice } from "./v4-types";
+import { useEffect, useReducer, useRef, useCallback, useMemo } from "react";
+import {
+  emptySession,
+  type MaccSession,
+  type CompanyMeta,
+  type SourceEntry,
+  type LeverChoice,
+} from "./v4-types";
 
-const LS_KEY = "automacc.v4.session";
+const LS_KEY = "automacc.v4.workspace";
 const SAVE_DEBOUNCE_MS = 800;
 
-type Action =
-  | { type: "hydrate"; session: MaccSession }
-  | { type: "setMeta"; meta: Partial<CompanyMeta> }
-  | { type: "setStep"; step: 1 | 2 | 3 }
-  | { type: "setAggressiveness"; pct: number }
-  | { type: "addSource"; source: SourceEntry }
-  | { type: "updateSource"; id: string; patch: Partial<SourceEntry> }
-  | { type: "removeSource"; id: string }
-  | { type: "setSources"; sources: SourceEntry[] }
-  | { type: "setLever"; sourceId: string; patch: Partial<LeverChoice> }
-  | { type: "setLevers"; levers: LeverChoice[] }
-  | { type: "reset" };
+// ─── Workspace state ─────────────────────────────────────────────────────────
 
-function reducer(state: MaccSession, action: Action): MaccSession {
-  const stamp = () => new Date().toISOString();
+interface WorkspaceState {
+  sessionsById: Record<string, MaccSession>;
+  order: string[];                   // display order (most-recently-active first)
+  activeId: string;
+}
+
+type Action =
+  | { type: "hydrate"; sessions: MaccSession[]; activeId: string }
+  | { type: "create"; session: MaccSession }
+  | { type: "switch"; id: string }
+  | { type: "delete"; id: string; fallback: MaccSession }
+  | { type: "rename"; id: string; name: string }
+  | { type: "resetActive"; replacement: MaccSession }
+  | { type: "patchActive"; patcher: (s: MaccSession) => MaccSession };
+
+function stampSession(s: MaccSession): MaccSession {
+  return { ...s, updatedAt: new Date().toISOString() };
+}
+
+function reducer(state: WorkspaceState, action: Action): WorkspaceState {
   switch (action.type) {
-    case "hydrate":
-      return action.session;
-    case "setMeta":
-      return { ...state, meta: { ...state.meta, ...action.meta }, updatedAt: stamp() };
-    case "setStep":
-      return { ...state, step: action.step, updatedAt: stamp() };
-    case "setAggressiveness":
-      return { ...state, aggressivenessPct: action.pct, updatedAt: stamp() };
-    case "addSource":
-      return { ...state, sources: [...state.sources, action.source], updatedAt: stamp() };
-    case "updateSource":
+    case "hydrate": {
+      const sessionsById: Record<string, MaccSession> = {};
+      for (const s of action.sessions) sessionsById[s.id] = s;
       return {
-        ...state,
-        sources: state.sources.map((s) => (s.id === action.id ? { ...s, ...action.patch } : s)),
-        updatedAt: stamp(),
+        sessionsById,
+        order: action.sessions.map((s) => s.id),
+        activeId: action.activeId,
       };
-    case "removeSource":
-      return {
-        ...state,
-        sources: state.sources.filter((s) => s.id !== action.id),
-        levers: state.levers.filter((l) => l.sourceId !== action.id),
-        updatedAt: stamp(),
-      };
-    case "setSources":
-      return { ...state, sources: action.sources, updatedAt: stamp() };
-    case "setLever": {
-      const exists = state.levers.find((l) => l.sourceId === action.sourceId);
-      const nextLevers = exists
-        ? state.levers.map((l) => (l.sourceId === action.sourceId ? { ...l, ...action.patch } : l))
-        : [...state.levers, {
-            sourceId: action.sourceId,
-            approach: null,
-            description: "",
-            capexAud: null,
-            abatementPct: 0,
-            refinedCapexAud: null,
-            lifetimeOpexDeltaAudAnnual: null,
-            abatementTco2yFinal: null,
-            npvAud: null,
-            costPerTco2: null,
-            libraryLeverId: null,
-            geminiRationale: null,
-            ...action.patch,
-          }];
-      return { ...state, levers: nextLevers, updatedAt: stamp() };
     }
-    case "setLevers":
-      return { ...state, levers: action.levers, updatedAt: stamp() };
-    case "reset":
-      return { ...EMPTY_SESSION, updatedAt: stamp() };
+    case "create":
+      return {
+        sessionsById: { ...state.sessionsById, [action.session.id]: action.session },
+        order: [action.session.id, ...state.order.filter((id) => id !== action.session.id)],
+        activeId: action.session.id,
+      };
+    case "switch":
+      if (!state.sessionsById[action.id]) return state;
+      return {
+        ...state,
+        order: [action.id, ...state.order.filter((id) => id !== action.id)],
+        activeId: action.id,
+      };
+    case "delete": {
+      const next = { ...state.sessionsById };
+      delete next[action.id];
+      const nextOrder = state.order.filter((id) => id !== action.id);
+      if (nextOrder.length === 0) {
+        return {
+          sessionsById: { [action.fallback.id]: action.fallback },
+          order: [action.fallback.id],
+          activeId: action.fallback.id,
+        };
+      }
+      return {
+        sessionsById: next,
+        order: nextOrder,
+        activeId: action.id === state.activeId ? nextOrder[0] : state.activeId,
+      };
+    }
+    case "rename": {
+      const cur = state.sessionsById[action.id];
+      if (!cur) return state;
+      return {
+        ...state,
+        sessionsById: {
+          ...state.sessionsById,
+          [action.id]: stampSession({ ...cur, name: action.name }),
+        },
+      };
+    }
+    case "resetActive":
+      return {
+        ...state,
+        sessionsById: { ...state.sessionsById, [action.replacement.id]: action.replacement },
+        activeId: action.replacement.id,
+      };
+    case "patchActive": {
+      const cur = state.sessionsById[state.activeId];
+      if (!cur) return state;
+      return {
+        ...state,
+        sessionsById: {
+          ...state.sessionsById,
+          [state.activeId]: stampSession(action.patcher(cur)),
+        },
+      };
+    }
   }
 }
 
-function loadLocal(): MaccSession | null {
+// ─── Per-active-session edit helpers ────────────────────────────────────────
+
+const applyMeta = (s: MaccSession, m: Partial<CompanyMeta>): MaccSession => ({
+  ...s, meta: { ...s.meta, ...m },
+});
+const applyStep = (s: MaccSession, step: 1 | 2 | 3): MaccSession => ({ ...s, step });
+const applyAggressiveness = (s: MaccSession, pct: number): MaccSession => ({
+  ...s, aggressivenessPct: pct,
+});
+const applyAddSource = (s: MaccSession, src: SourceEntry): MaccSession => ({
+  ...s, sources: [...s.sources, src],
+});
+const applyUpdateSource = (s: MaccSession, id: string, patch: Partial<SourceEntry>): MaccSession => ({
+  ...s, sources: s.sources.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+});
+const applyRemoveSource = (s: MaccSession, id: string): MaccSession => ({
+  ...s,
+  sources: s.sources.filter((row) => row.id !== id),
+  levers: s.levers.filter((l) => l.sourceId !== id),
+});
+const applySetSources = (s: MaccSession, sources: SourceEntry[]): MaccSession => ({ ...s, sources });
+function applySetLever(s: MaccSession, sourceId: string, patch: Partial<LeverChoice>): MaccSession {
+  const exists = s.levers.find((l) => l.sourceId === sourceId);
+  const nextLevers: LeverChoice[] = exists
+    ? s.levers.map((l) => (l.sourceId === sourceId ? { ...l, ...patch } : l))
+    : [
+        ...s.levers,
+        {
+          sourceId,
+          approach: null,
+          description: "",
+          capexAud: null,
+          abatementPct: 0,
+          refinedCapexAud: null,
+          lifetimeOpexDeltaAudAnnual: null,
+          abatementTco2yFinal: null,
+          npvAud: null,
+          costPerTco2: null,
+          libraryLeverId: null,
+          geminiRationale: null,
+          ...patch,
+        },
+      ];
+  return { ...s, levers: nextLevers };
+}
+const applySetLevers = (s: MaccSession, levers: LeverChoice[]): MaccSession => ({ ...s, levers });
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
+
+interface LocalWorkspace {
+  version: 4;
+  sessions: MaccSession[];
+  activeId: string;
+}
+
+function loadLocal(): LocalWorkspace | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(LS_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as MaccSession;
-    if (parsed.version !== 4) return null;
+    const parsed = JSON.parse(raw) as LocalWorkspace;
+    if (parsed.version !== 4 || !Array.isArray(parsed.sessions)) return null;
     return parsed;
   } catch {
     return null;
   }
 }
 
-function saveLocal(session: MaccSession) {
+function saveLocal(state: WorkspaceState) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(LS_KEY, JSON.stringify(session));
+    const payload: LocalWorkspace = {
+      version: 4,
+      sessions: state.order.map((id) => state.sessionsById[id]).filter(Boolean),
+      activeId: state.activeId,
+    };
+    window.localStorage.setItem(LS_KEY, JSON.stringify(payload));
   } catch {
-    // quota exceeded — non-fatal
+    /* quota exceeded — non-fatal */
   }
 }
+
+// ─── Public interfaces ──────────────────────────────────────────────────────
 
 export interface MaccStore {
   session: MaccSession;
@@ -108,114 +200,198 @@ export interface MaccStore {
   setSources: (sources: SourceEntry[]) => void;
   setLever: (sourceId: string, patch: Partial<LeverChoice>) => void;
   setLevers: (levers: LeverChoice[]) => void;
-  reset: () => void;
+  reset: () => void;            // resets ACTIVE session (preserves id+name)
   saving: boolean;
   hydrated: boolean;
 }
 
-// Single source of truth for AutoMACC v4 client state.
-// - On mount: hydrate from localStorage, then attempt GET /api/automacc/session
-//   and use whichever is newer (server wins on tie).
-// - On every state change: write localStorage immediately + debounced PUT to server.
-export function useMaccStore(userId: string | null): MaccStore {
-  const [session, dispatch] = useReducer(reducer, EMPTY_SESSION);
+export interface MaccWorkspace {
+  sessions: MaccSession[];      // in display order, most-recently-active first
+  activeId: string;
+  active: MaccStore;
+  hydrated: boolean;
+  createCompany: (name?: string, seed?: Partial<MaccSession>) => string;
+  switchTo: (id: string) => void;
+  deleteCompany: (id: string) => void;
+  renameCompany: (id: string, name: string) => void;
+}
+
+// ─── Hook ────────────────────────────────────────────────────────────────────
+
+export function useMaccWorkspace(
+  userId: string | null,
+  initialSeed?: () => MaccSession[],
+): MaccWorkspace {
+  const initialEmpty = useMemo(() => emptySession(), []);
+  const [state, dispatch] = useReducer(reducer, {
+    sessionsById: { [initialEmpty.id]: initialEmpty },
+    order: [initialEmpty.id],
+    activeId: initialEmpty.id,
+  });
   const hydratedRef = useRef(false);
   const savingRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSavedAtRef = useRef<string>("");
+  const lastSavedAtRef = useRef<Record<string, string>>({});
 
-  // Hydrate on mount
   useEffect(() => {
     if (hydratedRef.current) return;
     const local = loadLocal();
 
     let cancelled = false;
     (async () => {
-      let server: MaccSession | null = null;
+      let server: MaccSession[] | null = null;
       if (userId) {
         try {
           const res = await fetch("/api/automacc/session", { cache: "no-store" });
           if (res.ok) {
-            const json = (await res.json()) as { session?: MaccSession };
-            if (json.session?.version === 4) server = json.session;
+            const json = (await res.json()) as { sessions?: MaccSession[] };
+            if (Array.isArray(json.sessions)) server = json.sessions;
           }
         } catch {
-          // offline — fall through to local
+          /* offline */
         }
       }
       if (cancelled) return;
 
-      const winner =
-        server && local
-          ? new Date(server.updatedAt).getTime() >= new Date(local.updatedAt).getTime()
-            ? server
-            : local
-          : (server ?? local);
-      if (winner) {
-        dispatch({ type: "hydrate", session: winner });
-        lastSavedAtRef.current = winner.updatedAt;
+      // Merge local + server by id; pick newer updatedAt on collision.
+      const merged = new Map<string, MaccSession>();
+      for (const s of local?.sessions ?? []) {
+        if (s?.id && s.version === 4) merged.set(s.id, s);
       }
+      for (const s of server ?? []) {
+        if (!s?.id || s.version !== 4) continue;
+        const existing = merged.get(s.id);
+        if (!existing || new Date(s.updatedAt) >= new Date(existing.updatedAt)) {
+          merged.set(s.id, s);
+        }
+      }
+
+      let sessions = Array.from(merged.values());
+
+      // First-ever load → seed
+      if (sessions.length === 0 && initialSeed) {
+        sessions = initialSeed();
+      }
+      if (sessions.length === 0) {
+        sessions = [emptySession()];
+      }
+
+      const activeId =
+        local?.activeId && merged.has(local.activeId)
+          ? local.activeId
+          : sessions[0].id;
+
+      dispatch({ type: "hydrate", sessions, activeId });
+      for (const s of sessions) lastSavedAtRef.current[s.id] = s.updatedAt;
       hydratedRef.current = true;
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, initialSeed]);
 
-  // Persist on change
   useEffect(() => {
     if (!hydratedRef.current) return;
-    if (session.updatedAt === lastSavedAtRef.current) return;
-    saveLocal(session);
+    saveLocal(state);
     if (!userId) return;
+    const dirty = state.order
+      .map((id) => state.sessionsById[id])
+      .filter((s): s is MaccSession => Boolean(s) && s.updatedAt !== lastSavedAtRef.current[s.id]);
+    if (dirty.length === 0) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       savingRef.current = true;
       try {
-        await fetch("/api/automacc/session", {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ session }),
-        });
-        lastSavedAtRef.current = session.updatedAt;
+        await Promise.all(
+          dirty.map(async (s) => {
+            const res = await fetch("/api/automacc/session", {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ session: s }),
+            });
+            if (res.ok) lastSavedAtRef.current[s.id] = s.updatedAt;
+          }),
+        );
       } catch {
-        // surface in UI later — local copy already saved
+        /* local copy already saved */
       } finally {
         savingRef.current = false;
       }
     }, SAVE_DEBOUNCE_MS);
-  }, [session, userId]);
+  }, [state, userId]);
+
+  const patch = useCallback(
+    (patcher: (s: MaccSession) => MaccSession) => dispatch({ type: "patchActive", patcher }),
+    [],
+  );
+
+  const createCompany = useCallback((name?: string, seed?: Partial<MaccSession>): string => {
+    const base = emptySession(name ?? "Untitled company");
+    const session: MaccSession = { ...base, ...seed, id: base.id, version: 4 };
+    dispatch({ type: "create", session });
+    return session.id;
+  }, []);
+
+  const switchTo = useCallback((id: string) => dispatch({ type: "switch", id }), []);
+
+  const deleteCompany = useCallback((id: string) => {
+    const fallback = emptySession();
+    dispatch({ type: "delete", id, fallback });
+    if (userId) {
+      void fetch(`/api/automacc/session?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    }
+  }, [userId]);
+
+  const renameCompany = useCallback(
+    (id: string, name: string) => dispatch({ type: "rename", id, name }),
+    [],
+  );
+
+  const active = state.sessionsById[state.activeId];
+
+  const store: MaccStore = useMemo(
+    () => ({
+      session: active,
+      setMeta: (m) => patch((s) => applyMeta(s, m)),
+      setStep: (step) => patch((s) => applyStep(s, step)),
+      setAggressiveness: (pct) => patch((s) => applyAggressiveness(s, pct)),
+      addSource: (src) => patch((s) => applyAddSource(s, src)),
+      updateSource: (id, p) => patch((s) => applyUpdateSource(s, id, p)),
+      removeSource: (id) => patch((s) => applyRemoveSource(s, id)),
+      setSources: (sources) => patch((s) => applySetSources(s, sources)),
+      setLever: (sourceId, p) => patch((s) => applySetLever(s, sourceId, p)),
+      setLevers: (levers) => patch((s) => applySetLevers(s, levers)),
+      reset: () => {
+        if (!active) return;
+        const replacement = emptySession(active.name);
+        replacement.id = active.id;
+        dispatch({ type: "resetActive", replacement });
+      },
+      saving: savingRef.current,
+      hydrated: hydratedRef.current,
+    }),
+    [active, patch],
+  );
+
+  const sessions = state.order
+    .map((id) => state.sessionsById[id])
+    .filter((s): s is MaccSession => Boolean(s));
 
   return {
-    session,
-    setMeta: useCallback((m: Partial<CompanyMeta>) => dispatch({ type: "setMeta", meta: m }), []),
-    setStep: useCallback((s: 1 | 2 | 3) => dispatch({ type: "setStep", step: s }), []),
-    setAggressiveness: useCallback(
-      (pct: number) => dispatch({ type: "setAggressiveness", pct }),
-      [],
-    ),
-    addSource: useCallback((s: SourceEntry) => dispatch({ type: "addSource", source: s }), []),
-    updateSource: useCallback(
-      (id: string, patch: Partial<SourceEntry>) => dispatch({ type: "updateSource", id, patch }),
-      [],
-    ),
-    removeSource: useCallback((id: string) => dispatch({ type: "removeSource", id }), []),
-    setSources: useCallback(
-      (sources: SourceEntry[]) => dispatch({ type: "setSources", sources }),
-      [],
-    ),
-    setLever: useCallback(
-      (sourceId: string, patch: Partial<LeverChoice>) => dispatch({ type: "setLever", sourceId, patch }),
-      [],
-    ),
-    setLevers: useCallback(
-      (levers: LeverChoice[]) => dispatch({ type: "setLevers", levers }),
-      [],
-    ),
-    reset: useCallback(() => dispatch({ type: "reset" }), []),
-    saving: savingRef.current,
+    sessions,
+    activeId: state.activeId,
+    active: store,
     hydrated: hydratedRef.current,
+    createCompany,
+    switchTo,
+    deleteCompany,
+    renameCompany,
   };
+}
+
+// Back-compat for any leftover import; prefer useMaccWorkspace().
+export function useMaccStore(userId: string | null): MaccStore {
+  return useMaccWorkspace(userId).active;
 }
 
 export function newSourceId(): string {
