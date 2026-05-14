@@ -74,6 +74,15 @@ export function LeverRow({ entry, lever, onChange }: Props) {
   }, [entry.numericalValue, abatementPct, factor]);
 
   const lifetimePositive = lifetime > 0;
+  // Two distinct "zero saving" reasons — be honest with the student about which.
+  // - abatementPct === 0 → they haven't moved the slider yet
+  // - costPerUnit === 0 → there's no fuel/elec cost factor for this source
+  //   (e.g. flights, ag, waste — the company isn't the fuel buyer)
+  const lifetimeReason: "set-pct" | "no-factor" | "ok" = lifetimePositive
+    ? "ok"
+    : abatementPct === 0
+      ? "set-pct"
+      : "no-factor";
 
   return (
     <div
@@ -283,9 +292,11 @@ export function LeverRow({ entry, lever, onChange }: Props) {
               fontWeight: lifetimePositive ? 600 : 500,
             }}
           >
-            {lifetimePositive
+            {lifetimeReason === "ok"
               ? `Lifetime avoided cost: ${fmtMoney(lifetime)} over 10 yrs`
-              : "Lifetime avoided cost: — (no fuel/elec cost factor)"}
+              : lifetimeReason === "set-pct"
+                ? "Set % of source you'd cut to see lifetime savings"
+                : "Lifetime avoided cost: — (no fuel/elec saving from this source type)"}
           </div>
         )}
       </div>

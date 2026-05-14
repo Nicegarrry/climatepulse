@@ -130,8 +130,19 @@ export function MaccTable({ levers, sources, onChangeLever }: Props) {
         </thead>
         <tbody>
           {levers.map((l) => {
+            const abatement = l.abatementTco2yFinal ?? 0;
+            // Rows without abatement (skipped or zero-% levers) don't have a
+            // meaningful $/tCO2 — the math returns a 9999 sentinel. Render
+            // those as an em-dash instead of an ugly number.
+            const cptIsMeaningful = abatement > 0 && l.costPerTco2 !== null;
             const cpt = l.costPerTco2 ?? 0;
-            const cptColor = cpt < 0 ? COLORS.forest : cpt > 100 ? "#B8442C" : COLORS.ink;
+            const cptColor = !cptIsMeaningful
+              ? COLORS.inkFaint
+              : cpt < 0
+                ? COLORS.forest
+                : cpt > 100
+                  ? "#B8442C"
+                  : COLORS.ink;
             return (
               <tr key={l.sourceId}>
                 <td style={td}>{sourceLabel(sources, l.sourceId)}</td>
@@ -168,11 +179,11 @@ export function MaccTable({ levers, sources, onChangeLever }: Props) {
                     ...td,
                     textAlign: "right",
                     color: cptColor,
-                    fontWeight: 600,
+                    fontWeight: cptIsMeaningful ? 600 : 500,
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {Math.round(cpt).toLocaleString()}
+                  {cptIsMeaningful ? Math.round(cpt).toLocaleString() : "—"}
                 </td>
               </tr>
             );
