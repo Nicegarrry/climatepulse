@@ -240,7 +240,7 @@
 }
 .lp-tile-cap .num { font-size: 20px; }
 /* Neutralise the tiles' own bottom margin so they sit flush in the cell */
-.lp-tile .lp-live-tile,
+.lp-tile .lp-duck,
 .lp-tile .lp-macc { margin-bottom: 0; flex: 1; }
 
 /* Learn — coming soon (greyed, non-interactive) */
@@ -285,42 +285,54 @@
 }
 .lp-soon-overlay svg { color: var(--lp-accent); }
 
-/* Live tile (NEM) */
-.lp-live-tile {
+/* Duck-curve tile (NEM intraday generation stack + price) */
+.lp-duck {
   background: var(--lp-bg-2);
   border: 1px solid var(--lp-rule);
   border-radius: 8px;
   padding: 14px;
   margin-bottom: 14px;
-  display: flex; flex-direction: column; gap: 10px;
+  display: flex; flex-direction: column; gap: 9px;
   cursor: pointer; text-decoration: none; color: inherit;
   transition: border-color 200ms var(--lp-ease), background 200ms var(--lp-ease);
 }
-.lp-live-tile:hover {
+.lp-duck:hover {
   border-color: var(--lp-accent);
   background: color-mix(in oklab, var(--lp-accent) 4%, var(--lp-bg-2));
 }
-.lp-live-tile .head {
-  display: flex; justify-content: space-between; align-items: center;
+.lp-duck .head {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
   font-family: var(--lp-font-mono); font-size: 10px;
-  letter-spacing: 0.12em; text-transform: uppercase; color: var(--lp-ink-3);
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--lp-ink-3);
 }
-.lp-live-tile .sample-stamp {
+.lp-duck .head > span:last-child { color: var(--lp-accent); white-space: nowrap; }
+.lp-duck .sample-stamp {
   font-family: var(--lp-font-mono); font-size: 9.5px;
   color: var(--lp-ink-3); letter-spacing: 0.1em;
-  margin-top: -2px; text-transform: uppercase;
+  margin-top: -4px; text-transform: uppercase;
 }
-.lp-live-row {
-  display: grid; grid-template-columns: 36px 1fr 56px 38px;
-  gap: 10px; align-items: center;
-  font-family: var(--lp-font-mono); font-size: 11px;
-  color: var(--lp-ink-2); font-variant-numeric: tabular-nums;
-  padding: 4px 0;
+.lp-duck-chart {
+  width: 100%; height: 116px; display: block;
+  border-radius: 4px;
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--lp-accent) 3%, var(--lp-surface)),
+    var(--lp-surface));
+  border: 1px solid var(--lp-rule);
 }
-.lp-live-row .c { color: var(--lp-ink); font-weight: 500; }
-.lp-live-row .p { color: var(--lp-ink); }
-.lp-live-row .m { color: var(--lp-accent); text-align: right; }
-.lp-live-tile .foot {
+.lp-duck .legend {
+  display: flex; flex-wrap: wrap; gap: 6px 12px;
+  font-family: var(--lp-font-mono); font-size: 9.5px;
+  letter-spacing: 0.04em; color: var(--lp-ink-2);
+}
+.lp-duck .legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+.lp-duck .legend .sw {
+  width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0;
+}
+.lp-duck .legend .sw-line {
+  height: 2px; border-radius: 1px; background: var(--lp-ink) !important;
+}
+.lp-duck .legend .lg-price { color: var(--lp-ink); }
+.lp-duck .foot {
   display: flex; justify-content: space-between; align-items: center;
   padding-top: 8px; margin-top: 2px;
   border-top: 1px solid var(--lp-rule);

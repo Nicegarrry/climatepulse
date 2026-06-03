@@ -6,9 +6,9 @@ Post-login dashboard triptych that all authenticated users see first. Replaces `
 
 - Entry: `src/app/(app)/launchpad/page.tsx` (server component)
 - Components: `src/components/launchpad/`
-  - `data.ts` — server data fetchers (profile, briefing existence, NEM, newsroom count, ingest count). Each swallows errors and falls back to `null` / sample data so a failed query never blocks render.
+  - `data.ts` — server data fetchers (profile, briefing existence, NEM duck curve, newsroom count, ingest count). Each swallows errors and falls back to `null` / sample data so a failed query never blocks render.
   - `primitives.tsx` — `PulseDot`, `MonoEyebrow`, `Arrow`, `MiniSpark`, `Row`
-  - `live-tile.tsx` — 5-state NEM tile with sparklines + sample stamp when the live feed isn't available
+  - `duck-curve-tile.tsx` — compact NEM intraday snippet: a stacked generation-by-fueltech area chart with the spot-price line overlaid + a fuel legend (a snippet of the `/dashboard?tab=energy` chart). Sourced from `getDuckCurve()`, which reads the `intraday` block of `fetchEnergyDashboard()` (the same call the app already makes) and falls back to a deterministic 24h sample.
   - `macc-tile.tsx` — static AutoMACC sample bars; click goes to `/automacc`
   - `launchpad.css` — scoped design system (`.lp-launchpad`)
 
@@ -30,7 +30,7 @@ Greeting strip, then a hero + a 3-tile row:
    - **Newsroom** — live wire-item count (24h) → `/dashboard?tab=newsroom`
    - **Markets** — ASX movers → `/dashboard?tab=markets`
 2. **Tile row** (`.lp-tiles`, 3 columns):
-   - **02 · Energy · NEM** — `LiveTile` → `/dashboard?tab=energy`
+   - **02 · Energy · NEM** — `DuckCurveTile` (intraday generation stack + spot-price line) → `/dashboard?tab=energy`
    - **03 · Decarbonisation** — `MaccTile` → `/automacc`
    - **04 · Learn** — greyed, non-interactive "Coming soon" tile (no link)
 
@@ -38,7 +38,7 @@ Greeting strip: "Good morning, {firstName}. Here's your climate desk." plus live
 
 ## Missing-data behaviour
 
-- NEM live feed unavailable → renders a sample snapshot with a "sample · open live →" stamp; click always opens `/dashboard?tab=energy`.
+- NEM intraday feed unavailable → the duck-curve tile renders a deterministic sample curve with a "sample · open live →" stamp; click always opens `/dashboard?tab=energy`.
 - `daily_briefings` row absent for today → hero status reads `PERSONALISE`. (If user is un-onboarded, opening the dashboard leads to the opt-in card.)
 - Newsroom count errored → the sub-card figure shows `—`.
 - Ingest count zero / errored → both the greeting line and the footer line for ingest are omitted.

@@ -20,12 +20,12 @@ import type { Metadata } from "next";
 
 import { getAuthUser } from "@/lib/supabase/server";
 import { MonoEyebrow, PulseDot, Arrow, MiniSpark } from "@/components/launchpad/primitives";
-import { LiveTile } from "@/components/launchpad/live-tile";
+import { DuckCurveTile } from "@/components/launchpad/duck-curve-tile";
 import { MaccTile } from "@/components/launchpad/macc-tile";
 import {
   formatAESTStamps,
+  getDuckCurve,
   getLaunchpadProfile,
-  getLiveSnapshot,
   getNewsroomCount,
   getOvernightIngestCount,
   hasBriefingToday,
@@ -64,11 +64,11 @@ export default async function LaunchpadPage() {
   const authUser = await getAuthUser();
   if (!authUser) redirect("/login");
 
-  const [profile, hasBrief, snapshot, newsroomCount, ingestCount] =
+  const [profile, hasBrief, duckCurve, newsroomCount, ingestCount] =
     await Promise.all([
       getLaunchpadProfile(authUser.id),
       hasBriefingToday(authUser.id),
-      getLiveSnapshot(),
+      getDuckCurve(),
       getNewsroomCount(),
       getOvernightIngestCount(),
     ]);
@@ -172,11 +172,14 @@ export default async function LaunchpadPage() {
             <span className="num">02.</span>
             <MonoEyebrow>Energy · NEM</MonoEyebrow>
           </div>
-          <LiveTile
+          <DuckCurveTile
             href="/dashboard?tab=energy"
-            states={snapshot.states}
-            renewablesPct={snapshot.renewablesPct}
-            isSample={snapshot.isSample}
+            timestamps={duckCurve.timestamps}
+            generation={duckCurve.generation}
+            price={duckCurve.price}
+            fueltechs={duckCurve.fueltechs}
+            renewablesPct={duckCurve.renewablesPct}
+            isSample={duckCurve.isSample}
           />
         </div>
 
