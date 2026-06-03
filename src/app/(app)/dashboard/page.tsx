@@ -233,6 +233,15 @@ function DashboardInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
+  // Switch tab AND reflect it in the URL (?tab=…) so refresh, back/forward and
+  // shared links all land on the same tab. scroll:false keeps the viewport put.
+  function selectTab(value: string) {
+    setActiveTab(value);
+    const params = new URLSearchParams(window.location.search);
+    params.set("tab", value);
+    router.replace(`/dashboard?${params.toString()}`, { scroll: false });
+  }
+
   const mobileNavValues = new Set(mobileNav.map((n) => n.value));
   const moreTabs = tabConfig.filter((t) => !mobileNavValues.has(t.value));
 
@@ -311,7 +320,7 @@ function DashboardInner() {
             <div
               key={tab.value}
               onClick={() => {
-                setActiveTab(tab.value);
+                selectTab(tab.value);
                 log("info", `Switched to tab: ${tab.value}`);
               }}
               style={{
@@ -488,7 +497,7 @@ function DashboardInner() {
           }}
         >
           <div
-            onClick={() => setActiveTab("intelligence")}
+            onClick={() => selectTab("intelligence")}
             style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
           >
             <img src="/logo.svg" alt="Climate Pulse" height={22} style={{ height: 22, width: "auto" }} />
@@ -618,7 +627,7 @@ function DashboardInner() {
               <button
                 key={item.value}
                 onClick={() => {
-                  setActiveTab(item.value);
+                  selectTab(item.value);
                   log("info", `Switched to tab: ${item.value}`);
                 }}
                 style={{
@@ -713,7 +722,7 @@ function DashboardInner() {
                   <button
                     key={tab.value}
                     onClick={() => {
-                      setActiveTab(tab.value);
+                      selectTab(tab.value);
                       setMoreOpen(false);
                       log("info", `Switched to tab: ${tab.value}`);
                     }}

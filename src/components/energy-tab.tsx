@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Loader2,
   RefreshCw,
@@ -16,9 +22,12 @@ import {
   Minus,
   DollarSign,
   AlertCircle,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import type { EnergyDashboardData } from "@/lib/energy/openelectricity";
 import { Sparkline } from "@/components/charts/sparkline";
+import { useCachedResource } from "@/lib/use-cached-resource";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Colour maps — keyed by API series names (energy_solar, energy_coal, etc.)
@@ -258,11 +267,13 @@ function IntradayChart({
   generation,
   price,
   fueltechs,
+  range = "1d",
 }: {
   timestamps: string[];
   generation: Record<string, number[]>;
   price: number[];
   fueltechs: { key: string; label: string; color: string }[];
+  range?: RangeKey;
 }) {
   if (timestamps.length < 2) return null;
 
@@ -311,16 +322,40 @@ function IntradayChart({
     })
     .join(" ");
 
-  // X-axis labels (every 3 hours)
+  // X-axis labels — granularity depends on the selected range.
+  const xAt = (i: number) => PAD.left + i * barW + barW / 2;
+  const pad2 = (v: number) => v.toString().padStart(2, "0");
+  const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const xLabels: { x: number; label: string }[] = [];
-  for (let i = 0; i < timestamps.length; i++) {
-    const date = new Date(timestamps[i]);
-    const hour = date.getHours();
-    if (hour % 3 === 0) {
-      xLabels.push({
-        x: PAD.left + i * barW + barW / 2,
-        label: `${hour.toString().padStart(2, "0")}:00`,
-      });
+  if (range === "1h") {
+    const step = Math.max(1, Math.ceil(barCount / 4));
+    for (let i = 0; i < barCount; i += step) {
+      const d = new Date(timestamps[i]);
+      xLabels.push({ x: xAt(i), label: `${pad2(d.getHours())}:${pad2(d.getMinutes())}` });
+    }
+  } else if (range === "1w") {
+    let lastDay = -1;
+    for (let i = 0; i < barCount; i++) {
+      const d = new Date(timestamps[i]);
+      if (d.getDate() !== lastDay && d.getHours() <= 1) {
+        lastDay = d.getDate();
+        xLabels.push({ x: xAt(i), label: WD[d.getDay()] });
+      }
+    }
+  } else if (range === "1m") {
+    const step = Math.max(1, Math.floor(barCount / 6));
+    for (let i = 0; i < barCount; i += step) {
+      const d = new Date(timestamps[i]);
+      xLabels.push({ x: xAt(i), label: `${d.getDate()} ${MO[d.getMonth()]}` });
+    }
+  } else {
+    // 1d — every 3 hours on the hour
+    for (let i = 0; i < barCount; i++) {
+      const d = new Date(timestamps[i]);
+      if (d.getHours() % 3 === 0 && d.getMinutes() === 0) {
+        xLabels.push({ x: xAt(i), label: `${pad2(d.getHours())}:00` });
+      }
     }
   }
 
@@ -365,35 +400,37 @@ function IntradayChart({
         />
       )}
 
-      {/* Stacked bars */}
-      {timestamps.map((_, i) => {
-        let cumulative = 0;
-        return (
-          <g key={i}>
-            {stacks.map((stack) => {
-              const val = stack.values[i];
-              const barH = (val / maxGen) * chartH;
-              const y = genY(cumulative + val);
-              cumulative += val;
-              if (barH < 0.5) return null;
-              return (
-                <rect
-                  key={stack.key}
-                  x={PAD.left + i * barW + 0.5}
-                  y={y}
-                  width={Math.max(barW - 1, 1)}
-                  height={barH}
-                  fill={stack.color}
-                  opacity={0.85}
-                />
-              );
-            })}
-          </g>
-        );
-      })}
+      {/* Stacked bars — fade in as a group on mount / range change */}
+      <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45, ease: "easeOut" }}>
+        {timestamps.map((_, i) => {
+          let cumulative = 0;
+          return (
+            <g key={i}>
+              {stacks.map((stack) => {
+                const val = stack.values[i];
+                const barH = (val / maxGen) * chartH;
+                const y = genY(cumulative + val);
+                cumulative += val;
+                if (barH < 0.5) return null;
+                return (
+                  <rect
+                    key={stack.key}
+                    x={PAD.left + i * barW + 0.5}
+                    y={y}
+                    width={Math.max(barW - 1, 1)}
+                    height={barH}
+                    fill={stack.color}
+                    opacity={0.85}
+                  />
+                );
+              })}
+            </g>
+          );
+        })}
+      </motion.g>
 
-      {/* Price line */}
-      <path
+      {/* Price line — draws itself in on mount / range change */}
+      <motion.path
         d={pricePath}
         fill="none"
         stroke="var(--foreground)"
@@ -401,6 +438,9 @@ function IntradayChart({
         strokeLinecap="round"
         strokeLinejoin="round"
         opacity={0.8}
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.9, ease: "easeInOut" }}
       />
 
       {/* Price dots at notable points */}
@@ -504,33 +544,43 @@ const REGIONS = [
   { value: "TAS1", label: "TAS" },
 ];
 
+type RangeKey = "1h" | "1d" | "1w" | "1m";
+
+const RANGE_OPTIONS: { value: RangeKey; label: string; header: string }[] = [
+  { value: "1h", label: "1H", header: "Last hour" },
+  { value: "1d", label: "1D", header: "Last 24h" },
+  { value: "1w", label: "1W", header: "Last 7 days" },
+  { value: "1m", label: "1M", header: "Last 30 days" },
+];
+
 function IntradaySection() {
   const [region, setRegion] = useState("__all__");
-  const [data, setData] = useState<IntradayData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<RangeKey>("1d");
 
-  const fetchIntraday = useCallback(async (r: string) => {
-    setLoading(true);
-    try {
-      const params = r !== "__all__" ? `?region=${r}` : "";
-      const res = await fetch(`/api/energy/intraday${params}`);
-      if (res.ok) setData(await res.json());
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchIntraday(region);
-  }, [region, fetchIntraday]);
+  // Cached per (region, range) so flicking between them is instant after the
+  // first load; stale entries revalidate in the background.
+  const cacheKey = `energy:intraday:${region}:${range}`;
+  const { data, loading } = useCachedResource<IntradayData>(
+    cacheKey,
+    async () => {
+      const params = new URLSearchParams();
+      if (region !== "__all__") params.set("region", region);
+      params.set("range", range);
+      const res = await fetch(`/api/energy/intraday?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to load intraday data");
+      return (await res.json()) as IntradayData;
+    },
+    120_000,
+  );
 
   const activeRegionLabel = REGIONS.find((r) => r.value === region)?.label ?? "NEM";
+  const activeRange = RANGE_OPTIONS.find((r) => r.value === range) ?? RANGE_OPTIONS[1];
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
-      <div className="mb-3 flex items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <h3 className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-          Generation &amp; Price — Last 24h · {activeRegionLabel}
+          Generation &amp; Price — {activeRange.header} · {activeRegionLabel}
         </h3>
         <div className="flex gap-1">
           {REGIONS.map((r) => (
@@ -547,20 +597,43 @@ function IntradaySection() {
             </button>
           ))}
         </div>
+
+        {/* Duration dropdown */}
+        <div className="ml-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-surface-2 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted">
+                {activeRange.label}
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[10rem]">
+              {RANGE_OPTIONS.map((o) => (
+                <DropdownMenuItem key={o.value} onClick={() => setRange(o.value)} className="gap-2 text-sm">
+                  <span className="font-medium tabular-nums">{o.label}</span>
+                  <span className="text-xs text-muted-foreground">{o.header}</span>
+                  {o.value === range && <Check className="ml-auto h-4 w-4 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       <Card className="border-border/40">
         <CardContent className="p-4">
-          {loading ? (
+          {loading && !data ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : data && data.timestamps.length > 2 ? (
+          ) : data && data.timestamps.length > 1 ? (
             <>
               <IntradayChart
+                key={`${region}-${range}`}
                 timestamps={data.timestamps}
                 generation={data.generation}
                 price={data.price}
                 fueltechs={data.fueltechs}
+                range={range}
               />
               {/* Legend — grid layout for readability */}
               <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-1.5 border-t border-border/40 pt-3 sm:grid-cols-4 md:grid-cols-6">
@@ -589,42 +662,37 @@ function IntradaySection() {
    Main component
    ────────────────────────────────────────────────────────────────────────── */
 
+// Staggered entrance for the headline stat cards — makes the tab feel alive.
+const statsContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.07, delayChildren: 0.02 } },
+};
+const statItem = {
+  hidden: { opacity: 0, y: 12 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" as const } },
+};
+
 export function EnergyTab() {
-  const [data, setData] = useState<EnergyDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    try {
+  // Cached + stale-while-revalidate so returning to the Energy tab is instant.
+  const { data, loading, error, revalidate } = useCachedResource<EnergyDashboardData>(
+    "energy:dashboard",
+    async () => {
       const res = await fetch("/api/energy/dashboard");
-      if (!res.ok) {
-        const body = await res.json();
-        setError(body.error || "Failed to fetch energy data");
-        return;
-      }
-      const result: EnergyDashboardData = await res.json();
-      if (result.error) {
-        setError(result.error);
-      }
-      setData(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData().finally(() => setLoading(false));
-  }, [fetchData]);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Failed to fetch energy data");
+      return body as EnergyDashboardData;
+    },
+    120_000,
+  );
+  const [refreshing, setRefreshing] = useState(false);
 
   async function refresh() {
     setRefreshing(true);
-    setError(null);
-    await fetchData();
+    await revalidate();
     setRefreshing(false);
   }
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -683,65 +751,74 @@ export function EnergyTab() {
         </div>
       </div>
 
-      {error && (
+      {data.error && (
         <div className="rounded-lg border border-status-warning/30 bg-status-warning/5 px-4 py-2">
-          <p className="text-xs text-status-warning">Partial data: {error}</p>
+          <p className="text-xs text-status-warning">Partial data: {data.error}</p>
         </div>
       )}
 
       {/* ── Headline stats ─────────────────────────────────────────── */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
+        variants={statsContainer}
+        initial="hidden"
+        animate="visible"
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <HeadlineStat
-          label="Renewables (7d)"
-          value={String(data.renewable_pct_7d)}
-          unit="%"
-          icon={Leaf}
-          iconColor="text-status-success"
-          iconBg="bg-status-success/10"
-          trend={renewTrend}
-          trendLabel={`${data.renewable_pct_today}% today`}
-          sparkData={data.renewable_pct_daily}
-          sparkColor="var(--status-success)"
-        />
-        <HeadlineStat
-          label="Emissions Intensity"
-          value={data.emissions_intensity !== null ? String(data.emissions_intensity) : "—"}
-          unit="tCO₂/MWh"
-          icon={Factory}
-          iconColor="text-muted-foreground"
-          iconBg="bg-muted"
-          sparkData={data.emissions_daily}
-          sparkColor="var(--status-error)"
-        />
-        <HeadlineStat
-          label="Total Generation"
-          value={String(data.total_generation_gwh_7d)}
-          unit="GWh"
-          icon={Zap}
-          iconColor="text-accent-amber"
-          iconBg="bg-accent-amber/10"
-        />
-        <HeadlineStat
-          label="Avg Wholesale Price"
-          value={
-            data.price_summaries.length > 0
-              ? String(
-                  Math.round(
-                    data.price_summaries.reduce((s, p) => s + (p.avg_24h ?? 0), 0) /
-                      data.price_summaries.filter((p) => p.avg_24h !== null).length
+        <motion.div variants={statItem}>
+          <HeadlineStat
+            label="Renewables (7d)"
+            value={String(data.renewable_pct_7d)}
+            unit="%"
+            icon={Leaf}
+            iconColor="text-status-success"
+            iconBg="bg-status-success/10"
+            trend={renewTrend}
+            trendLabel={`${data.renewable_pct_today}% today`}
+            sparkData={data.renewable_pct_daily}
+            sparkColor="var(--status-success)"
+          />
+        </motion.div>
+        <motion.div variants={statItem}>
+          <HeadlineStat
+            label="Emissions Intensity"
+            value={data.emissions_intensity !== null ? String(data.emissions_intensity) : "—"}
+            unit="tCO₂/MWh"
+            icon={Factory}
+            iconColor="text-muted-foreground"
+            iconBg="bg-muted"
+            sparkData={data.emissions_daily}
+            sparkColor="var(--status-error)"
+          />
+        </motion.div>
+        <motion.div variants={statItem}>
+          <HeadlineStat
+            label="Total Generation"
+            value={String(data.total_generation_gwh_7d)}
+            unit="GWh"
+            icon={Zap}
+            iconColor="text-accent-amber"
+            iconBg="bg-accent-amber/10"
+          />
+        </motion.div>
+        <motion.div variants={statItem}>
+          <HeadlineStat
+            label="Avg Wholesale Price"
+            value={
+              data.price_summaries.length > 0
+                ? String(
+                    Math.round(
+                      data.price_summaries.reduce((s, p) => s + (p.avg_24h ?? 0), 0) /
+                        data.price_summaries.filter((p) => p.avg_24h !== null).length
+                    )
                   )
-                )
-              : "—"
-          }
-          unit="$/MWh"
-          icon={DollarSign}
-          iconColor="text-status-info"
-          iconBg="bg-status-info/10"
-        />
+                : "—"
+            }
+            unit="$/MWh"
+            icon={DollarSign}
+            iconColor="text-status-info"
+            iconBg="bg-status-info/10"
+          />
+        </motion.div>
       </motion.div>
 
       {/* ── Generation mix ─────────────────────────────────────────── */}
