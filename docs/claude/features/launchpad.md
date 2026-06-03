@@ -6,12 +6,13 @@ Post-login dashboard triptych that all authenticated users see first. Replaces `
 
 - Entry: `src/app/(app)/launchpad/page.tsx` (server component)
 - Components: `src/components/launchpad/`
-  - `data.ts` — six server data fetchers (profile, briefing existence, weekly, NEM, newsroom count, ingest count). Each swallows errors and falls back to `null` / sample data so a failed query never blocks render.
+  - `data.ts` — server data fetchers (profile, briefing existence, NEM duck curve, newsroom count, ingest count). Each swallows errors and falls back to `null` / sample data so a failed query never blocks render.
   - `primitives.tsx` — `PulseDot`, `MonoEyebrow`, `Arrow`, `MiniSpark`, `Row`
-  - `live-tile.tsx` — 5-state NEM tile with sparklines + sample stamp when the live feed isn't available
-  - `weekly-tile.tsx` — Weekly Pulse hero (rendered only when a published edition exists)
+  - `duck-curve-tile.tsx` — compact NEM intraday snippet: a stacked generation-by-fueltech area chart with the spot-price line overlaid + a fuel legend (a snippet of the `/dashboard?tab=energy` chart). Sourced from `getDuckCurve()`, which reads the `intraday` block of `fetchEnergyDashboard()` (the same call the app already makes) and falls back to a deterministic 24h sample.
   - `macc-tile.tsx` — static AutoMACC sample bars; click goes to `/automacc`
   - `launchpad.css` — scoped design system (`.lp-launchpad`)
+
+**Trimmed (2026-06-03):** the page was cut to just the surfaces that work today. Removed the three-column triptych (Weekly/Research/Teaching/Services) and the `weekly-tile.tsx` + `getLatestWeekly` data fetcher. The `Row` primitive is retained for potential reuse but no longer rendered.
 
 ## Why it exists
 
@@ -23,19 +24,23 @@ Before 2026-05-14 every authed user landed on `/dashboard` which auto-fired dige
 
 ## Layout
 
-Three columns, top-aligned:
+Greeting strip, then a hero + a 3-tile row:
 
-1. **Live intelligence** — hero NEM tile + rows for Today's briefing, Newsroom, Markets. Footer: "Go to live intelligence → /dashboard".
-2. **Learning** — hero Weekly Pulse tile (when published) + rows for Learn, Research, Teaching. Footer: "Go to learning → /learn".
-3. **Beyond the briefing** — hero AutoMACC sample-bars tile + rows for Private briefings, Sector deep reads, Workshops. Footer: "Talk to us → /services".
+1. **Hero — Today's briefing (the dashboard).** Big card; CTA "Open the dashboard → `/dashboard?tab=intelligence`". `READY · 5 MIN` when a `daily_briefings` row exists for today, else `PERSONALISE`. Two small sub-component cards sit alongside it (the surfaces that feed the briefing):
+   - **Newsroom** — live wire-item count (24h) → `/dashboard?tab=newsroom`
+   - **Markets** — ASX movers → `/dashboard?tab=markets`
+2. **Tile row** (`.lp-tiles`, 3 columns):
+   - **02 · Energy · NEM** — `DuckCurveTile` (intraday generation stack + spot-price line) → `/dashboard?tab=energy`
+   - **03 · Decarbonisation** — `MaccTile` → `/automacc`
+   - **04 · Learn** — greyed, non-interactive "Coming soon" tile (no link)
 
-Greeting strip above the grid: "Good morning, {firstName}. Three things to read, two things to do." plus live time stamp, today's date, and overnight ingest count.
+Greeting strip: "Good morning, {firstName}. Here's your climate desk." plus live time stamp, today's date, and overnight ingest count.
 
 ## Missing-data behaviour
 
-- NEM live feed unavailable → renders a sample snapshot with a "sample · open live →" stamp; click always opens `/dashboard?tab=energy`.
-- No published Weekly edition → hero tile hidden, learning rows still render.
-- `daily_briefings` row absent for today → "Today's briefing" row says `PERSONALISE`. (If user is un-onboarded, clicking that row leads to the opt-in card.)
+- NEM intraday feed unavailable → the duck-curve tile renders a deterministic sample curve with a "sample · open live →" stamp; click always opens `/dashboard?tab=energy`.
+- `daily_briefings` row absent for today → hero status reads `PERSONALISE`. (If user is un-onboarded, opening the dashboard leads to the opt-in card.)
+- Newsroom count errored → the sub-card figure shows `—`.
 - Ingest count zero / errored → both the greeting line and the footer line for ingest are omitted.
 
 ## Routing rules
