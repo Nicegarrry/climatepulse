@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useDevLogger } from "@/lib/dev-logger";
 import { motion, AnimatePresence } from "framer-motion";
@@ -97,6 +97,13 @@ const adminTabs = [
 const founderTabs = [
   { value: "automacc", label: "AutoMACC", icon: CommandLineIcon, iconSolid: CommandLineIcon },
 ];
+
+// Every known tab value — used to validate an inbound `?tab=` deep-link
+// (e.g. /launchpad → /dashboard?tab=energy) before honouring it. The
+// per-role guard further narrows this to what the user is allowed to see.
+const ALL_TAB_VALUES = new Set(
+  [...readerTabs, ...editorTabs, ...adminTabs, ...founderTabs].map((t) => t.value),
+);
 
 function getTabsForRole(role: "reader" | "editor" | "admin", tier?: string) {
   // Order: Briefing, (admin tabs between), Energy, Markets, Editor, Weekly, (founder tabs at end)
@@ -198,6 +205,15 @@ function TabContent({ activeTab }: { activeTab: string }) {
    ────────────────────────────────────────────────────────────────────────── */
 
 export default function DashboardPage() {
+  // useSearchParams() requires a Suspense boundary (Next App Router).
+  return (
+    <Suspense fallback={null}>
+      <DashboardInner />
+    </Suspense>
+  );
+}
+
+function DashboardInner() {
   const { log, isOpen, setIsOpen, logs } = useDevLogger();
   const { user, logout } = useAuth();
   const role = user?.role ?? "reader";
@@ -206,7 +222,14 @@ export default function DashboardPage() {
   const mobileNav = getMobileNavForRole(role);
   const isAdmin = role === "admin";
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("intelligence");
+  const searchParams = useSearchParams();
+  // Honour a `?tab=` deep-link on first load (e.g. from /launchpad → energy).
+  // Read in the initializer so server and client agree (no hydration flash);
+  // the per-role guard below corrects it if the tab isn't allowed.
+  const [activeTab, setActiveTab] = useState(() => {
+    const t = searchParams?.get("tab");
+    return t && ALL_TAB_VALUES.has(t) ? t : "intelligence";
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
