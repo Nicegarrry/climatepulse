@@ -1,18 +1,17 @@
 /**
- * /launchpad — post-login, pre-feature dashboard triptych.
+ * /launchpad — post-login front door, trimmed to the surfaces that work today.
  *
  * Server component. Wrapped by the (app) route group's client layout, which
  * gates render on `useAuth`. We additionally redirect unauthenticated users
  * here at the request level so direct visits don't even reach the client.
  *
- * Design source: /tmp/launchpad-design/.../launchpad/DirC.jsx
+ * Layout (deliberately minimal, very visual):
+ *   - Hero          → Dashboard / today's briefing (the flagship surface),
+ *                     with Newsroom + Markets as small sub-component cards.
+ *   - Tile row      → NEM live · AutoMACC · Learn (greyed "coming soon").
  *
- * Data:
- *   - User profile (id, name, role, tier, onboarded_at, primary_sectors)
- *   - Today's briefing existence  → drives "READY" vs "PERSONALISE" copy
- *   - Latest published Weekly Pulse → hero card, hidden if absent
- *   - NEM live snapshot via fetchEnergyDashboard → falls back to a sample
- *   - Overnight ingest count from `raw_articles`, omitted if unavailable
+ * Everything else from the old triptych (Weekly, Research, Teaching, Services)
+ * is intentionally cut for now to keep the entry point focused.
  */
 
 import { redirect } from "next/navigation";
@@ -20,13 +19,11 @@ import { Inter_Tight, Newsreader, JetBrains_Mono } from "next/font/google";
 import type { Metadata } from "next";
 
 import { getAuthUser } from "@/lib/supabase/server";
-import { MonoEyebrow, PulseDot, Row } from "@/components/launchpad/primitives";
+import { MonoEyebrow, PulseDot, Arrow, MiniSpark } from "@/components/launchpad/primitives";
 import { LiveTile } from "@/components/launchpad/live-tile";
-import { WeeklyTile } from "@/components/launchpad/weekly-tile";
 import { MaccTile } from "@/components/launchpad/macc-tile";
 import {
   formatAESTStamps,
-  getLatestWeekly,
   getLaunchpadProfile,
   getLiveSnapshot,
   getNewsroomCount,
@@ -38,7 +35,7 @@ import "@/components/launchpad/launchpad.css";
 
 export const metadata: Metadata = {
   title: "Launchpad — Climate Pulse",
-  description: "Three things to read, two things to do.",
+  description: "Your climate intelligence desk.",
 };
 
 // Scoped fonts. The root layout uses Crimson Pro / Source Sans 3;
@@ -67,11 +64,10 @@ export default async function LaunchpadPage() {
   const authUser = await getAuthUser();
   if (!authUser) redirect("/login");
 
-  const [profile, hasBrief, weekly, snapshot, newsroomCount, ingestCount] =
+  const [profile, hasBrief, snapshot, newsroomCount, ingestCount] =
     await Promise.all([
       getLaunchpadProfile(authUser.id),
       hasBriefingToday(authUser.id),
-      getLatestWeekly(),
       getLiveSnapshot(),
       getNewsroomCount(),
       getOvernightIngestCount(),
@@ -86,27 +82,11 @@ export default async function LaunchpadPage() {
 
   const briefingMeta = hasBrief ? "READY · 5 MIN" : "PERSONALISE";
   const briefingDesc = hasBrief
-    ? "Your daily digest is ready. Five minutes, three signals, one verdict."
-    : "Tell us your sectors and we'll generate your first briefing tomorrow morning.";
+    ? "Your daily digest is ready. Five minutes, three signals, one verdict — the day's climate, energy and transition intelligence in one read."
+    : "Tell us your sectors and we'll generate your first briefing tomorrow morning. The full desk — newsroom, markets and energy — feeds into it.";
 
-  const newsroomMeta =
-    typeof newsroomCount === "number" ? `${newsroomCount} NEW` : "LIVE";
-
-  const weeklyHref = weekly ? `/dashboard?tab=weekly` : "#";
-  const weeklyEdition = weekly
-    ? weekly.edition_number
-      ? `Edition ${weekly.edition_number}`
-      : "Latest"
-    : "";
-  const weeklyDate = weekly?.published_at
-    ? new Date(weekly.published_at).toLocaleDateString("en-AU", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-      })
-    : "";
-  const weeklyLede =
-    weekly?.editor_narrative?.replace(/\s+/g, " ").trim().slice(0, 180) ?? "";
+  const newsroomLabel =
+    typeof newsroomCount === "number" ? newsroomCount.toLocaleString("en-AU") : "—";
 
   const className = [
     "lp-launchpad",
@@ -121,7 +101,7 @@ export default async function LaunchpadPage() {
       <div className="lp-head">
         <h1 className="serif">
           Good morning, {displayName}.{" "}
-          <span className="em-accent">Three things to read, two things to do.</span>
+          <span className="em-accent">Here&apos;s your climate desk.</span>
         </h1>
         <div className="stamp">
           <span className="live">
@@ -129,150 +109,106 @@ export default async function LaunchpadPage() {
           </span>
           <span>{date}</span>
           {ingestCount !== null && (
-            <span>pipeline · {ingestCount.toLocaleString("en-AU")} items ingested overnight</span>
+            <span>pipeline · {ingestCount.toLocaleString("en-AU")} items overnight</span>
           )}
         </div>
       </div>
 
-      {/* ── Triptych ─────────────────────────────────────────────────── */}
-      <div className="lp-grid">
-        {/* ── 01 · Live intelligence ──────────────────────────────── */}
-        <section className="lp-col" aria-labelledby="lp-col-1">
-          <div className="lp-col-head">
-            <div className="top">
-              <span className="num">01.</span>
-              <MonoEyebrow>Live</MonoEyebrow>
-            </div>
-            <h2 id="lp-col-1">Live intelligence</h2>
-            <p className="promise">
-              What changed overnight, and what&apos;s moving now.
-            </p>
+      {/* ── Hero · the briefing (dashboard) ──────────────────────────── */}
+      <section className="lp-hero" aria-labelledby="lp-hero-title">
+        <div className="lp-hero-main">
+          <div className="lp-hero-top">
+            <span className="num">01.</span>
+            <MonoEyebrow>The briefing · your daily read</MonoEyebrow>
           </div>
-          <div className="lp-col-body">
-            <LiveTile
-              href="/dashboard?tab=energy"
-              states={snapshot.states}
-              renewablesPct={snapshot.renewablesPct}
-              isSample={snapshot.isSample}
-            />
-            <Row
-              href="/dashboard?tab=intelligence"
-              name="Today's briefing"
-              meta={briefingMeta}
-              desc={briefingDesc}
-            />
-            <Row
-              href="/dashboard?tab=newsroom"
-              name="Newsroom"
-              meta={newsroomMeta}
-              desc="Live wire feed across AEMO, ASX, DCCEEW and the trade press."
-            />
-            <Row
-              href="/dashboard?tab=markets"
-              name="Markets"
-              meta="ASX 10:00"
-              desc="ASX energy + minerals movers, refreshed through the trading day."
-            />
+          <h2 id="lp-hero-title">Today&apos;s briefing</h2>
+          <p className="lp-hero-desc">{briefingDesc}</p>
+          <div className="lp-hero-status">
+            <PulseDot />
+            <span>{briefingMeta}</span>
           </div>
-          <div className="lp-col-cta">
-            <a href="/dashboard">
-              Go to live intelligence
-              <span className="path">→ /dashboard</span>
-            </a>
-          </div>
-        </section>
+          <a className="lp-hero-cta" href="/dashboard?tab=intelligence">
+            Open the dashboard <Arrow size={14} />
+          </a>
+        </div>
 
-        {/* ── 02 · Learning ───────────────────────────────────────── */}
-        <section className="lp-col" aria-labelledby="lp-col-2">
-          <div className="lp-col-head">
-            <div className="top">
-              <span className="num">02.</span>
-              <MonoEyebrow>This week</MonoEyebrow>
-            </div>
-            <h2 id="lp-col-2">Learning</h2>
-            <p className="promise">
-              Catch up on the concepts, the players, and the long arc.
-            </p>
-          </div>
-          <div className="lp-col-body">
-            {weekly && (
-              <WeeklyTile
-                href={weeklyHref}
-                edition={weeklyEdition}
-                date={weeklyDate}
-                title={weekly.headline}
-                lede={weeklyLede}
-              />
-            )}
-            <Row
-              href="/learn"
-              name="Learn"
-              meta="PRIMERS"
-              desc="Short primers on the concepts, programs, and people that drive the transition."
-            />
-            <Row
-              href="/learn"
-              name="Research"
-              meta="NEW · APR"
-              desc="Long-form pieces — primers, explainers, data notes. New work each month."
-            />
-            <Row
-              href="/teaching"
-              name="Teaching"
-              meta="JULY · COHORT 01"
-              tag="Soon"
-              desc="'Australian Energy Transition 101' — eight live sessions, founder-led, capped at 24."
-            />
-          </div>
-          <div className="lp-col-cta">
-            <a href="/learn">
-              Go to learning
-              <span className="path">→ /learn</span>
-            </a>
-          </div>
-        </section>
+        {/* Markets + Newsroom — small sub-components that feed the hero */}
+        <div className="lp-hero-subs">
+          <span className="lp-subs-cap">
+            <MonoEyebrow>Feeding today&apos;s read</MonoEyebrow>
+          </span>
 
-        {/* ── 03 · Beyond the briefing ────────────────────────────── */}
-        <section className="lp-col" aria-labelledby="lp-col-3">
-          <div className="lp-col-head">
-            <div className="top">
-              <span className="num">03.</span>
-              <MonoEyebrow>Founder-led</MonoEyebrow>
+          <a className="lp-subtile" href="/dashboard?tab=newsroom">
+            <div className="st-top">
+              <span className="st-name">Newsroom</span>
+              <PulseDot />
             </div>
-            <h2 id="lp-col-3">Beyond the briefing</h2>
-            <p className="promise">
-              Founder-led work for teams that need more than a newsletter.
-            </p>
+            <div className="st-figure">{newsroomLabel}</div>
+            <div className="st-label">new wire items · last 24h</div>
+            <div className="st-foot">
+              Open newsroom <Arrow />
+            </div>
+          </a>
+
+          <a className="lp-subtile" href="/dashboard?tab=markets">
+            <div className="st-top">
+              <span className="st-name">Markets</span>
+              <MiniSpark data={[44, 47, 45, 51, 49, 56, 60]} w={52} h={14} />
+            </div>
+            <div className="st-figure st-figure-sm">ASX</div>
+            <div className="st-label">energy &amp; minerals movers</div>
+            <div className="st-foot">
+              Open markets <Arrow />
+            </div>
+          </a>
+        </div>
+      </section>
+
+      {/* ── Feature tiles ────────────────────────────────────────────── */}
+      <div className="lp-tiles">
+        {/* 02 · NEM live energy */}
+        <div className="lp-tile">
+          <div className="lp-tile-cap">
+            <span className="num">02.</span>
+            <MonoEyebrow>Energy · NEM</MonoEyebrow>
           </div>
-          <div className="lp-col-body">
-            <MaccTile href="/automacc" />
-            <Row
-              href="/services/private"
-              name="Private briefings"
-              meta="BY REQUEST"
-              desc="A bespoke daily brief for one investment committee, board, or executive team."
-            />
-            <Row
-              href="/services/deep"
-              name="Sector deep reads"
-              meta="6-WEEK"
-              desc="Six-week engagements on a single sector. Written by Nick, not a team."
-            />
-            <Row
-              href="/services/workshops"
-              name="Workshops"
-              meta="Q3 2026"
-              tag="Soon"
-              desc="Half-day desk-side workshops for analyst teams. Format finalising."
-            />
+          <LiveTile
+            href="/dashboard?tab=energy"
+            states={snapshot.states}
+            renewablesPct={snapshot.renewablesPct}
+            isSample={snapshot.isSample}
+          />
+        </div>
+
+        {/* 03 · AutoMACC */}
+        <div className="lp-tile">
+          <div className="lp-tile-cap">
+            <span className="num">03.</span>
+            <MonoEyebrow>Decarbonisation</MonoEyebrow>
           </div>
-          <div className="lp-col-cta">
-            <a href="/services">
-              Talk to us
-              <span className="path">→ /services</span>
-            </a>
+          <MaccTile href="/automacc" />
+        </div>
+
+        {/* 04 · Learn — coming soon (greyed, non-interactive) */}
+        <div className="lp-tile lp-tile-soon" aria-disabled="true">
+          <div className="lp-tile-cap">
+            <span className="num">04.</span>
+            <MonoEyebrow>Learn</MonoEyebrow>
+            <span className="soon-badge">Coming soon</span>
           </div>
-        </section>
+          <div className="lp-soon">
+            <div className="lp-soon-rows" aria-hidden="true">
+              <span className="lp-soon-row" style={{ width: "82%" }} />
+              <span className="lp-soon-row" style={{ width: "64%" }} />
+              <span className="lp-soon-row" style={{ width: "73%" }} />
+              <span className="lp-soon-row" style={{ width: "48%" }} />
+            </div>
+            <div className="lp-soon-overlay">
+              <ClockIcon />
+              <span>Primers, explainers &amp; the long arc — landing soon.</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="lp-foot">
@@ -284,5 +220,27 @@ export default async function LaunchpadPage() {
         </span>
       </div>
     </div>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      style={{ flexShrink: 0 }}
+    >
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M12 7.5V12l3 2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

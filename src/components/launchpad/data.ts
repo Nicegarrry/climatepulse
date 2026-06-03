@@ -88,38 +88,6 @@ export async function getNewsroomCount(): Promise<number | null> {
   }
 }
 
-/* ── Latest published Weekly Pulse ────────────────────────────────── */
-
-export type LaunchpadWeekly = {
-  id: string;
-  week_start: string;
-  headline: string;
-  editor_narrative: string | null;
-  published_at: string;
-  edition_number: number | null;
-};
-
-export async function getLatestWeekly(): Promise<LaunchpadWeekly | null> {
-  try {
-    const { rows } = await pool.query<LaunchpadWeekly>(
-      `WITH ordered AS (
-         SELECT id, week_start, headline, editor_narrative, published_at,
-                ROW_NUMBER() OVER (ORDER BY published_at ASC) AS edition_number
-           FROM weekly_digests
-          WHERE status = 'published'
-            AND published_at IS NOT NULL
-       )
-       SELECT *
-         FROM ordered
-        ORDER BY published_at DESC
-        LIMIT 1`,
-    );
-    return rows[0] ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /* ── NEM live snapshot ────────────────────────────────────────────── */
 
 export type LiveSnapshot = {
