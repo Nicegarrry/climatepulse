@@ -62,6 +62,54 @@ interface DraftResult {
   share_url: string;
 }
 
+// Build an on-domain share URL entirely client-side. Used as the fallback when
+// /api/share/* is slow or errors, so Copy / LinkedIn / Twitter never emit the
+// raw source (for podcasts, the bare audio blob URL) — they always point at our
+// /share/* landing, which is the entire purpose of the share flow.
+function buildFallbackShareUrl(opts: {
+  articleUrl: string;
+  contentType: ContentType;
+  episodeId?: string;
+  source?: ShareSource;
+  campaign?: string;
+}): string {
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    (typeof window !== "undefined" ? window.location.origin : "https://climatepulse.app");
+  const campaign = opts.campaign ?? new Date().toISOString().slice(0, 10);
+  try {
+    if (opts.contentType === "podcast" && opts.episodeId) {
+      const url = new URL("/share/podcast", base);
+      url.searchParams.set("id", opts.episodeId);
+      if (opts.source) url.searchParams.set("utm_source", opts.source);
+      url.searchParams.set("utm_medium", "story_share");
+      url.searchParams.set("utm_campaign", campaign);
+      return url.toString();
+    }
+    const url = new URL("/share/story", base);
+    url.searchParams.set("u", opts.articleUrl);
+    if (opts.source) url.searchParams.set("utm_source", opts.source);
+    url.searchParams.set("utm_medium", "story_share");
+    url.searchParams.set("utm_campaign", campaign);
+    return url.toString();
+  } catch {
+    return opts.articleUrl;
+  }
+}
+
+// Generic, voice-neutral blurb used when /api/share/draft can't return an
+// AI-drafted one. Keeps the LinkedIn/Twitter overlay usable (an empty blurb
+// otherwise disables the Copy & open button) instead of dead-ending the share.
+function fallbackSocialBlurb(contentType: ContentType, headline?: string): string {
+  if (contentType === "podcast") {
+    return "Today's ClimatePulse Daily — a five-minute, two-speaker briefing on the climate and energy stories that actually moved.";
+  }
+  const hl = headline?.trim();
+  return hl
+    ? `Worth a read from today's ClimatePulse briefing: ${hl}`
+    : "Worth a read from today's ClimatePulse briefing.";
+}
+
 async function fetchDraft(
   target: ShareTarget,
   opts: {
@@ -118,9 +166,9 @@ async function fetchShareUrl(
     });
     if (!res.ok) throw new Error(String(res.status));
     const data = (await res.json()) as { share_url?: string };
-    return data.share_url ?? opts.articleUrl;
+    return data.share_url ?? buildFallbackShareUrl({ ...opts, source });
   } catch {
-    return opts.articleUrl;
+    return buildFallbackShareUrl({ ...opts, source });
   }
 }
 
@@ -394,13 +442,18 @@ export function ShareButton({
       if (result) {
         setBlurb(result.blurb);
         setShareUrl(result.share_url);
+      } else {
+        // Draft failed — still arm the overlay with a working on-domain link
+        // and a generic blurb so the share isn't dead.
+        setBlurb(fallbackSocialBlurb(contentType, headline));
+        setShareUrl(buildFallbackShareUrl({ ...draftOpts, source: "linkedin", campaign }));
       }
       setLoading(false);
     });
     return () => {
       cancelled = true;
     };
-  }, [open, draftOpts]);
+  }, [open, draftOpts, contentType, headline, campaign]);
 
   const openOverlayFor = useCallback(
     async (target: ShareTarget) => {
@@ -416,11 +469,14 @@ export function ShareButton({
         if (result) {
           setBlurb(result.blurb);
           setShareUrl(result.share_url);
+        } else {
+          setBlurb(fallbackSocialBlurb(contentType, headline));
+          setShareUrl(buildFallbackShareUrl({ ...draftOpts, source: target, campaign }));
         }
         setLoading(false);
       }
     },
-    [blurb, shareUrl, draftOpts]
+    [blurb, shareUrl, draftOpts, contentType, headline, campaign]
   );
 
   const onCopyAndOpen = useCallback(() => {

@@ -3,15 +3,23 @@ import { notFound } from "next/navigation";
 import pool from "@/lib/db";
 import { getAuthUser } from "@/lib/supabase/server";
 import { COLORS, FONTS } from "@/lib/design-tokens";
+import { SharePodcastPlayer } from "@/components/share/SharePodcastPlayer";
 
 // Public podcast-preview landing.
 //   /share/podcast?id=<episode_id>&utm_source=...&ref=<hash>
 //
-// Anon visitors can listen inline (native <audio controls>) before deciding
-// to sign up.
+// Mirrors the /share/story experience for the daily podcast: anon visitors
+// land on a branded ClimatePulse page (no login required), play the episode
+// with the in-house player, see a truncated list of the day's top headlines,
+// and hit a CTA to log in for the full briefing.
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+// How many headlines we tease, and how many of those are rendered as
+// locked/blurred teasers to motivate the login CTA.
+const HEADLINE_LIMIT = 6;
+const HEADLINE_VISIBLE = 3;
 
 interface EpisodePreview {
   id: string;
@@ -22,6 +30,12 @@ interface EpisodePreview {
   tier: string | null;
   archetype: string | null;
   theme_slug: string | null;
+}
+
+interface Headline {
+  title: string;
+  source_name: string | null;
+  sector_label: string | null;
 }
 
 async function loadEpisode(episodeId: string): Promise<EpisodePreview | null> {
@@ -56,6 +70,44 @@ async function loadEpisode(episodeId: string): Promise<EpisodePreview | null> {
     };
   } catch {
     return null;
+  }
+}
+
+// Top headlines for the episode's day, ranked by significance — the same
+// signal the digest uses to pick its lead stories. Anchored to briefing_date
+// (not NOW()) so a shared back-catalogue episode still shows that day's news.
+async function loadTopHeadlines(briefingDate: string): Promise<Headline[]> {
+  try {
+    const { rows } = await pool.query<{
+      title: string;
+      source_name: string | null;
+      sector_label: string | null;
+    }>(
+      `
+      SELECT
+        ra.title,
+        ra.source_name,
+        COALESCE(tm.name, td.name) AS sector_label
+      FROM enriched_articles ea
+      JOIN raw_articles ra ON ra.id = ea.raw_article_id
+      LEFT JOIN taxonomy_microsectors tm ON tm.id = ea.microsector_ids[1]
+      LEFT JOIN taxonomy_sectors ts ON ts.id = tm.sector_id
+      LEFT JOIN taxonomy_domains td ON td.id = ts.domain_id
+      WHERE ea.significance_composite IS NOT NULL
+        AND ra.published_at >= ($1::date - INTERVAL '2 days')
+        AND ra.published_at <  ($1::date + INTERVAL '1 day')
+      ORDER BY ea.significance_composite DESC
+      LIMIT $2
+      `,
+      [briefingDate, HEADLINE_LIMIT]
+    );
+    return rows.map((r) => ({
+      title: r.title,
+      source_name: r.source_name,
+      sector_label: r.sector_label,
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -128,9 +180,15 @@ export default async function SharePodcastPage({
   const episode = await loadEpisode(id);
   if (!episode) notFound();
 
-  const authed = await getAuthUser();
+  const [authed, headlines] = await Promise.all([
+    getAuthUser(),
+    loadTopHeadlines(episode.briefing_date),
+  ]);
   const dateLabel = formatDate(episode.briefing_date);
   const durationLabel = formatDuration(episode.duration_seconds);
+
+  const visibleHeadlines = headlines.slice(0, HEADLINE_VISIBLE);
+  const lockedHeadlines = headlines.slice(HEADLINE_VISIBLE);
 
   let signupHref = "/login";
   if (authed) {
@@ -228,31 +286,153 @@ export default async function SharePodcastPage({
             stories — curated, scripted and produced by ClimatePulse.
           </p>
 
-          <div
-            style={{
-              marginTop: 24,
-              padding: 16,
-              backgroundColor: COLORS.paperDark,
-              borderRadius: 6,
-            }}
-          >
-            <audio
-              controls
-              preload="metadata"
-              src={episode.audio_url}
-              style={{ width: "100%", display: "block" }}
-            >
-              Your browser does not support the audio element.{" "}
-              <a href={episode.audio_url}>Download the episode.</a>
-            </audio>
-          </div>
+          <SharePodcastPlayer
+            audioUrl={episode.audio_url}
+            durationSeconds={episode.duration_seconds}
+            dateLabel={dateLabel}
+          />
+
+          {/* Top headlines — a truncated teaser of the day's lead stories. The
+              first few are shown plainly; the rest are blurred to motivate the
+              login CTA below. */}
+          {visibleHeadlines.length > 0 && (
+            <div style={{ marginTop: 28 }}>
+              <div
+                style={{
+                  fontFamily: FONTS.sans,
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: COLORS.forest,
+                  fontWeight: 600,
+                  marginBottom: 12,
+                }}
+              >
+                Top headlines in this edition
+              </div>
+
+              <ol
+                style={{
+                  listStyle: "none",
+                  margin: 0,
+                  padding: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                }}
+              >
+                {visibleHeadlines.map((h, i) => (
+                  <li
+                    key={i}
+                    style={{
+                      paddingBottom: 12,
+                      borderBottom:
+                        i < visibleHeadlines.length - 1 || lockedHeadlines.length > 0
+                          ? `1px solid ${COLORS.borderLight}`
+                          : "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: FONTS.serif,
+                        fontSize: 16,
+                        lineHeight: 1.35,
+                        color: COLORS.ink,
+                      }}
+                    >
+                      {h.title}
+                    </div>
+                    {(h.sector_label || h.source_name) && (
+                      <div
+                        style={{
+                          fontFamily: FONTS.sans,
+                          fontSize: 11,
+                          color: COLORS.inkMuted,
+                          marginTop: 4,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        {[h.sector_label, h.source_name].filter(Boolean).join("  ·  ")}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+
+              {/* Locked teasers — blurred titles + a small lock, gated behind login */}
+              {lockedHeadlines.length > 0 && (
+                <div style={{ position: "relative", marginTop: 12 }}>
+                  <ol
+                    aria-hidden="true"
+                    style={{
+                      listStyle: "none",
+                      margin: 0,
+                      padding: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                      filter: "blur(4px)",
+                      opacity: 0.55,
+                      userSelect: "none",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {lockedHeadlines.map((h, i) => (
+                      <li key={i}>
+                        <div
+                          style={{
+                            fontFamily: FONTS.serif,
+                            fontSize: 16,
+                            lineHeight: 1.35,
+                            color: COLORS.ink,
+                          }}
+                        >
+                          {h.title}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <a
+                      href={signupHref}
+                      style={{
+                        fontFamily: FONTS.sans,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: COLORS.forest,
+                        backgroundColor: COLORS.surface,
+                        border: `1px solid ${COLORS.border}`,
+                        borderRadius: 999,
+                        padding: "7px 16px",
+                        textDecoration: "none",
+                        boxShadow: "0 2px 8px rgba(26,26,26,0.08)",
+                      }}
+                    >
+                      {authed
+                        ? "Open today's briefing →"
+                        : `Log in to read all ${headlines.length} stories →`}
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div
             style={{
               display: "flex",
               gap: 12,
               flexWrap: "wrap",
-              marginTop: 24,
+              marginTop: 28,
             }}
           >
             <a
