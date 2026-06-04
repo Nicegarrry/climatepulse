@@ -26,7 +26,11 @@
   font-family: var(--lp-font-sans);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "ss01", "cv11";
-  min-height: 100vh;
+  /* The launchpad uses its own px-based scale, so the global root font-size
+     bump doesn't reach it. Zoom it to match (~112.5%); min-height is divided
+     back out so it still fills exactly one viewport after zooming. */
+  zoom: 1.125;
+  min-height: calc(100vh / 1.125);
   position: relative;
   display: flex;
   flex-direction: column;
