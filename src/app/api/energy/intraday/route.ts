@@ -29,6 +29,21 @@ const SKIP = new Set(["battery", "battery_charging", "pumps"]);
 
 export const maxDuration = 30;
 
+// Supported lookback windows for the generation + price chart. Each maps to an
+// API interval, a lookback in days, and a cap on trailing points to render.
+const RANGES = {
+  "1h": { interval: "5m", daysAgo: 1, keep: 12 },   // last hour, 5-min dispatch
+  "1d": { interval: "1h", daysAgo: 1, keep: 24 },   // duck curve
+  "1w": { interval: "1h", daysAgo: 7, keep: 168 },  // hourly across a week
+  "1m": { interval: "1d", daysAgo: 30, keep: 31 },  // daily totals across a month
+} as const;
+
+type RangeKey = keyof typeof RANGES;
+
+function dateNDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if ("error" in auth) {
@@ -41,23 +56,26 @@ export async function GET(request: NextRequest) {
   }
 
   const region = request.nextUrl.searchParams.get("region"); // e.g. "NSW1" or null for NEM-wide
+  const rangeParam = request.nextUrl.searchParams.get("range");
+  const range: RangeKey = (rangeParam && rangeParam in RANGES ? rangeParam : "1d") as RangeKey;
+  const { interval, daysAgo, keep } = RANGES[range];
 
   const client = new OpenElectricityClient({ apiKey });
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const dateStart = dateNDaysAgo(daysAgo);
   const now = new Date().toISOString().split("T")[0];
 
   try {
     const [genRes, priceRes] = await Promise.all([
       client.getNetworkData("NEM", ["power"], {
-        interval: "1h" as DataInterval,
-        dateStart: yesterday,
+        interval: interval as DataInterval,
+        dateStart,
         dateEnd: now,
         ...(region ? { primaryGrouping: "network_region" as const } : {}),
         secondaryGrouping: "fueltech_group",
       }),
       client.getMarket("NEM", ["price"], {
-        interval: "1h" as DataInterval,
-        dateStart: yesterday,
+        interval: interval as DataInterval,
+        dateStart,
         dateEnd: now,
         primaryGrouping: "network_region",
       }),
@@ -87,7 +105,9 @@ export async function GET(request: NextRequest) {
     for (const r of genSeries) {
       for (const [ts] of r.data) timestampSet.add(ts);
     }
-    const timestamps = Array.from(timestampSet).sort();
+    // Keep only the most recent `keep` points for the selected range (e.g. the
+    // last hour of 5-min dispatch, or the last 24 hourly points for the duck curve).
+    const timestamps = Array.from(timestampSet).sort().slice(-keep);
 
     // Build generation data
     const generation: Record<string, number[]> = {};
@@ -114,7 +134,7 @@ export async function GET(request: NextRequest) {
     const priceMap = new Map((priceSeries?.data ?? []).map(([ts, v]) => [ts, v]));
     const prices = timestamps.map((ts) => priceMap.get(ts) ?? 0);
 
-    return NextResponse.json({ timestamps, generation, price: prices, fueltechs });
+    return NextResponse.json({ timestamps, generation, price: prices, fueltechs, range, interval });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to fetch intraday data" },
