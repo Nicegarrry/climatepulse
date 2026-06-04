@@ -200,7 +200,7 @@ export default async function SharePodcastPage({
   return (
     <main
       style={{
-        minHeight: "100vh",
+        minHeight: "calc(100vh / 1.125)",
         backgroundColor: COLORS.bg,
         padding: "clamp(24px, 6vw, 64px) 20px",
         display: "flex",

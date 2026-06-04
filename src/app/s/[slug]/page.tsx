@@ -113,7 +113,7 @@ export default async function SurfacePage(props: PageProps) {
     <div
       style={
         {
-          minHeight: "100vh",
+          minHeight: "calc(100vh / 1.125)",
           background: COLORS.bg,
           color: COLORS.ink,
           fontFamily: FONTS.sans,
@@ -137,7 +137,7 @@ function AccessChrome({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "calc(100vh / 1.125)",
         background: COLORS.bg,
         display: "flex",
         alignItems: "center",

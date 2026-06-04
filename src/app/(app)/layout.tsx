@@ -22,7 +22,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (isLoading || !user || !user.onboardedAt) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-[calc(100vh/1.125)] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
@@ -32,7 +32,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const showDevPanel = user.role === "admin";
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-[calc(100vh/1.125)] flex-col">
       <InstallPrompt />
       <main className="flex-1">{children}</main>
       <CookieConsent />

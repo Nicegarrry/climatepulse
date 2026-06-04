@@ -71,7 +71,7 @@ export default async function LibraryPage() {
   const pdfs = rows.filter((r) => r.file_type === "pdf").length;
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.ink }}>
+    <div style={{ minHeight: "calc(100vh / 1.125)", background: COLORS.bg, color: COLORS.ink }}>
       <div
         style={{
           maxWidth: 1040,

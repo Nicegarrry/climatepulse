@@ -51,4 +51,5 @@ Concentrate surprises here. When you learn something non-obvious, add a bullet (
 
 ## Misc
 
+- **Global UI scale lives in `body { zoom }` (`src/app/globals.css`, currently 1.125 ≈ +12.5%).** It scales *everything* uniformly (text, px icons, modals, every surface). Because `zoom` multiplies `vh`/`dvh` too, any full-height/modal size must be divided back out — write `calc(100vh / 1.125)` (or `min-h-[calc(100vh/1.125)]`), never bare `100vh`/`100dvh`/`min-h-screen`. If you re-tune the zoom value, update the divisors to match.
 - RSS feeds can change URLs without notice — source health monitoring is built-in.

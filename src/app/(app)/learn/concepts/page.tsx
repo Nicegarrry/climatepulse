@@ -78,7 +78,7 @@ export default async function ConceptsIndexPage({
   const grouped = groupByDomain(rows);
 
   return (
-    <div className="cp-learn" style={{ minHeight: "100vh", padding: "32px 0 80px" }}>
+    <div className="cp-learn" style={{ minHeight: "calc(100vh / 1.125)", padding: "32px 0 80px" }}>
       <div
         style={{
           maxWidth: 960,

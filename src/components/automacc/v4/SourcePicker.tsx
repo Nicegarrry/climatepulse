@@ -63,7 +63,7 @@ export function SourcePicker({
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
-        padding: "10vh 16px 24px",
+        padding: "calc(10vh / 1.125) 16px 24px",
         fontFamily: FONTS.sans,
       }}
     >
@@ -79,7 +79,7 @@ export function SourcePicker({
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          maxHeight: "80vh",
+          maxHeight: "calc(80vh / 1.125)",
         }}
       >
         <div

@@ -154,7 +154,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-surface-0">
+    <div className="flex min-h-[calc(100vh/1.125)] flex-col bg-surface-0">
       {/* Top bar */}
       <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
         {step > 0 ? (

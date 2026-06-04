@@ -45,7 +45,7 @@
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
+  min-height: calc(100vh / 1.125);
   position: relative;
   scroll-behavior: smooth;
 }

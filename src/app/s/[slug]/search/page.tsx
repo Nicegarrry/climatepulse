@@ -130,7 +130,7 @@ export default async function SurfaceSearchPage(props: PageProps) {
     <div
       style={
         {
-          minHeight: "100vh",
+          minHeight: "calc(100vh / 1.125)",
           background: COLORS.bg,
           color: COLORS.ink,
           fontFamily: FONTS.sans,

@@ -172,7 +172,7 @@ export function EditSurfaceForm({ surface, cohortCodeSet }: Props) {
         padding: "24px 32px",
         fontFamily: FONTS.sans,
         background: COLORS.bg,
-        minHeight: "100vh",
+        minHeight: "calc(100vh / 1.125)",
       }}
     >
       <header style={{ marginBottom: 20 }}>

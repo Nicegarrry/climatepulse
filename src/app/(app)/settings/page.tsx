@@ -237,7 +237,7 @@ export default function SettingsPage() {
 
   if (loading || !profile) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex min-h-[calc(60vh/1.125)] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-emerald border-t-transparent" />
       </div>
     );

@@ -271,7 +271,7 @@ function DashboardInner() {
     <div
       style={{
         display: "flex",
-        height: "100dvh",
+        height: "calc(100dvh / 1.125)",
         background: COLORS.bg,
         fontFamily: FONTS.sans,
         overflow: "hidden",

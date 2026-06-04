@@ -172,7 +172,7 @@ export function CompaniesSidebar({ workspace }: Props) {
         borderRight: `1px solid ${COLORS.border}`,
         padding: "20px 14px",
         fontFamily: FONTS.sans,
-        minHeight: "100vh",
+        minHeight: "calc(100vh / 1.125)",
         boxSizing: "border-box",
       }}
     >

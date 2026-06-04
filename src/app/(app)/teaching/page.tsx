@@ -98,7 +98,7 @@ export default async function TeachingCockpitPage() {
   const stats = await fetchStats();
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.ink }}>
+    <div style={{ minHeight: "calc(100vh / 1.125)", background: COLORS.bg, color: COLORS.ink }}>
       <div
         style={{
           maxWidth: 1040,

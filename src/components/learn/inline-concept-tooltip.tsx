@@ -166,7 +166,7 @@ export function InlineConceptTooltip({ slug, context, children }: Props) {
             onClick={(e) => e.stopPropagation()}
             style={{
               background: COLORS.surface,
-              maxHeight: "75vh",
+              maxHeight: "calc(75vh / 1.125)",
               width: "100%",
               borderTopLeftRadius: 12,
               borderTopRightRadius: 12,

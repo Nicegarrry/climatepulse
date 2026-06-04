@@ -363,7 +363,7 @@
   border-radius: 8px;
   box-shadow: 0 30px 60px rgba(26,26,26,0.14);
   overflow: hidden;
-  max-height: calc(100vh - 80px);
+  max-height: calc((100vh - 80px) / 1.125);
   display: flex; flex-direction: column;
   transform: translateY(12px);
   transition: transform 180ms ease;

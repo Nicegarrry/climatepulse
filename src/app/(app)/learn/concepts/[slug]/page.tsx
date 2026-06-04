@@ -190,7 +190,7 @@ export default async function ConceptCardPage({
   const mechanisms = primary.key_mechanisms ?? [];
 
   return (
-    <div className="cp-learn" style={{ minHeight: "100vh", padding: "32px 0 80px" }}>
+    <div className="cp-learn" style={{ minHeight: "calc(100vh / 1.125)", padding: "32px 0 80px" }}>
       <ConceptTooltipScope>
         <article
           style={{

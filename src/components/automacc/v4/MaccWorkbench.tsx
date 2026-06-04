@@ -44,7 +44,7 @@ export function MaccWorkbench() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "calc(100vh / 1.125)",
         background: "#FAFAF7",
         fontFamily: FONTS.sans,
         color: COLORS.ink,

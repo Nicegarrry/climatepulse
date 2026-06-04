@@ -102,7 +102,7 @@ export default async function SurfacesAdminPage({ searchParams }: Props) {
         padding: "24px 32px",
         fontFamily: FONTS.sans,
         background: COLORS.bg,
-        minHeight: "100vh",
+        minHeight: "calc(100vh / 1.125)",
       }}
     >
       <header

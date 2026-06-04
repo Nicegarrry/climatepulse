@@ -665,7 +665,7 @@ function PublishModal({
           border: `1px solid ${COLORS.border}`,
           maxWidth: 580,
           width: "100%",
-          maxHeight: "90vh",
+          maxHeight: "calc(90vh / 1.125)",
           overflowY: "auto",
           padding: 22,
           fontFamily: FONTS.sans,

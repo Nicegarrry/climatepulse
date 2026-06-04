@@ -133,14 +133,14 @@
   }
   html {
     @apply font-sans scroll-smooth antialiased;
-    /* Global UI scale. The app is rem-based (Tailwind), so bumping the root
-       font-size scales text + spacing + rem-sized icons together — roughly
-       the comfort of browser zoom ~112%, without touching vh-based layout.
-       Tune this single value to taste (100% = browser default). */
-    font-size: 112.5%;
   }
   body {
     @apply bg-background text-foreground;
+    /* Global UI scale (~12.5%) for laptop readability. zoom scales EVERYTHING
+       uniformly — text, spacing, px icons, overlays, modals, every surface
+       (Tailwind or scoped-px). vh/dvh sizes are divided by 1.125 at their
+       definitions so full-height layouts still fit exactly. Tune this value. */
+    zoom: 1.125;
   }
 }
 
