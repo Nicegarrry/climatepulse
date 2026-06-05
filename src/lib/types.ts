@@ -473,6 +473,10 @@ export interface DigestOutput {
   // overwrites with a real briefing.
   is_sample?: boolean;
   sample_reason?: "no_articles" | "no_personalisation_match" | "ai_error";
+  // Set when this is a fast first-run briefing (Gemini Flash, no web-search /
+  // RAG pre-pass) generated on-demand so a new user sees a real personalised
+  // briefing in seconds. The nightly Sonnet cron later upgrades it in place.
+  is_fast?: boolean;
   // Annotated post-Claude in src/lib/digest/generate.ts: total indicator
   // values inserted today across all articles. Hidden in the UI when 0.
   indicators_updated_today?: number;

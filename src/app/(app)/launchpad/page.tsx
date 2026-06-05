@@ -83,7 +83,7 @@ export default async function LaunchpadPage() {
   const briefingMeta = hasBrief ? "READY · 5 MIN" : "PERSONALISE";
   const briefingDesc = hasBrief
     ? "Your daily digest is ready. Five minutes, three signals, one verdict — the day's climate, energy and transition intelligence in one read."
-    : "Tell us your sectors and we'll generate your first briefing tomorrow morning. The full desk — newsroom, markets and energy — feeds into it.";
+    : "Tell us your sectors and we'll generate your first briefing in seconds. The full desk — newsroom, markets and energy — feeds into it.";
 
   const newsroomLabel =
     typeof newsroomCount === "number" ? newsroomCount.toLocaleString("en-AU") : "—";

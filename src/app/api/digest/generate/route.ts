@@ -6,24 +6,24 @@ import { applyEditorialOverrides } from "@/lib/digest/editorial-overrides";
 import { sydneyDateString } from "@/lib/podcast/date";
 import type { DailyBriefing } from "@/lib/types";
 
-// Claude Sonnet + optional web-search pre-pass can take >60s for a single user.
+// Fast first-run generation (Gemini Flash, no web-search/RAG) lands in seconds,
+// but keep generous headroom for the slow tail.
 export const maxDuration = 300;
 
-// Invocation-scoped lock so rapid polls don't fire duplicate Sonnet calls.
-// Fluid Compute reuses instances across concurrent requests within a region,
-// so this catches the common case; the DB upsert handles any cross-instance race.
-const inFlight = new Set<string>();
+// Coalesce concurrent first-run generations for the same user (initial load +
+// a second tab, etc.) onto a single in-flight promise so we don't pay for two
+// Flash calls. Per-instance only; the DB upsert handles cross-instance races,
+// and a fast Flash call is cheap, so this is sufficient.
+const inFlight = new Map<string, Promise<DailyBriefing>>();
 
-function startBackgroundGeneration(userId: string) {
-  if (inFlight.has(userId)) return;
-  inFlight.add(userId);
-  void generateBriefingForUser(userId)
-    .catch((err) => {
-      console.error(`[digest] background generation failed for ${userId}:`, err);
-    })
-    .finally(() => {
-      inFlight.delete(userId);
-    });
+function getOrStartFastGeneration(userId: string): Promise<DailyBriefing> {
+  const existing = inFlight.get(userId);
+  if (existing) return existing;
+  // `fast: true` -> Gemini Flash, no web-search pre-pass, no prior-coverage RAG.
+  const p = generateBriefingForUser(userId, { fast: true });
+  inFlight.set(userId, p);
+  void p.finally(() => inFlight.delete(userId));
+  return p;
 }
 
 // ─── POST handler — generate today's briefing for a user ──────────────────
@@ -136,15 +136,23 @@ export async function GET(req: NextRequest) {
     console.warn("[digest] daily_briefings lookup failed:", err);
   }
 
-  // No briefing for today — kick off background generation and return a
-  // placeholder so the client can render mock content + a generating banner
-  // while polling.
-  startBackgroundGeneration(userId);
-
-  return NextResponse.json({
-    status: "generating",
-    generation_started_at: new Date().toISOString(),
-    estimated_seconds: 60,
-    briefing: null,
-  });
+  // No briefing for today yet — generate a fast first briefing (Gemini Flash,
+  // no web-search/RAG) synchronously and return it. Awaiting here (rather than
+  // the old fire-and-forget) means the work can't be frozen when the response
+  // is sent, so the briefing reliably lands; Flash keeps it to a few seconds.
+  // The nightly Sonnet cron upgrades this row in place on its next run.
+  try {
+    const briefing = await getOrStartFastGeneration(userId);
+    return NextResponse.json({ status: "ready", briefing });
+  } catch (err) {
+    console.error("[digest] on-demand fast generation failed:", err);
+    return NextResponse.json(
+      {
+        status: "error",
+        error: "Could not generate your briefing right now. Please retry.",
+        briefing: null,
+      },
+      { status: 503 }
+    );
+  }
 }

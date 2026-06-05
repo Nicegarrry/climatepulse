@@ -5,6 +5,8 @@
 // cron path avoids a self-fetch round-trip.
 
 import pool from "@/lib/db";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 import { selectBriefingStories, DEPTH_RANGES } from "@/lib/personalisation";
 import { getTaxonomyTree } from "@/lib/enrichment/taxonomy-cache";
 import { MOCK_USER_PROFILE } from "@/lib/mock-digest";
@@ -419,6 +421,35 @@ export async function callClaude(prompt: string): Promise<DigestOutput> {
   return JSON.parse(jsonStr) as DigestOutput;
 }
 
+// ─── Call Gemini Flash (fast first-run path) ───────────────────────────────
+//
+// Same prompt + JSON schema as callClaude, but on gemini-3.5-flash. Used only
+// for the on-demand first briefing so a new user gets a real personalised
+// digest in ~seconds; the nightly Sonnet cron upgrades it in place.
+
+export async function callGemini(prompt: string): Promise<DigestOutput> {
+  const apiKey = process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.4,
+      maxOutputTokens: 4096,
+    },
+  });
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
+
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text];
+  const jsonStr = jsonMatch[1]?.trim() ?? text.trim();
+
+  return JSON.parse(jsonStr) as DigestOutput;
+}
+
 // ─── Fetch user profile from DB ────────────────────────────────────────────
 
 async function fetchUserProfile(userId: string): Promise<UserProfile> {
@@ -540,7 +571,7 @@ async function annotateIndicatorUpdates(
 
 export async function generateBriefingForUser(
   userId: string,
-  opts: { mock?: boolean } = {}
+  opts: { mock?: boolean; fast?: boolean } = {}
 ): Promise<DailyBriefing> {
   const profile: UserProfile = await fetchUserProfile(userId);
 
@@ -599,9 +630,12 @@ export async function generateBriefingForUser(
         const roleLens = ROLE_LENS_OPTIONS.find((r) => r.id === profile.role_lens);
         const roleLensLabel = roleLens?.label ?? "General Interest";
 
-        const thinStories = stories.filter(
-          (s) => getContentDepth(s) !== "full_text"
-        );
+        // Fast mode (on-demand first briefing) skips the two slowest steps —
+        // the Sonnet web-search pre-pass and the prior-coverage RAG lookup —
+        // and synthesises with Gemini Flash, turning a ~40s job into ~seconds.
+        const thinStories = opts.fast
+          ? []
+          : stories.filter((s) => getContentDepth(s) !== "full_text");
         const webContext =
           thinStories.length > 0
             ? await fetchWebContext(thinStories)
@@ -617,11 +651,13 @@ export async function generateBriefingForUser(
         // Pull prior ClimatePulse coverage for each HERO story so Claude can
         // reference historical context ("as we covered on April 12…") when it
         // genuinely reframes today's piece. Non-fatal — if RAG is unavailable
-        // we just skip the block.
-        const priorCoverage = await fetchPriorCoverage(stories).catch((err) => {
-          console.warn("[digest] prior coverage fetch failed:", err);
-          return new Map<string, RetrievedContent[]>();
-        });
+        // we just skip the block. Skipped entirely in fast mode.
+        const priorCoverage = opts.fast
+          ? new Map<string, RetrievedContent[]>()
+          : await fetchPriorCoverage(stories).catch((err) => {
+              console.warn("[digest] prior coverage fetch failed:", err);
+              return new Map<string, RetrievedContent[]>();
+            });
 
         const depthConfig = DEPTH_RANGES[profile.briefing_depth];
         const prompt = buildDigestPrompt(
@@ -633,12 +669,13 @@ export async function generateBriefingForUser(
           depthConfig.analysisDetail
         );
 
+        const synthesise = opts.fast ? callGemini : callClaude;
         try {
-          digest = await callClaude(prompt);
+          digest = await synthesise(prompt);
         } catch (err) {
           console.error("First digest attempt failed, retrying:", err);
           try {
-            digest = await callClaude(prompt);
+            digest = await synthesise(prompt);
           } catch (retryErr) {
             console.error("Retry failed:", retryErr);
             const { MOCK_DIGEST } = await import("@/lib/mock-digest");
@@ -652,6 +689,10 @@ export async function generateBriefingForUser(
 
   if (sampleReason) {
     digest = { ...digest, is_sample: true, sample_reason: sampleReason };
+  } else if (opts.fast) {
+    // Real briefing, just the fast Flash version — flag it so the UI can hint
+    // "quick take" and so the nightly Sonnet run is distinguishable on upsert.
+    digest = { ...digest, is_fast: true };
   }
 
   // Annotate digest with indicator updates triggered by today's articles.
