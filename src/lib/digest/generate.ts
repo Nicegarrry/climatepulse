@@ -494,7 +494,11 @@ async function annotateIndicatorUpdates(
   stories: ScoredStory[]
 ): Promise<DigestOutput> {
   try {
-    const articleIds = stories.map((s) => s.id).filter(Boolean);
+    // Match by article_url: story.id is the enriched_articles PK, a different
+    // UUID space than indicator_values.source_article_id -> raw_articles.id, so
+    // the old `iv.source_article_id = ANY(story.id)` never matched (and threw on
+    // non-UUID mock ids). raw_articles.article_url is the stable shared key.
+    const articleUrls = stories.map((s) => s.article_url).filter(Boolean);
     const updateByUrl = new Map<
       string,
       {
@@ -506,7 +510,7 @@ async function annotateIndicatorUpdates(
       }
     >();
 
-    if (articleIds.length > 0) {
+    if (articleUrls.length > 0) {
       const { rows } = await pool.query<{
         article_url: string;
         slug: string;
@@ -525,11 +529,11 @@ async function annotateIndicatorUpdates(
          FROM indicator_values iv
          JOIN indicators i ON i.id = iv.indicator_id
          JOIN raw_articles ra ON ra.id = iv.source_article_id
-         WHERE iv.source_article_id = ANY($1::uuid[])
+         WHERE ra.article_url = ANY($1::text[])
            AND iv.source_type = 'article'
            AND iv.created_at::date = CURRENT_DATE
          ORDER BY iv.created_at DESC`,
-        [articleIds]
+        [articleUrls]
       );
       for (const r of rows) {
         if (updateByUrl.has(r.article_url)) continue;

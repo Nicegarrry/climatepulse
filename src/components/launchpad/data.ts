@@ -61,7 +61,7 @@ export async function hasBriefingToday(userId: string): Promise<boolean> {
       `SELECT EXISTS (
          SELECT 1 FROM daily_briefings
           WHERE user_id = $1
-            AND date = CURRENT_DATE
+            AND date = (NOW() AT TIME ZONE 'Australia/Sydney')::date
        ) AS exists`,
       [userId],
     );

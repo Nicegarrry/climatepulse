@@ -704,9 +704,9 @@ export function EnergyTab() {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <AlertCircle className="mb-3 h-10 w-10 text-status-error/40" />
-        <p className="text-sm text-status-error">{error}</p>
+        <p className="text-sm text-status-error">Energy data is temporarily unavailable</p>
         <p className="mt-2 text-xs text-muted-foreground">
-          Add OPENELECTRICITY_API_KEY to .env.local and restart the dev server.
+          The live NEM feed didn&apos;t respond just now — try again shortly.
         </p>
       </div>
     );

@@ -50,8 +50,12 @@ export default function OnboardingPage() {
   // user staring at an infinite spinner on Step 1.
   const loadTaxonomy = useCallback(async () => {
     setTaxonomyError(null);
+    // Bound the request so a stalled connection (mobile dead-zone, captive
+    // portal) surfaces the retry UI instead of an infinite spinner.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
-      const r = await fetch("/api/taxonomy/tree");
+      const r = await fetch("/api/taxonomy/tree", { signal: controller.signal });
       if (!r.ok) throw new Error(`Taxonomy fetch failed: ${r.status}`);
       const data = await r.json();
       if (data.domains?.length) {
@@ -61,9 +65,16 @@ export default function OnboardingPage() {
       }
     } catch (err) {
       console.error("Taxonomy load error:", err);
+      const aborted = err instanceof DOMException && err.name === "AbortError";
       setTaxonomyError(
-        err instanceof Error ? err.message : "Couldn't load sectors"
+        aborted
+          ? "This is taking longer than expected — check your connection and try again."
+          : err instanceof Error
+            ? err.message
+            : "Couldn't load sectors"
       );
+    } finally {
+      clearTimeout(timeout);
     }
   }, []);
 
