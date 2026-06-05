@@ -208,61 +208,95 @@ export async function step4Digest(): Promise<StepResult> {
   return runStep("digest", async () => {
     const pool = (await import("@/lib/db")).default;
     const { generateBriefingForUser } = await import("@/lib/digest/generate");
+    const { sydneyDateString } = await import("@/lib/podcast/date");
 
-    // Only generate digests for users who have opted in via onboarding.
-    // Users who land on /launchpad and go straight to /automacc (or just
-    // bounce off without personalising) have onboarded_at = NULL and stay
-    // out of the cron's per-user loop — they pick themselves up the day
-    // after they complete onboarding.
+    const today = sydneyDateString();
+
+    // Only generate digests for onboarded users with sectors who DON'T already
+    // have today's briefing. The NOT EXISTS filter is what makes the step
+    // resumable and fair: a burst that overflows one invocation's time budget
+    // is finished by the next run (which now skips everyone already done)
+    // instead of re-generating the same low-id prefix and starving the tail.
+    // Anyone the cron never reaches still gets a fast on-demand briefing the
+    // moment they open the app (see GET /api/digest/generate).
     const usersResult = await pool.query(
-      `SELECT id, name FROM user_profiles
-        WHERE onboarded_at IS NOT NULL
-          AND COALESCE(array_length(primary_sectors, 1), 0) > 0
-        ORDER BY id`
+      `SELECT up.id, up.name FROM user_profiles up
+        WHERE up.onboarded_at IS NOT NULL
+          AND COALESCE(array_length(up.primary_sectors, 1), 0) > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM daily_briefings db
+             WHERE db.user_id = up.id AND db.date = $1
+          )
+        ORDER BY up.id`,
+      [today]
     );
     const users = usersResult.rows as Array<{ id: string; name: string }>;
 
     if (users.length === 0) {
-      return { users_found: 0, successes: 0, failures: 0, details: [] };
+      return { users_found: 0, successes: 0, failures: 0, remaining: 0, budget_exceeded: false, details: [] };
     }
+
+    // Bounded concurrency + time budget. Each Sonnet digest is ~25-40s; serial
+    // it capped at ~20 users before the 800s Vercel kill. A small pool ~4×'s
+    // throughput while staying well under Anthropic rate limits, and the
+    // deadline lets us stop cleanly and report `remaining` rather than being
+    // hard-killed mid-write (which left runs stuck "running" with no telemetry).
+    const CONCURRENCY = 4;
+    const TIME_BUDGET_MS = 11 * 60 * 1000; // ~660s; headroom under the 800s cap
+    const deadline = Date.now() + TIME_BUDGET_MS;
 
     let successes = 0;
     let failures = 0;
     const details: Array<{ user_id: string; name: string; status: string; error?: string; story_count?: number }> = [];
 
-    for (const user of users) {
-      try {
-        // Direct call — no self-fetch, no auth round-trip.
-        const briefing = await generateBriefingForUser(user.id);
-        successes++;
-        details.push({
-          user_id: user.id,
-          name: user.name,
-          status: "ok",
-          story_count: briefing.stories?.length ?? 0,
-        });
-
-        console.log(
-          `[pipeline:digest] ${user.name} (${user.id}): ${briefing.stories?.length ?? 0} stories`
-        );
-      } catch (err) {
-        failures++;
-        const message = err instanceof Error ? err.message : String(err);
-        details.push({ user_id: user.id, name: user.name, status: "failed", error: message });
-        console.error(`[pipeline:digest] ${user.name} (${user.id}) failed:`, message);
+    let cursor = 0;
+    async function worker() {
+      while (Date.now() < deadline) {
+        const i = cursor++;
+        if (i >= users.length) return;
+        const user = users[i];
+        try {
+          // Direct call — no self-fetch, no auth round-trip. Full Sonnet path.
+          const briefing = await generateBriefingForUser(user.id);
+          successes++;
+          details.push({
+            user_id: user.id,
+            name: user.name,
+            status: "ok",
+            story_count: briefing.stories?.length ?? 0,
+          });
+          console.log(
+            `[pipeline:digest] ${user.name} (${user.id}): ${briefing.stories?.length ?? 0} stories`
+          );
+        } catch (err) {
+          failures++;
+          const message = err instanceof Error ? err.message : String(err);
+          details.push({ user_id: user.id, name: user.name, status: "failed", error: message });
+          console.error(`[pipeline:digest] ${user.name} (${user.id}) failed:`, message);
+        }
       }
     }
 
-    // Fail only if ALL users failed
-    // TODO(reliability): "successes > 0 = step completed" masks partial failures.
-    // During the student burst (and generally) we should surface failure counts
-    // and possibly fail the step above some failure-rate threshold. Tracked
-    // separately — do not fix in this PR.
-    if (successes === 0 && failures > 0) {
-      throw new Error(`Digest generation failed for all ${failures} users`);
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, users.length) }, () => worker())
+    );
+
+    const remaining = users.length - successes - failures;
+    const budget_exceeded = remaining > 0;
+    if (budget_exceeded) {
+      console.warn(
+        `[pipeline:digest] time budget hit: ${remaining}/${users.length} users not generated this run (they get on-demand or the next run)`
+      );
     }
 
-    return { users_found: users.length, successes, failures, details };
+    // Fail only if every user we actually attempted failed (nothing got
+    // through). Partial failures and an unfinished tail are now surfaced via
+    // `failures` / `remaining` / `budget_exceeded` instead of masked as green.
+    if (successes === 0 && failures > 0) {
+      throw new Error(`Digest generation failed for all ${failures} attempted users`);
+    }
+
+    return { users_found: users.length, successes, failures, remaining, budget_exceeded, details };
   });
 }
 
