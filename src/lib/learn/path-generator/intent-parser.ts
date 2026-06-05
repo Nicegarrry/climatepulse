@@ -1,9 +1,8 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import pool from "@/lib/db";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 import type { Intent, LearningLevel, TimeBudget } from "./types";
-
-const GEMINI_MODEL = "gemini-2.5-flash";
 
 const VALID_LEVELS = new Set<LearningLevel>(["intro", "intermediate", "advanced"]);
 const VALID_BUDGETS = new Set<TimeBudget>([
@@ -110,11 +109,12 @@ export async function parseIntentWithUsage(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: GEMINI_MODEL,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: INTENT_SCHEMA as any,
     } as any,
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     systemInstruction,
   });
 

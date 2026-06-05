@@ -3,12 +3,11 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import pool from "@/lib/db";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
 import { logGeneration } from "@/lib/learn/cost-tracker";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 import {
   BlockType,
   type BlockGenerationResult,
 } from "./types";
-
-const GEMINI_MODEL = "gemini-2.5-flash";
 
 interface ArticleSubstrate {
   id: string;

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
 import { logGeneration } from "@/lib/learn/cost-tracker";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 import type {
   ConceptCard,
   ConceptCardCandidate,
@@ -10,8 +11,6 @@ import type {
   KeyMechanism,
   SourceCitation,
 } from "@/lib/learn/types";
-
-const GEMINI_MODEL = "gemini-2.5-flash";
 
 export function computeContentHash(
   term: string,

@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 import type {
   PathPlan,
   Intent,
@@ -7,8 +8,6 @@ import type {
   Warning,
   PathItemType,
 } from "./types";
-
-const GEMINI_MODEL = "gemini-2.5-flash";
 
 export interface CoherencePassResult {
   plan: PathPlan;
@@ -115,11 +114,12 @@ export async function coherencePass(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: GEMINI_MODEL,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: SCHEMA as any,
     } as any,
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     systemInstruction,
   });
 
