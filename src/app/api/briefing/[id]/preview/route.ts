@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
 import { ARCHETYPE_FRAMINGS, type PodcastArchetype } from "@/lib/podcast/archetypes";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 import type { DigestOutput } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -49,39 +51,26 @@ Return ONLY a JSON object (no prose before or after, no code fences) with the ex
 }
 
 /**
- * Dedicated Claude call for reframing. Higher max_tokens than the default
+ * Dedicated Gemini call for reframing. Higher max output than the default
  * digest path because the response must contain the full digest JSON (stories,
  * takes, narrative) — not just the narrative delta.
  */
-async function callClaudeReframe(prompt: string): Promise<DigestOutput> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+async function callGeminiReframe(prompt: string): Promise<DigestOutput> {
+  const apiKey = process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 8192,
-      messages: [{ role: "user", content: prompt }],
-    }),
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    generationConfig: { maxOutputTokens: 8192, responseMimeType: "application/json" },
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Anthropic API ${response.status}: ${errorText}`);
+  const result = await model.generateContent(prompt);
+  const candidate = result.response.candidates?.[0];
+  if (candidate?.finishReason === "MAX_TOKENS") {
+    throw new Error("Reframe response truncated (hit max output tokens)");
   }
-
-  const data = await response.json();
-  const text: string = data.content?.[0]?.text ?? "";
-  const stopReason: string | null = data.stop_reason ?? null;
-  if (stopReason === "max_tokens") {
-    throw new Error("Reframe response truncated (hit max_tokens)");
-  }
+  const text: string = result.response.text();
 
   // Prefer fenced JSON, fall back to first `{…}` block, then raw text.
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -150,7 +139,7 @@ export async function GET(
   // Reframe via Claude
   let digest: DigestOutput;
   try {
-    digest = await callClaudeReframe(buildReframePrompt(source, archetype));
+    digest = await callGeminiReframe(buildReframePrompt(source, archetype));
   } catch (err) {
     console.error("[preview] Claude reframe failed:", err);
     return NextResponse.json(
@@ -171,7 +160,7 @@ export async function GET(
          SET digest = EXCLUDED.digest,
              generated_at = NOW(),
              model_used = EXCLUDED.model_used`,
-      [id, archetype, JSON.stringify(digest), "claude-sonnet"]
+      [id, archetype, JSON.stringify(digest), GEMINI_MODEL]
     );
   } catch (err) {
     console.warn("[preview] cache write skipped (migration missing?):", err);

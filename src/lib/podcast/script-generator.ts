@@ -1,5 +1,7 @@
 import type { DigestOutput, PodcastScript, ScoredStory } from "@/lib/types";
 import { getEntityBrief } from "@/lib/intelligence/retriever";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_MODEL } from "@/lib/ai-models";
 
 export interface PodcastContext {
   digest: DigestOutput;
@@ -14,17 +16,17 @@ const MAX_ENTITY_BRIEFS = 8;
 
 /**
  * Generate a two-speaker podcast script from the daily digest.
- * Uses Claude Sonnet to create a ~5 minute structured conversational script.
+ * Uses gemini-3.5-flash to create a ~5 minute structured conversational script.
  */
 export async function generatePodcastScript(
   context: PodcastContext
 ): Promise<PodcastScript> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+  const apiKey = process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
 
   // Fetch entity callbacks from RAG (prior coverage, mention trends). Failure
   // is non-fatal: if the table is missing or a query fails we drop the
-  // "ENTITY HISTORY" block entirely and Claude writes the script without it.
+  // "ENTITY HISTORY" block entirely and the model writes the script without it.
   const entityHistory = await fetchEntityHistory(context).catch((err) => {
     console.warn("[podcast] entity history fetch failed:", err);
     return "";
@@ -32,27 +34,14 @@ export async function generatePodcastScript(
 
   const prompt = buildScriptPrompt(context, entityHistory);
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    }),
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    generationConfig: { maxOutputTokens: 4096 },
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Anthropic API error ${response.status}: ${errorText}`);
-  }
-
-  const data = await response.json();
-  const text = data.content?.[0]?.text ?? "";
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
 
   // Extract JSON from response (handle markdown code blocks)
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text];

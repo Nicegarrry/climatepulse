@@ -44,103 +44,6 @@ function getContentDepth(story: ScoredStory): ContentDepth {
   return "metadata_only";
 }
 
-// ─── Web search pre-pass for thin stories ──────────────────────────────────
-
-async function fetchWebContext(
-  thinStories: ScoredStory[]
-): Promise<Map<string, string>> {
-  const contextMap = new Map<string, string>();
-  if (thinStories.length === 0) return contextMap;
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return contextMap;
-
-  const storiesBlock = thinStories
-    .map(
-      (s, i) =>
-        `[${i + 1}] "${s.title}" — ${s.source_name}\nURL: ${s.article_url}\nSignal: ${s.signal_type ?? "unknown"}\nSnippet: ${s.snippet ?? "none"}`
-    )
-    .join("\n\n");
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 2048,
-        tools: [
-          {
-            type: "web_search_20250305",
-            name: "web_search",
-            max_uses: Math.min(thinStories.length * 2, 10),
-          },
-        ],
-        messages: [
-          {
-            role: "user",
-            content: `You are a factual research assistant. For each news story below, search the web to find the key facts, data points, and quotes from the original reporting. Do NOT add analysis or opinion — only verified facts.
-
-${storiesBlock}
-
-After searching, respond with ONLY a JSON array — no markdown fencing:
-[
-  { "index": 1, "context": "2-3 sentence factual summary with specific numbers/quotes found" },
-  ...
-]
-
-If you cannot find information for a story, set context to null.`,
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      console.warn(`Web context pre-pass failed: ${response.status}`);
-      return contextMap;
-    }
-
-    const data = await response.json();
-
-    // Extract text blocks (skip server_tool_use and web_search_tool_result blocks)
-    const textBlocks =
-      data.content?.filter((b: { type: string }) => b.type === "text") ?? [];
-    const text = textBlocks
-      .map((b: { text: string }) => b.text)
-      .join("");
-
-    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [
-      null,
-      text,
-    ];
-    const jsonStr = jsonMatch[1]?.trim() ?? text.trim();
-    const results = JSON.parse(jsonStr);
-
-    for (const result of results) {
-      const storyIndex = (result.index ?? 0) - 1;
-      if (
-        storyIndex >= 0 &&
-        storyIndex < thinStories.length &&
-        result.context
-      ) {
-        contextMap.set(thinStories[storyIndex].id, result.context);
-      }
-    }
-
-    console.log(
-      `Web context: found context for ${contextMap.size}/${thinStories.length} thin stories`
-    );
-  } catch (err) {
-    console.warn("Web context pre-pass error:", err);
-  }
-
-  return contextMap;
-}
-
 // ─── Build the digest prompt ───────────────────────────────────────────────
 
 // ─── Prior-coverage RAG lookup for hero stories ─────────────────────────────
@@ -384,48 +287,11 @@ async function fetchRecentEnrichedArticles(): Promise<EnrichedArticle[]> {
   }));
 }
 
-// ─── Call Claude Sonnet ────────────────────────────────────────────────────
-
-export async function callClaude(prompt: string): Promise<DigestOutput> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Anthropic API error ${response.status}: ${errorText}`);
-  }
-
-  const data = await response.json();
-  const text = data.content?.[0]?.text ?? "";
-
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [
-    null,
-    text,
-  ];
-  const jsonStr = jsonMatch[1]?.trim() ?? text.trim();
-
-  return JSON.parse(jsonStr) as DigestOutput;
-}
-
-// ─── Call Gemini Flash (fast first-run path) ───────────────────────────────
+// ─── Call Gemini Flash (digest synthesis) ──────────────────────────────────
 //
-// Same prompt + JSON schema as callClaude, but on gemini-3.5-flash. Used only
-// for the on-demand first briefing so a new user gets a real personalised
-// digest in ~seconds; the nightly Sonnet cron upgrades it in place.
+// All digest synthesis runs on gemini-3.5-flash (the central GEMINI_MODEL) —
+// both the on-demand fast first briefing and the nightly cron path. The prompt
+// already specifies the exact JSON schema.
 
 export async function callGemini(prompt: string): Promise<DigestOutput> {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -634,28 +500,15 @@ export async function generateBriefingForUser(
         const roleLens = ROLE_LENS_OPTIONS.find((r) => r.id === profile.role_lens);
         const roleLensLabel = roleLens?.label ?? "General Interest";
 
-        // Fast mode (on-demand first briefing) skips the two slowest steps —
-        // the Sonnet web-search pre-pass and the prior-coverage RAG lookup —
-        // and synthesises with Gemini Flash, turning a ~40s job into ~seconds.
-        const thinStories = opts.fast
-          ? []
-          : stories.filter((s) => getContentDepth(s) !== "full_text");
-        const webContext =
-          thinStories.length > 0
-            ? await fetchWebContext(thinStories)
-            : new Map<string, string>();
+        // Web-search enrichment is disabled (it was the only Claude tool call);
+        // the digest grounds on full text, snippets and prior-coverage RAG.
+        const webContext = new Map<string, string>();
 
-        if (thinStories.length > 0) {
-          console.log(
-            `Digest: ${thinStories.length}/${stories.length} stories lack full text, ` +
-              `web context found for ${webContext.size}`
-          );
-        }
-
-        // Pull prior ClimatePulse coverage for each HERO story so Claude can
+        // Pull prior ClimatePulse coverage for each HERO story so the model can
         // reference historical context ("as we covered on April 12…") when it
         // genuinely reframes today's piece. Non-fatal — if RAG is unavailable
-        // we just skip the block. Skipped entirely in fast mode.
+        // we just skip the block. Skipped in fast mode (the on-demand first run)
+        // since it's the slowest remaining step.
         const priorCoverage = opts.fast
           ? new Map<string, RetrievedContent[]>()
           : await fetchPriorCoverage(stories).catch((err) => {
@@ -673,13 +526,12 @@ export async function generateBriefingForUser(
           depthConfig.analysisDetail
         );
 
-        const synthesise = opts.fast ? callGemini : callClaude;
         try {
-          digest = await synthesise(prompt);
+          digest = await callGemini(prompt);
         } catch (err) {
           console.error("First digest attempt failed, retrying:", err);
           try {
-            digest = await synthesise(prompt);
+            digest = await callGemini(prompt);
           } catch (retryErr) {
             console.error("Retry failed:", retryErr);
             const { MOCK_DIGEST } = await import("@/lib/mock-digest");
@@ -694,8 +546,8 @@ export async function generateBriefingForUser(
   if (sampleReason) {
     digest = { ...digest, is_sample: true, sample_reason: sampleReason };
   } else if (opts.fast) {
-    // Real briefing, just the fast Flash version — flag it so the UI can hint
-    // "quick take" and so the nightly Sonnet run is distinguishable on upsert.
+    // Real briefing, just the fast version (skips prior-coverage RAG) — flag it
+    // so the UI can hint "quick take" and the nightly full run is distinguishable.
     digest = { ...digest, is_fast: true };
   }
 

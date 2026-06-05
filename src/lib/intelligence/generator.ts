@@ -88,17 +88,17 @@ function buildSourceContext(items: RetrievedContent[]): string {
     .join("\n\n---\n\n");
 }
 
-// ─── Claude Sonnet Research Mode ──────────────────────────────────────────────
+// ─── Gemini Research Mode ─────────────────────────────────────────────────────
 
-async function generateWithSonnet(
+async function generateWithGeminiResearch(
   query: string,
   context: string,
   itemCount: number,
   hasOwnEditorial: boolean
 ): Promise<{ answer: string; input_tokens?: number; output_tokens?: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY not set — required for research mode");
+  const key = process.env.GOOGLE_AI_API_KEY;
+  if (!key) {
+    throw new Error("GOOGLE_AI_API_KEY not set — required for research mode");
   }
 
   const editorialNote = hasOwnEditorial
@@ -121,45 +121,28 @@ Do NOT:
 - Speculate beyond what the evidence supports
 - Include generic disclaimers — be direct and evidence-based`;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 3000,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: `RESEARCH QUERY: ${query}
+  const ai = new GoogleGenerativeAI(key);
+  const model = ai.getGenerativeModel({
+    model: GEMINI_MODEL,
+    systemInstruction: systemPrompt,
+    generationConfig: { maxOutputTokens: 3000 },
+  });
+
+  const result = await model.generateContent(
+    `RESEARCH QUERY: ${query}
 
 RETRIEVED ITEMS (${itemCount} most relevant from our intelligence corpus):
 
 ${context}
 
-Please synthesise these items into a comprehensive answer. Reference items by number [1], [2] etc.`,
-        },
-      ],
-    }),
-  });
+Please synthesise these items into a comprehensive answer. Reference items by number [1], [2] etc.`
+  );
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Anthropic API error ${response.status}: ${err}`);
-  }
-
-  const data = await response.json();
-  const textBlocks = data.content?.filter((b: { type: string }) => b.type === "text") ?? [];
-  const answer = textBlocks.map((b: { text: string }) => b.text).join("");
-
+  const usage = result.response.usageMetadata;
   return {
-    answer,
-    input_tokens: data.usage?.input_tokens,
-    output_tokens: data.usage?.output_tokens,
+    answer: result.response.text(),
+    input_tokens: usage?.promptTokenCount,
+    output_tokens: usage?.candidatesTokenCount,
   };
 }
 
@@ -208,9 +191,9 @@ export async function generateAnswer(
   let outputTokens: number | undefined;
 
   if (mode === "research") {
-    const result = await generateWithSonnet(query, context, items.length, hasOwnEditorial);
+    const result = await generateWithGeminiResearch(query, context, items.length, hasOwnEditorial);
     answer = result.answer;
-    modelUsed = "claude-sonnet-4-6";
+    modelUsed = GEMINI_MODEL;
     inputTokens = result.input_tokens;
     outputTokens = result.output_tokens;
   } else {

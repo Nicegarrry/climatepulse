@@ -66,7 +66,7 @@ async function generateOneArchetype(
       audio_size_bytes: audioBuffer.length,
       audio_format: format,
       model_tts: "gemini-2.5-flash-preview-tts",
-      model_script: "claude-sonnet-4-6",
+      model_script: "gemini-3.5-flash",
       generated_at: new Date().toISOString(),
       tier: "daily",
       archetype,
