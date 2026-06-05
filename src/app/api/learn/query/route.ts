@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { routeAndRetrieve } from "@/lib/intelligence/router";
 import type { RoutingDecision } from "@/lib/intelligence/router";
+import { requireAuth } from "@/lib/supabase/server";
+import { rateLimitOr429 } from "@/lib/surfaces/rate-limit";
 
 /**
  * Learn-specific retrieval endpoint with conditional routing.
@@ -15,6 +17,12 @@ import type { RoutingDecision } from "@/lib/intelligence/router";
  * usage logs to refine the routing heuristic.
  */
 export async function POST(req: NextRequest) {
+  // Gate: routeAndRetrieve runs a paid Gemini embedding per call. Login-only + throttle.
+  const auth = await requireAuth();
+  if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const limited = rateLimitOr429({ surfaceId: "learn-query", key: auth.user.id, limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   try {
     const body = await req.json();
     const {

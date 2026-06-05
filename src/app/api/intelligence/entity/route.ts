@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEntityBrief } from "@/lib/intelligence/retriever";
+import { requireAuth } from "@/lib/supabase/server";
+import { rateLimitOr429 } from "@/lib/surfaces/rate-limit";
 
 export async function GET(req: NextRequest) {
+  // Gate: enumerable ?id= scraping + heavy per-entity SQL. Login-only + throttle.
+  const auth = await requireAuth();
+  if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const limited = rateLimitOr429({ surfaceId: "intelligence-entity", key: auth.user.id, limit: 40, windowMs: 60_000 });
+  if (limited) return limited;
+
   try {
     const entityId = parseInt(req.nextUrl.searchParams.get("id") ?? "");
 

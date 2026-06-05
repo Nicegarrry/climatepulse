@@ -142,6 +142,35 @@ export async function withSurfaceRateLimit(
   return response;
 }
 
+/**
+ * Lightweight guard for API routes: returns a 429 NextResponse if the caller
+ * is over the limit for `surfaceId`+`key`, or null to proceed. `key` should be
+ * a user id when authenticated, otherwise the client IP (see extractIp).
+ *
+ * Same in-memory caveat as the rest of this module — per-instance, resets on
+ * cold start. Good enough to stop scripted abuse / runaway AI spend at launch;
+ * swap for a durable store (Upstash/Vercel KV) when traffic warrants.
+ */
+export function rateLimitOr429(opts: {
+  surfaceId: string;
+  key: string;
+  limit?: number;
+  windowMs?: number;
+}): NextResponse<{ error: string; retry_after_seconds: number }> | null {
+  const check = checkRateLimit({
+    surfaceId: opts.surfaceId,
+    ip: opts.key,
+    limit: opts.limit,
+    windowMs: opts.windowMs,
+  });
+  if (check.allowed) return null;
+  const retryAfterSec = Math.max(1, Math.ceil((check.resetAt - Date.now()) / 1000));
+  return NextResponse.json(
+    { error: "rate_limited", retry_after_seconds: retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(retryAfterSec), ...buildHeaders(check) } },
+  );
+}
+
 // Testing / ops hook — purge all state (not exported from a barrel; direct import only).
 export function __resetRateLimiter(): void {
   buckets.clear();

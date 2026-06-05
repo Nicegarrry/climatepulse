@@ -5,6 +5,7 @@ import {
   type Schema,
 } from "@google/generative-ai";
 import { GEMINI_MODEL } from "@/lib/ai-models";
+import { rateLimitOr429, extractIp } from "@/lib/surfaces/rate-limit";
 import { SOURCE_FACTOR_BY_ID, STATE_GRID_INTENSITY } from "@/lib/automacc/factors";
 import type {
   CompanyMeta,
@@ -254,6 +255,10 @@ function compute(
 export async function POST(
   req: NextRequest,
 ): Promise<NextResponse<NormaliseResponse | { error: string }>> {
+  // Public fast-path (see /api/automacc/macc) — throttle by IP, not auth.
+  const limited = rateLimitOr429({ surfaceId: "automacc-normalise", key: extractIp(req), limit: 15, windowMs: 60_000 });
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await req.json();

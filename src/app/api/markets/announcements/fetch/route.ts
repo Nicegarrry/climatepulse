@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAllAnnouncements } from "@/lib/markets/asx-client";
 import { isTradingHours, describeSydneyClock } from "@/lib/markets/trading-hours";
+import { requireAuth } from "@/lib/supabase/server";
+import { rateLimitOr429 } from "@/lib/surfaces/rate-limit";
 
 export const maxDuration = 120;
 
@@ -10,8 +12,14 @@ function isCronAuthorized(req: NextRequest): boolean {
   return req.headers.get("authorization") === `Bearer ${secret}`;
 }
 
-// Admin-triggered (dashboard button) — POST, no cron auth, no time gate.
+// User-triggered (dashboard button). Any logged-in user may refresh public ASX
+// data (idempotent INSERT ... ON CONFLICT DO NOTHING); gated + throttled so the
+// 120s function can't be pinned anonymously.
 export async function POST() {
+  const auth = await requireAuth();
+  if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const limited = rateLimitOr429({ surfaceId: "markets-announcements-fetch", key: auth.user.id, limit: 6, windowMs: 60_000 });
+  if (limited) return limited;
   try {
     const result = await fetchAllAnnouncements();
     return NextResponse.json(result);

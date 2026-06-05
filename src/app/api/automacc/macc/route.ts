@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
 import { GEMINI_MODEL } from "@/lib/ai-models";
+import { rateLimitOr429, extractIp } from "@/lib/surfaces/rate-limit";
 import { SOURCE_FACTOR_BY_ID } from "@/lib/automacc/factors";
 import { leversForApproachAndSource } from "@/lib/automacc/levers";
 import {
@@ -228,6 +229,11 @@ function compute(geminiRows: GeminiLeverRow[], req: MaccRequest): MaccLeverRow[]
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse<MaccResponse | { error: string }>> {
+  // AutoMACC is a public fast-path (no login required), so throttle by IP to
+  // stop scripted abuse of the billed Gemini call rather than gating on auth.
+  const limited = rateLimitOr429({ surfaceId: "automacc-macc", key: extractIp(req), limit: 15, windowMs: 60_000 });
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await req.json();

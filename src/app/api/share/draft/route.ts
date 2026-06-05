@@ -3,6 +3,7 @@ import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-
 import pool from "@/lib/db";
 import { GEMINI_MODEL } from "@/lib/ai-models";
 import { getAuthUser } from "@/lib/supabase/server";
+import { rateLimitOr429, extractIp } from "@/lib/surfaces/rate-limit";
 import { getOrCreateRefHash } from "@/lib/share";
 
 // POST body: { article_url?: string; episode_id?: string; target?: "linkedin"|"twitter" }
@@ -323,6 +324,12 @@ function buildShareUrl(
 }
 
 export async function POST(req: NextRequest) {
+  // Blurb drafting works for anon users by design, so throttle by IP (keyed by
+  // user id when signed in) to cap the billed Gemini call rather than gating.
+  const ipOrUser = (await getAuthUser())?.id ?? extractIp(req);
+  const limited = rateLimitOr429({ surfaceId: "share-draft", key: ipOrUser, limit: 15, windowMs: 60_000 });
+  if (limited) return limited;
+
   const startedAt = Date.now();
 
   let body: {
