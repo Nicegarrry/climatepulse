@@ -25,7 +25,6 @@ import { GeneratingBanner } from "./generating-banner";
 import { SectorCoverage } from "@/components/sector-coverage";
 import { WeeklyPulseCard } from "@/components/weekly-pulse-card";
 import { PodcastPlayer } from "./podcast-player";
-import { ResearchPanel } from "./research-panel";
 import { DailyFeedbackPrompt } from "./DailyFeedbackPrompt";
 import { NotificationsPrompt } from "./NotificationsPrompt";
 import type { SectorCoverageData, WeeklyPulse } from "@/lib/types";
@@ -1044,11 +1043,6 @@ function DesktopIntelligence({
             <AlsoToday stories={also} />
           </>
         )}
-
-        {/* Research Panel */}
-        <div style={{ marginTop: 28 }}>
-          <ResearchPanel />
-        </div>
 
         {/* Footer */}
         <div style={{ marginTop: 28 }}><WobblyRule color={COLORS.borderLight} /></div>

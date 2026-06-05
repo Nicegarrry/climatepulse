@@ -32,6 +32,7 @@ import {
   EllipsisHorizontalIcon,
   MicrophoneIcon,
   AcademicCapIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 import {
   NewspaperIcon as NewspaperIconSolid,
@@ -46,6 +47,7 @@ import {
   EllipsisHorizontalIcon as EllipsisHorizontalIconSolid,
   MicrophoneIcon as MicrophoneIconSolid,
   AcademicCapIcon as AcademicCapIconSolid,
+  SparklesIcon as SparklesIconSolid,
 } from "@heroicons/react/24/solid";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { COLORS, FONTS, GRAIN, NAV_ITEMS } from "@/lib/design-tokens";
@@ -58,6 +60,7 @@ import { MarketsTab } from "@/components/markets-tab";
 import WeeklyTab from "@/components/weekly";
 import EditorTab from "@/components/editor";
 import IntelligenceTab from "@/components/intelligence";
+import ResearchTab from "@/components/research-tab";
 import { NewsroomTab } from "@/components/newsroom/NewsroomTab";
 import { PodcastAdminTab } from "@/components/podcast-admin-tab";
 import { FlagshipScheduler } from "@/components/flagship-scheduler";
@@ -74,6 +77,7 @@ import { AutomaccTab } from "@/components/automacc/AutomaccTab";
 const readerTabs = [
   { value: "intelligence", label: "Briefing", icon: NewspaperIcon, iconSolid: NewspaperIconSolid },
   { value: "learn", label: "Learn", icon: AcademicCapIcon, iconSolid: AcademicCapIconSolid },
+  { value: "research", label: "Research", icon: SparklesIcon, iconSolid: SparklesIconSolid },
   { value: "newsroom", label: "Newsroom", icon: RssIcon, iconSolid: RssIconSolid },
   { value: "energy", label: "Energy", icon: BoltIcon, iconSolid: BoltIconSolid },
   { value: "indicators", label: "Indicators", icon: ChartPieIcon, iconSolid: ChartPieIconSolid },
@@ -183,6 +187,8 @@ function TabContent({ activeTab }: { activeTab: string }) {
       return <NewsroomTab />;
     case "learn":
       return <LearnRedirect />;
+    case "research":
+      return <ResearchTab />;
     case "podcast-admin":
       return <PodcastAdminTab />;
     case "teaching":
