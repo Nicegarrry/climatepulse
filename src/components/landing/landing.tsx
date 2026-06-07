@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
+import { CheckIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "@/lib/auth-context";
-import { SampleBriefingModal } from "./sample-modal";
+import type { PublicStory } from "@/lib/digest/public-digest";
 import "./landing.css";
 
 const Arrow = ({ size = 14 }: { size?: number }) => (
@@ -26,88 +28,95 @@ const Arrow = ({ size = 14 }: { size?: number }) => (
   </svg>
 );
 
-const Mortarboard = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 16 16"
-    fill="none"
-    aria-hidden
-    style={{ display: "inline-block", verticalAlign: -1, marginRight: 4 }}
-  >
-    <path
-      d="M1 6.5l7-3.5 7 3.5-7 3.5-7-3.5zM3.5 8v3.5c0 1 2 2 4.5 2s4.5-1 4.5-2V8"
-      stroke="currentColor"
-      strokeWidth="1.3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 const PulseDot = ({ size = 6 }: { size?: number }) => (
-  <span
-    className="cp-pulse-dot"
-    style={{ width: size, height: size }}
-    aria-hidden
-  />
+  <span className="cp-pulse-dot" style={{ width: size, height: size }} aria-hidden />
 );
 
-// ─── Pillar data ──────────────────────────────────────────────────────────
+// ─── Helpers (ported from /today so the board reads faithfully) ─────────────
 
-type PillarId = "intel" | "learn" | "serve";
+function prettify(slug: string | null): string | null {
+  if (!slug) return null;
+  return slug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
-type PillarItem = { name: string; tag: string };
+function sentimentColor(s: string | null): string {
+  if (s === "positive") return "var(--accent)";
+  if (s === "negative") return "#B23A2E";
+  return "var(--ink-3)";
+}
 
-const PILLARS: { id: PillarId; num: string; name: string; promise: string }[] = [
-  {
-    id: "intel",
-    num: "01",
-    name: "Live intelligence",
-    promise: "What changed overnight, and what's moving now.",
-  },
-  {
-    id: "learn",
-    num: "02",
-    name: "Learning",
-    promise: "Catch up on the concepts, the players, and the long arc.",
-  },
-  {
-    id: "serve",
-    num: "03",
-    name: "Beyond the briefing",
-    promise: "Founder-led work for teams that need more than a newsletter.",
-  },
+function fmtTime(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Intl.DateTimeFormat("en-AU", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Australia/Sydney",
+    }).format(new Date(iso));
+  } catch {
+    return "";
+  }
+}
+
+// Animate a live counter from 0 -> target on mount. State seeds to the real
+// number so SSR/first paint match (no hydration mismatch); when motion is
+// allowed the rAF loop resets to 0 on its first frame and eases up. Reduced
+// motion or a non-positive count just leaves the seeded value in place. All
+// setState happens inside the rAF callback, never synchronously in the effect.
+function useCountUp(target: number): number {
+  const [val, setVal] = useState(target);
+  useEffect(() => {
+    if (target <= 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    let start: number | null = null;
+    const duration = 850;
+    const tick = (t: number) => {
+      if (start === null) start = t;
+      const p = Math.min(1, (t - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+      setVal(Math.round(target * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return val;
+}
+
+// ─── Pricing data ───────────────────────────────────────────────────────────
+
+const FOUNDERS_FEATURES = [
+  "Personalised daily briefing, written to your sectors",
+  "Newsroom — the live wire feed, deduped and ranked",
+  "Energy dashboard (live NEM) + Markets dashboard",
+  "Learn + Research, grounded in the sector taxonomy",
+  "Weekly Pulse report every Sunday",
+  "A daily podcast for the commute",
 ];
 
-const PILLAR_ITEMS: Record<PillarId, PillarItem[]> = {
-  intel: [
-    { name: "Daily briefing", tag: "Live" },
-    { name: "Newsroom", tag: "Live" },
-    { name: "Energy", tag: "Live" },
-    { name: "Markets", tag: "Live" },
-  ],
-  learn: [
-    { name: "Learn", tag: "Live" },
-    { name: "Research", tag: "Live" },
-    { name: "Weekly Pulse", tag: "Sun" },
-    { name: "Teaching", tag: "Jul" },
-  ],
-  serve: [
-    { name: "AutoMACC", tag: "Live" },
-    { name: "Private briefings", tag: "Req" },
-    { name: "Sector deep reads", tag: "Req" },
-    { name: "Workshops", tag: "Q3" },
-  ],
-};
+const PREMIUM_FEATURES = [
+  "Access to premium & paywalled sources",
+  "High-quality research from a proprietary knowledge base",
+  "A daily podcast individually customised to you",
+  "A premium fortnightly podcast + newsletter",
+  "Priority desk requests and deeper sector deep-reads",
+];
 
 // ─── Landing root ─────────────────────────────────────────────────────────
 
-export function Landing() {
+export function Landing({
+  topStories,
+  signalsTracked,
+}: {
+  topStories: PublicStory[];
+  signalsTracked: number;
+}) {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const [modalOpen, setModalOpen] = useState(false);
-  const ctaRef = useRef<HTMLElement | null>(null);
 
   // Authed users land on /launchpad — the post-auth router page.
   useEffect(() => {
@@ -117,6 +126,7 @@ export function Landing() {
   if (user) {
     return (
       <div
+        className="cp-launchpad"
         style={{
           minHeight: "calc(100vh / 1.125)",
           display: "flex",
@@ -139,30 +149,20 @@ export function Landing() {
     );
   }
 
-  const openSample = () => setModalOpen(true);
-  const closeSample = () => setModalOpen(false);
-  const scrollToCTA = () => ctaRef.current?.scrollIntoView({ behavior: "smooth" });
-
   return (
     <div className="cp-launchpad">
-      <TopNav onScrollToCTA={scrollToCTA} />
-      <Hero onSampleClick={openSample} onCTAClick={scrollToCTA} />
-      <Pillars onSampleClick={openSample} />
-      <Moat />
-      <CTA sectionRef={ctaRef} onCTAClick={() => router.push("/login")} />
+      <TopNav />
+      <Hero topStories={topStories} signalsTracked={signalsTracked} />
+      <Pricing />
+      <FinalCTA />
       <Footer />
-      <SampleBriefingModal open={modalOpen} onClose={closeSample} />
     </div>
   );
 }
 
-// ─── Top nav ──────────────────────────────────────────────────────────────
+// ─── Top nav — logo + single Sign-up CTA ────────────────────────────────────
 
-function TopNav({ onScrollToCTA }: { onScrollToCTA: () => void }) {
-  const handleCTA = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    onScrollToCTA();
-  };
+function TopNav() {
   return (
     <header className="pl-top">
       <div className="left">
@@ -170,179 +170,200 @@ function TopNav({ onScrollToCTA }: { onScrollToCTA: () => void }) {
         <span>climate pulse</span>
       </div>
       <nav className="right">
-        <a href="#how">How it works</a>
-        <a href="#pillars">What you get</a>
-        <a href="#moat">Why it&rsquo;s different</a>
-        <a className="login-link" href="/login">
-          <Mortarboard />
-          Student login
-        </a>
-        <a className="cta" href="#cta" onClick={handleCTA}>
-          Get early access
-        </a>
+        <Link className="cta" href="/login">
+          Sign up now
+        </Link>
       </nav>
     </header>
   );
 }
 
-// ─── Hero ─────────────────────────────────────────────────────────────────
+// ─── Hero — headline, dominant CTA, inline live board ───────────────────────
 
 function Hero({
-  onSampleClick,
-  onCTAClick,
+  topStories,
+  signalsTracked,
 }: {
-  onSampleClick: () => void;
-  onCTAClick: () => void;
+  topStories: PublicStory[];
+  signalsTracked: number;
 }) {
+  const count = useCountUp(signalsTracked);
+  const showCount = signalsTracked > 0;
+
   return (
-    <section className="pl-hero" id="how">
+    <section className="pl-hero">
       <div className="container">
-        <div className="eyebrow">
+        <div className="eyebrow cp-rise cp-rise-1">
           <PulseDot />
-          &nbsp; PRE-LAUNCH · EARLY ACCESS OPEN
+          &nbsp; LIVE ·{" "}
+          {showCount
+            ? `${count.toLocaleString("en-AU")} signals tracked today`
+            : "tracking the transition"}
         </div>
-        <h1>
-          The daily brief for Australia&rsquo;s <em>energy transition.</em>
+        <h1 className="cp-rise cp-rise-2">
+          The daily climate &amp; energy brief that reads everything, so you read{" "}
+          <em>five minutes.</em>
         </h1>
-        <p className="sub">
-          ClimatePulse reads the policy drops, market moves, and project news shaping
-          your sector — then sends you only what matters. Paired with a live NEM + ASX
-          energy dashboard, deeper learning, and founder-led services for teams that
-          need more than a newsletter.
+        <p className="sub cp-rise cp-rise-3">
+          ClimatePulse tracks every policy drop, market move and project filing across
+          Australia&rsquo;s energy transition overnight, then writes you a personalised
+          briefing tuned to your sectors. Built for the investors, analysts and policy
+          professionals who can&rsquo;t afford to miss the signal.
         </p>
-        <div className="ctas">
-          <button type="button" className="btn-primary" onClick={onCTAClick}>
-            Get early access <Arrow />
-          </button>
-          <button type="button" className="btn-ghost" onClick={onSampleClick}>
-            See a sample briefing →
-          </button>
+        <div className="ctas cp-rise cp-rise-4">
+          <Link href="/login" className="btn-primary btn-xl">
+            Sign up now <Arrow size={15} />
+          </Link>
+          <Link href="/today" className="btn-ghost">
+            See today&rsquo;s dashboard without logging in
+          </Link>
         </div>
+
+        <LiveBoard stories={topStories} />
       </div>
     </section>
   );
 }
 
-// ─── Three-pillar architecture section ───────────────────────────────────
+// ─── Inline live signal board — the single proof element ────────────────────
 
-function Pillars({ onSampleClick }: { onSampleClick: () => void }) {
-  const [activePillar, setActivePillar] = useState<PillarId>("intel");
-
+function LiveBoard({ stories }: { stories: PublicStory[] }) {
   return (
-    <section className="pl-architecture" id="pillars">
-      <div className="container">
-        <div className="pl-arch-head">
-          <div>
-            <div className="eyebrow">04 · WHAT YOU GET</div>
-            <h2>
-              A briefing, a classroom, <em>and a workshop.</em>
-            </h2>
-          </div>
-          <p className="copy">
-            Climate Pulse is three things on one masthead. A daily intelligence product
-            for the morning read. A learning surface for the long arc. And a small set
-            of founder-led services for teams that want a more direct line.
-          </p>
-        </div>
+    <div className="pl-board cp-rise cp-rise-5" aria-label="Today's live signal board">
+      <div className="pl-board-head">
+        <span className="kicker">
+          <PulseDot /> On the desk right now
+        </span>
+        <Link href="/today" className="full">
+          Full board <Arrow size={12} />
+        </Link>
+      </div>
 
-        <div className="pl-arch-switch" role="tablist" aria-label="Preview a pillar">
-          {PILLARS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              role="tab"
-              aria-selected={activePillar === p.id}
-              className={`pl-switch-btn ${activePillar === p.id ? "active" : ""}`}
-              onClick={() => setActivePillar(p.id)}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-
-        <div className="pl-arch-grid">
-          {PILLARS.map((p) => {
-            const isActive = p.id === activePillar;
+      {stories.length > 0 ? (
+        <div className="pl-board-rows">
+          {stories.map((s, i) => {
+            const domain = prettify(s.primary_domain);
+            const signal = prettify(s.signal_type);
+            const time = fmtTime(s.published_at);
             return (
-              <article
-                key={p.id}
-                className={`pl-pillar-card ${isActive ? "active" : ""}`}
-              >
-                <span className="num">{p.num.replace("0", "")}.</span>
-                <h3>{p.name}</h3>
-                <p className="promise">{p.promise}</p>
-                <ul>
-                  {PILLAR_ITEMS[p.id].map((it) => (
-                    <li key={it.name}>
-                      <span>{it.name}</span>
-                      <span className="tag">{it.tag}</span>
-                    </li>
-                  ))}
-                </ul>
-                <button type="button" className="open" onClick={onSampleClick}>
-                  {p.id === "serve" ? "Talk to us" : "Sample it"} <Arrow />
-                </button>
+              <article className="pl-board-row" key={s.article_url || i}>
+                <span className="rank">{String(i + 1).padStart(2, "0")}</span>
+                <div className="body">
+                  <div className="chips">
+                    {domain && <span className="chip">{domain}</span>}
+                    {signal && <span className="chip">{signal}</span>}
+                    {s.sentiment && (
+                      <span
+                        className="sent"
+                        role="img"
+                        aria-label={`sentiment: ${s.sentiment}`}
+                        style={{ background: sentimentColor(s.sentiment) }}
+                      />
+                    )}
+                  </div>
+                  <p className="title">{s.title}</p>
+                  <div className="meta">
+                    {s.source_name ?? "Source"}
+                    {time ? ` · ${time} AEST` : ""}
+                  </div>
+                </div>
               </article>
             );
           })}
         </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Moat ─────────────────────────────────────────────────────────────────
-
-function Moat() {
-  return (
-    <section className="pl-moat" id="moat">
-      <div className="container">
-        <div className="eyebrow">05 · THE MOAT</div>
-        <h2>
-          Not another <em>AI news aggregator.</em>
-        </h2>
-        <p className="lede">
-          Most climate newsletters built in 2025 are a ChatGPT prompt wrapped around an
-          RSS feed. ClimatePulse is different in the parts that matter: the 108-sector
-          taxonomy, the significance scoring model, and the source list. These are the
-          product of years working inside Australian energy transition.
-        </p>
-        <p className="pull">
-          AI does the heavy lifting of reading and classifying. Editorial judgement —
-          mine — defines what &ldquo;significant&rdquo; means.
-        </p>
-        <div className="attribution">
-          <span className="rule" aria-hidden />
-          Nick · Founder, Climate Pulse
+      ) : (
+        <div className="pl-board-empty">
+          <p className="h">Today&rsquo;s board is compiling</p>
+          <p className="s">
+            The overnight desk run is still processing — the live feed returns shortly.
+          </p>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Pricing — Founders (active) vs Premium (greyed, inert) ──────────────────
+
+function Pricing() {
+  return (
+    <section className="pl-pricing" id="pricing">
+      <div className="container">
+        <div className="pl-pricing-head">
+          <div className="eyebrow">PRICING</div>
+          <h2>
+            Two ways <em>in.</em>
+          </h2>
+        </div>
+
+        <div className="pl-price-grid">
+          {/* Founders — the live, free, selectable offer */}
+          <article className="pl-price-card founders">
+            <div className="badge">Current offer · Early access</div>
+            <h3>Founders</h3>
+            <div className="price">Free · early access</div>
+            <ul>
+              {FOUNDERS_FEATURES.map((f) => (
+                <li key={f}>
+                  <CheckIcon className="ico" aria-hidden />
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+            <Link href="/login" className="btn-primary card-cta">
+              Sign up now <Arrow />
+            </Link>
+          </article>
+
+          {/* Premium — future tier, deliberately greyed out and inert */}
+          <article className="pl-price-card cp-tier--soon">
+            <span className="cp-sr-only">Premium tier — not yet available</span>
+            <div className="badge">Coming soon</div>
+            <h3>Premium</h3>
+            <div className="price">Pricing TBC</div>
+            <ul>
+              {PREMIUM_FEATURES.map((f) => (
+                <li key={f}>
+                  <LockClosedIcon className="ico" aria-hidden />
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+            <button type="button" className="card-cta soon" disabled>
+              Coming soon
+            </button>
+          </article>
+        </div>
+
+        <p className="pl-pricing-note">
+          Founders members get first access and locked-in pricing when Premium ships.
+        </p>
       </div>
     </section>
   );
 }
 
-// ─── Final CTA ────────────────────────────────────────────────────────────
+// ─── Final CTA band ─────────────────────────────────────────────────────────
 
-function CTA({
-  sectionRef,
-  onCTAClick,
-}: {
-  sectionRef: React.RefObject<HTMLElement | null>;
-  onCTAClick: () => void;
-}) {
+function FinalCTA() {
   return (
-    <section className="pl-cta" id="cta" ref={sectionRef}>
+    <section className="pl-cta">
       <div className="container">
-        <div className="eyebrow">06 · START HERE</div>
         <h2>
-          Start your morning with <em>signal, not noise.</em>
+          Start tomorrow morning with <em>signal, not noise.</em>
         </h2>
         <p>
-          Early access is open. Takes 30 seconds — drop your email and pick the sectors
-          you care about.
+          Early access is open and free. Drop your email, pick your sectors, and your
+          first briefing lands before 6am AEST.
         </p>
-        <button type="button" className="btn-primary" onClick={onCTAClick}>
-          Get early access <Arrow />
-        </button>
+        <div className="ctas">
+          <Link href="/login" className="btn-primary btn-xl">
+            Sign up now <Arrow size={15} />
+          </Link>
+          <Link href="/today" className="btn-ghost">
+            See today&rsquo;s dashboard first
+          </Link>
+        </div>
         <div className="stamp">NO SPAM · UNSUBSCRIBE ANY TIME</div>
       </div>
     </section>
@@ -355,7 +376,8 @@ function Footer() {
   return (
     <footer className="pl-foot">
       <span>CLIMATE PULSE · BUILT IN AUSTRALIA</span>
-      <span>
+      <span className="links">
+        <Link href="/today">Today&rsquo;s board</Link>
         <a href="mailto:hello@climatepulse.app">hello@climatepulse.app</a>
       </span>
     </footer>

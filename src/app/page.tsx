@@ -1,8 +1,18 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { Inter_Tight, Newsreader, JetBrains_Mono } from "next/font/google";
 import { Landing } from "@/components/landing/landing";
+import { getPublicDigest } from "@/lib/digest/public-digest";
+
+// The landing can't ISR (it reads the cp_returning cookie and renders
+// dynamically), so cache the read-only board query for 10 min to stop a
+// traffic spike from hammering the DB on every public hit. getPublicDigest
+// swallows DB errors to an empty board, so this stays safe if the DB is down.
+const getCachedDigest = unstable_cache(getPublicDigest, ["landing-public-digest"], {
+  revalidate: 600,
+});
 
 const interTight = Inter_Tight({
   subsets: ["latin"],
@@ -46,9 +56,13 @@ export default async function Home() {
     redirect("/launchpad");
   }
 
+  // Real, server-rendered proof: the top live signals power the hero board and
+  // the count-up eyebrow. Zero client fetch, zero per-visitor AI cost.
+  const { stories, signals_tracked } = await getCachedDigest();
+
   return (
     <div className={`${interTight.variable} ${newsreader.variable} ${jetbrainsMono.variable}`}>
-      <Landing />
+      <Landing topStories={stories.slice(0, 3)} signalsTracked={signals_tracked} />
     </div>
   );
 }

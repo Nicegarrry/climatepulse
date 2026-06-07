@@ -1,7 +1,11 @@
-/* ClimatePulse public landing — three-pillar design.
-   All rules are scoped under `.cp-launchpad` so they can't leak into the rest
-   of the app. Design tokens map the source design (--ink/--bg/--accent) onto
-   ClimatePulse's existing palette. Newsreader stands in for Crimson Pro. */
+/* ClimatePulse public landing — "Front Desk": a clutter-stripped, warm-paper
+   conversion funnel. One oversized forest "Sign up now" is the heaviest object
+   on every viewport; an inline live signal board carries the proof; a two-tier
+   pricing pair (free/live Founders vs greyed/inert Premium) closes.
+
+   EVERY selector is namespaced under `.cp-launchpad` (the only exceptions are
+   @media / @keyframes). A single unprefixed rule would leak into the authed app
+   and clobber the global shadcn tokens. This namespacing is non-negotiable. */
 
 .cp-launchpad {
   /* ── Backgrounds: warm-paper palette pulled from the logo ─────────────── */
@@ -13,7 +17,7 @@
   /* ── Ink: warm plum-black, matches existing system ───────────────────── */
   --ink: #2A0E2F;
   --ink-2: #5B3D5F;
-  --ink-3: #8B7288;
+  --ink-3: #6E5670;   /* >=4.5:1 on every paper bg (AA) — used for muted labels + footer links */
   --ink-4: #B4A3B0;
 
   /* ── Rules ────────────────────────────────────────────────────────────── */
@@ -21,7 +25,7 @@
   --rule-strong: rgba(42, 14, 47, 0.22);
 
   /* ── Accent: ClimatePulse forest greens ──────────────────────────────── */
-  --accent: #0F4D2A;     /* italic headline word */
+  --accent: #0F4D2A;     /* italic headline word, checks, accents */
   --accent-2: #2F7A4A;   /* primary CTA bg */
   --accent-3: #9DC5A8;   /* sage tints */
   --accent-tint: #E1ECDF;
@@ -72,8 +76,20 @@
   font-weight: 400;
 }
 
+.cp-launchpad .cp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ── Pulse dot — signature live-data indicator ───────────────────────── */
-.cp-pulse-dot {
+.cp-launchpad .cp-pulse-dot {
   display: inline-block;
   width: 6px;
   height: 6px;
@@ -89,8 +105,23 @@
   50%      { box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent-2) 5%, transparent); }
 }
 
+/* ── Staggered entrance ──────────────────────────────────────────────── */
+@keyframes cp-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.cp-launchpad .cp-rise {
+  opacity: 0;
+  animation: cp-rise 560ms var(--ease-standard) both;
+}
+.cp-launchpad .cp-rise-1 { animation-delay: 40ms; }
+.cp-launchpad .cp-rise-2 { animation-delay: 110ms; }
+.cp-launchpad .cp-rise-3 { animation-delay: 180ms; }
+.cp-launchpad .cp-rise-4 { animation-delay: 250ms; }
+.cp-launchpad .cp-rise-5 { animation-delay: 330ms; }
+
 /* ──────────────────────────────────────────────────────────────────────
-   Top nav
+   Top nav — logo + one Sign-up CTA
    ────────────────────────────────────────────────────────────────────── */
 
 .cp-launchpad .pl-top {
@@ -118,48 +149,24 @@
 .cp-launchpad .pl-top .right {
   display: flex;
   align-items: center;
-  gap: 28px;
-  font-size: 13.5px;
-}
-
-.cp-launchpad .pl-top .right a {
-  color: var(--ink-2);
-  text-decoration: none;
-  transition: color 200ms var(--ease-standard);
-}
-.cp-launchpad .pl-top .right a:hover { color: var(--ink); }
-
-.cp-launchpad .pl-top .right .login-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--rule);
-  color: var(--ink);
-  font-weight: 500;
-  transition:
-    border-color 200ms var(--ease-standard),
-    background 200ms var(--ease-standard),
-    color 200ms var(--ease-standard);
-}
-.cp-launchpad .pl-top .right .login-link:hover {
-  border-color: var(--accent);
-  background: var(--accent-tint);
-  color: var(--accent);
+  gap: 16px;
 }
 
 .cp-launchpad .pl-top .right .cta {
   background: var(--accent-2);
   color: var(--cta-fg);
-  padding: 9px 16px;
-  border-radius: 6px;
-  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
   transition: box-shadow 200ms var(--ease-standard), transform 120ms var(--ease-standard);
 }
 .cp-launchpad .pl-top .right .cta:hover {
   color: var(--cta-fg);
-  box-shadow: 0 6px 18px color-mix(in oklab, var(--ink) 12%, transparent);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--accent-2) 28%, transparent);
+  transform: translateY(-1px);
 }
 
 /* ──────────────────────────────────────────────────────────────────────
@@ -167,13 +174,13 @@
    ────────────────────────────────────────────────────────────────────── */
 
 .cp-launchpad .pl-hero {
-  padding: 88px 40px 72px;
+  padding: 80px 40px 72px;
 }
 
 .cp-launchpad .pl-hero .eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 500;
@@ -191,7 +198,7 @@
   letter-spacing: -0.025em;
   text-wrap: balance;
   margin: 0 0 22px;
-  max-width: 18ch;
+  max-width: 20ch;
 }
 .cp-launchpad .pl-hero h1 em {
   font-style: italic;
@@ -212,34 +219,53 @@
 
 .cp-launchpad .pl-hero .ctas {
   display: flex;
-  gap: 18px;
+  gap: 22px;
   align-items: center;
   flex-wrap: wrap;
+  margin-bottom: 44px;
 }
 
-/* ── Shared buttons ──────────────────────────────────────────────────── */
+/* ── Shared buttons — primary is the page's heaviest object ───────────── */
 
 .cp-launchpad .btn-primary {
   background: var(--accent-2);
   color: var(--cta-fg);
   border: 0;
-  height: 50px;
+  height: 48px;
   padding: 0 22px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-family: var(--font-sans);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.005em;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
   transition: box-shadow 250ms var(--ease-standard), transform 120ms var(--ease-standard);
 }
 .cp-launchpad .btn-primary:hover {
-  box-shadow: 0 6px 18px color-mix(in oklab, var(--ink) 12%, transparent);
+  color: var(--cta-fg);
+  box-shadow: 0 8px 22px color-mix(in oklab, var(--accent-2) 30%, transparent);
+  transform: translateY(-1px);
 }
 .cp-launchpad .btn-primary:active { transform: scale(0.985); }
+
+/* The enlarged hero/final-CTA primary — carries a resting shadow so it reads
+   as the heaviest object before any interaction. */
+.cp-launchpad .btn-xl {
+  height: 56px;
+  padding: 0 30px;
+  font-size: 16px;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--accent-2) 26%, transparent);
+}
+.cp-launchpad .btn-xl:hover {
+  box-shadow: 0 12px 28px color-mix(in oklab, var(--accent-2) 34%, transparent);
+}
 
 .cp-launchpad .btn-ghost {
   background: transparent;
@@ -249,117 +275,30 @@
   font-size: 14.5px;
   font-weight: 500;
   cursor: pointer;
+  text-decoration: none;
   border-bottom: 1px solid var(--rule);
-  padding: 6px 0;
-  transition: border-color 250ms var(--ease-standard);
+  padding: 6px 2px;
+  transition: border-color 250ms var(--ease-standard), color 250ms var(--ease-standard);
 }
-.cp-launchpad .btn-ghost:hover { border-bottom-color: var(--accent); }
-
-/* ──────────────────────────────────────────────────────────────────────
-   Three-pillar architecture
-   ────────────────────────────────────────────────────────────────────── */
-
-.cp-launchpad .pl-architecture {
-  background: var(--bg-2);
-  padding: 88px 40px;
-}
-
-.cp-launchpad .pl-arch-head {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 48px;
-  align-items: end;
-  margin-bottom: 40px;
-}
-
-.cp-launchpad .pl-arch-head .eyebrow {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-.cp-launchpad .pl-arch-head h2 {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-size: clamp(32px, 3.4vw, 42px);
-  line-height: 1.02;
-  letter-spacing: -0.022em;
-  text-wrap: balance;
-  margin: 14px 0 0;
-  max-width: 22ch;
-}
-.cp-launchpad .pl-arch-head h2 em {
-  font-style: italic;
+.cp-launchpad .btn-ghost:hover {
+  border-bottom-color: var(--accent);
   color: var(--accent);
 }
 
-.cp-launchpad .pl-arch-head .copy {
-  font-family: var(--font-serif);
-  font-size: 18px;
-  line-height: 1.5;
-  color: var(--ink-2);
-  margin: 0;
-  letter-spacing: -0.003em;
-  text-wrap: pretty;
-  max-width: 56ch;
-}
+/* ──────────────────────────────────────────────────────────────────────
+   Inline live signal board — the single proof element
+   ────────────────────────────────────────────────────────────────────── */
 
-/* Segmented pill switch */
-.cp-launchpad .pl-arch-switch {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 28px;
-  flex-wrap: wrap;
-}
-
-.cp-launchpad .pl-switch-btn {
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--rule);
-  background: transparent;
-  color: var(--ink-2);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.003em;
-  cursor: pointer;
-  transition: all 150ms var(--ease-standard);
-}
-.cp-launchpad .pl-switch-btn:hover {
-  border-color: var(--rule-strong);
-  color: var(--ink);
-}
-.cp-launchpad .pl-switch-btn.active {
-  background: var(--ink);
-  color: var(--bg);
-  border-color: var(--ink);
-}
-
-/* Pillar cards */
-.cp-launchpad .pl-arch-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-}
-
-.cp-launchpad .pl-pillar-card {
+.cp-launchpad .pl-board {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 26px 22px 22px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
-  transform: translateY(0);
-  transition:
-    transform 250ms var(--ease-standard),
-    box-shadow 250ms var(--ease-standard);
+  max-width: 720px;
 }
-.cp-launchpad .pl-pillar-card::before {
+.cp-launchpad .pl-board::before {
   content: "";
   position: absolute;
   top: 0;
@@ -368,166 +307,292 @@
   height: 2px;
   background: var(--accent);
 }
-.cp-launchpad .pl-pillar-card.active {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-md);
-}
 
-.cp-launchpad .pl-pillar-card .num {
-  font-family: var(--font-serif);
-  font-size: 48px;
-  line-height: 1;
-  color: var(--accent);
-  font-style: italic;
-  letter-spacing: -0.03em;
-  margin-bottom: 12px;
-}
-
-.cp-launchpad .pl-pillar-card h3 {
-  font-family: var(--font-serif);
-  font-size: 26px;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  margin: 0 0 8px;
-  color: var(--ink);
-}
-
-.cp-launchpad .pl-pillar-card .promise {
-  font-family: var(--font-serif);
-  font-size: 15px;
-  color: var(--ink-2);
-  line-height: 1.4;
-  letter-spacing: -0.003em;
-  margin: 0 0 18px;
-  text-wrap: pretty;
-}
-
-.cp-launchpad .pl-pillar-card ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 20px;
-}
-.cp-launchpad .pl-pillar-card li {
-  padding: 10px 0;
-  border-top: 1px solid var(--rule);
+.cp-launchpad .pl-board-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  color: var(--ink-2);
-  letter-spacing: -0.003em;
-}
-.cp-launchpad .pl-pillar-card li:last-child {
+  padding: 16px 20px;
   border-bottom: 1px solid var(--rule);
 }
-.cp-launchpad .pl-pillar-card li .tag {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--ink-3);
-  border: 1px solid var(--rule);
-  padding: 2px 5px;
-  border-radius: 3px;
-}
-
-.cp-launchpad .pl-pillar-card .open {
-  align-self: flex-start;
-  background: transparent;
-  border: 1px solid var(--rule);
-  padding: 9px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--ink);
-  font-family: var(--font-sans);
-  font-weight: 500;
-  font-size: 13px;
+.cp-launchpad .pl-board-head .kicker {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition:
-    border-color 250ms var(--ease-standard),
-    background 250ms var(--ease-standard),
-    color 250ms var(--ease-standard);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
 }
-.cp-launchpad .pl-pillar-card .open:hover {
-  border-color: var(--accent);
-  background: var(--accent-tint);
+.cp-launchpad .pl-board-head .full {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--accent);
+  text-decoration: none;
+  transition: gap 200ms var(--ease-standard);
+}
+.cp-launchpad .pl-board-head .full:hover { gap: 9px; }
+
+.cp-launchpad .pl-board-rows {
+  padding: 4px 20px 8px;
+}
+.cp-launchpad .pl-board-row {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 14px;
+  padding: 18px 0;
+  border-top: 1px solid var(--rule);
+}
+/* min-width:0 lets the 1fr track shrink below its longest token so real
+   wire-feed titles/sources wrap instead of being clipped by the panel's
+   overflow:hidden. */
+.cp-launchpad .pl-board-row .body {
+  min-width: 0;
+}
+.cp-launchpad .pl-board-rows .pl-board-row:first-child {
+  border-top: 0;
+}
+.cp-launchpad .pl-board-row .rank {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+}
+.cp-launchpad .pl-board-row .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.cp-launchpad .pl-board-row .chip {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.cp-launchpad .pl-board-row .sent {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.cp-launchpad .pl-board-row .title {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.3;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  margin: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cp-launchpad .pl-board-row .meta {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.cp-launchpad .pl-board-empty {
+  padding: 28px 20px 30px;
+}
+.cp-launchpad .pl-board-empty .h {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  color: var(--ink);
+  margin: 0;
+}
+.cp-launchpad .pl-board-empty .s {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: 8px 0 0;
+  line-height: 1.5;
 }
 
 /* ──────────────────────────────────────────────────────────────────────
-   Moat — dark section
+   Pricing — Founders (live, free) vs Premium (greyed, inert)
    ────────────────────────────────────────────────────────────────────── */
 
-.cp-launchpad .pl-moat {
-  background: var(--ink);
-  color: var(--bg);
-  padding: 96px 40px;
+.cp-launchpad .pl-pricing {
+  background: var(--bg-2);
 }
 
-.cp-launchpad .pl-moat .eyebrow {
+.cp-launchpad .pl-pricing-head {
+  text-align: center;
+  margin-bottom: 40px;
+}
+.cp-launchpad .pl-pricing-head .eyebrow {
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  opacity: 0.55;
-  margin-bottom: 18px;
+  color: var(--ink-3);
+  margin-bottom: 14px;
 }
-
-.cp-launchpad .pl-moat h2 {
+.cp-launchpad .pl-pricing-head h2 {
   font-family: var(--font-serif);
   font-weight: 400;
-  font-size: clamp(32px, 3.4vw, 42px);
+  font-size: clamp(30px, 3.2vw, 40px);
   line-height: 1.02;
   letter-spacing: -0.022em;
-  margin: 0 0 24px;
-  max-width: 22ch;
-  text-wrap: balance;
+  color: var(--ink);
+  margin: 0;
 }
-.cp-launchpad .pl-moat h2 em {
+.cp-launchpad .pl-pricing-head h2 em {
   font-style: italic;
-  color: var(--accent-3);
+  color: var(--accent);
 }
 
-.cp-launchpad .pl-moat .lede {
-  font-family: var(--font-serif);
-  font-size: 18px;
-  line-height: 1.55;
-  opacity: 0.82;
-  max-width: 60ch;
-  margin: 0 0 18px;
-  letter-spacing: -0.003em;
+.cp-launchpad .pl-price-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 20px;
+  align-items: stretch;
+  max-width: 920px;
+  margin: 0 auto;
 }
 
-.cp-launchpad .pl-moat .pull {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 24px;
-  line-height: 1.3;
-  margin: 32px 0;
-  padding: 24px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.18);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
-  max-width: 44ch;
-}
-
-.cp-launchpad .pl-moat .attribution {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  opacity: 0.6;
+.cp-launchpad .pl-price-card {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  letter-spacing: 0.04em;
+  flex-direction: column;
+  border-radius: 14px;
+  padding: 30px 28px;
+  background: var(--bg-3);
+  border: 1px solid var(--rule);
 }
-.cp-launchpad .pl-moat .attribution .rule {
-  width: 20px;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.5);
+.cp-launchpad .pl-price-card.founders {
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  transition: transform 250ms var(--ease-standard), box-shadow 250ms var(--ease-standard);
+}
+.cp-launchpad .pl-price-card.founders::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 14px 14px 0 0;
+}
+.cp-launchpad .pl-price-card.founders:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.cp-launchpad .pl-price-card .badge {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 4px 9px;
+  border-radius: 999px;
+  margin-bottom: 18px;
+}
+.cp-launchpad .pl-price-card.founders .badge {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+.cp-launchpad .cp-tier--soon .badge {
+  border: 1px solid var(--rule);
+  color: var(--ink-3);
+}
+
+.cp-launchpad .pl-price-card h3 {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.cp-launchpad .pl-price-card .price {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  color: var(--ink);
+  margin: 0 0 20px;
+  letter-spacing: -0.01em;
+}
+.cp-launchpad .pl-price-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 26px;
+  flex: 1;
+}
+.cp-launchpad .pl-price-card li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  padding: 7px 0;
+}
+.cp-launchpad .pl-price-card .ico {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  stroke-width: 2;
+}
+.cp-launchpad .pl-price-card.founders .ico { color: var(--accent); }
+.cp-launchpad .cp-tier--soon .ico { color: var(--ink-4); }
+
+.cp-launchpad .pl-price-card .card-cta {
+  width: 100%;
+}
+.cp-launchpad .pl-price-card .card-cta.soon {
+  height: 48px;
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: var(--ink-3);
+  border: 1px solid var(--rule);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: not-allowed;
+}
+
+/* Premium tier is deliberately recessive and non-interactive. */
+.cp-launchpad .cp-tier--soon {
+  opacity: 0.55;
+  filter: grayscale(0.35);
+  pointer-events: none;
+}
+
+.cp-launchpad .pl-pricing-note {
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink-3);
+  margin: 26px auto 0;
+  max-width: 46ch;
+  line-height: 1.5;
 }
 
 /* ──────────────────────────────────────────────────────────────────────
@@ -535,29 +600,19 @@
    ────────────────────────────────────────────────────────────────────── */
 
 .cp-launchpad .pl-cta {
-  background: var(--bg-2);
+  background: var(--bg);
   text-align: center;
-  padding: 96px 40px 80px;
-}
-
-.cp-launchpad .pl-cta .eyebrow {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  margin-bottom: 18px;
+  border-top: 1px solid var(--rule);
 }
 
 .cp-launchpad .pl-cta h2 {
   font-family: var(--font-serif);
   font-weight: 400;
-  font-size: clamp(32px, 3.4vw, 42px);
+  font-size: clamp(32px, 3.4vw, 44px);
   line-height: 1.02;
   letter-spacing: -0.022em;
   margin: 0 auto 18px;
-  max-width: 20ch;
+  max-width: 18ch;
   color: var(--ink);
   text-wrap: balance;
 }
@@ -568,24 +623,27 @@
 
 .cp-launchpad .pl-cta p {
   font-family: var(--font-sans);
-  font-size: 15.5px;
+  font-size: 16px;
   color: var(--ink-2);
-  max-width: 38ch;
-  margin: 0 auto 28px;
-  line-height: 1.5;
+  max-width: 46ch;
+  margin: 0 auto 30px;
+  line-height: 1.55;
   letter-spacing: -0.003em;
 }
 
-.cp-launchpad .pl-cta .btn-primary {
-  height: 52px;
-  padding: 0 22px;
+.cp-launchpad .pl-cta .ctas {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .cp-launchpad .pl-cta .stamp {
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--ink-3);
-  margin-top: 18px;
+  margin-top: 22px;
   letter-spacing: 0.06em;
 }
 
@@ -605,6 +663,11 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+.cp-launchpad .pl-foot .links {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+}
 .cp-launchpad .pl-foot a {
   color: inherit;
   text-decoration: none;
@@ -619,23 +682,20 @@
 @media (max-width: 880px) {
   .cp-launchpad section { padding: 64px 22px; }
   .cp-launchpad .pl-top { padding: 14px 22px; }
-  .cp-launchpad .pl-top .right { gap: 14px; font-size: 13px; }
-  .cp-launchpad .pl-top .right a:not(.login-link):not(.cta) { display: none; }
-  .cp-launchpad .pl-hero { padding: 64px 22px 56px; }
-  .cp-launchpad .pl-arch-head { grid-template-columns: 1fr; gap: 16px; align-items: start; }
-  .cp-launchpad .pl-arch-grid { grid-template-columns: 1fr; }
-  .cp-launchpad .pl-moat { padding: 72px 22px; }
-  .cp-launchpad .pl-cta { padding: 72px 22px 64px; }
-  .cp-launchpad .pl-foot { padding: 24px 22px; flex-direction: column; gap: 8px; }
+  .cp-launchpad .pl-hero { padding: 56px 22px 52px; }
+  .cp-launchpad .pl-price-grid { grid-template-columns: 1fr; }
+  .cp-launchpad .pl-foot { padding: 24px 22px; flex-direction: column; gap: 10px; }
 }
 
-@media (max-width: 560px) {
-  .cp-launchpad .pl-top .right a:not(.login-link):not(.cta) { display: none; }
+@media (max-width: 640px) {
   .cp-launchpad .pl-hero h1 { max-width: none; }
+  .cp-launchpad .pl-hero .ctas { gap: 16px; }
+  .cp-launchpad .pl-hero .ctas .btn-primary { width: 100%; }
+  .cp-launchpad .pl-cta .ctas .btn-primary { width: 100%; }
 }
 
 /* ──────────────────────────────────────────────────────────────────────
-   Reduced motion
+   Reduced motion — strip entrance/count-up motion, keep content visible
    ────────────────────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
@@ -643,9 +703,14 @@
   .cp-launchpad *::before,
   .cp-launchpad *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
   }
+  .cp-launchpad .cp-rise {
+    opacity: 1 !important;
+    transform: none !important;
+  }
   .cp-launchpad .cp-pulse-dot {
-    animation-duration: 5s !important;
+    animation: none !important;
   }
 }
