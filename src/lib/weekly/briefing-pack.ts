@@ -1,6 +1,6 @@
 import pool from "@/lib/db";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import type { WeeklyThemeCluster } from "@/lib/types";
 
 // ─── Shape ────────────────────────────────────────────────────────────────
@@ -260,7 +260,7 @@ async function suggestAngles(
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    const model = getGeminiModel(genAI);
 
     const themeLines = clusters.slice(0, 6).map((c, i) => `[${i + 1}] ${c.label}`);
     const engagedLines = topEngaged.slice(0, 5).map((t) => `- ${t.headline} (${t.source})`);
@@ -279,7 +279,7 @@ ${noteLines.join("\n") || "(none)"}
 
 Return 3 to 5 angle ideas as a JSON array of strings. Each angle should be a single sentence, argumentative not descriptive, avoid hedging, no emojis, no hashtags. Format: ["angle 1", "angle 2", ...]`;
 
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const text = result.response.text().trim();
     const match = text.match(/\[[\s\S]*\]/);
     if (!match) return [];

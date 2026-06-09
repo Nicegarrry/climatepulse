@@ -1,7 +1,7 @@
 import type { DigestOutput, PodcastScript, ScoredStory } from "@/lib/types";
 import { getEntityBrief } from "@/lib/intelligence/retriever";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 
 export interface PodcastContext {
   digest: DigestOutput;
@@ -35,12 +35,11 @@ export async function generatePodcastScript(
   const prompt = buildScriptPrompt(context, entityHistory);
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
+  const model = getGeminiModel(genAI, {
     generationConfig: { maxOutputTokens: 4096 },
   });
 
-  const result = await model.generateContent(prompt);
+  const result = await generateWithRetry(model, prompt);
   const text = result.response.text();
 
   // Extract JSON from response (handle markdown code blocks)

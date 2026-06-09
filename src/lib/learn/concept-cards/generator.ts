@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
 import { logGeneration } from "@/lib/learn/cost-tracker";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import type {
   ConceptCard,
   ConceptCardCandidate,
@@ -172,7 +172,7 @@ export async function generateConceptCard(
   const userPrompt = `Generate a concept card for: "${candidate.term}"${candidate.abbrev ? ` (${candidate.abbrev})` : ""}.\n\nReturn ONLY the JSON object.`;
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const model = getGeminiModel(genAI);
 
   let inputTokens = 0;
   let outputTokens = 0;
@@ -181,7 +181,7 @@ export async function generateConceptCard(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await model.generateContent(
+      const response = await generateWithRetry(model, 
         systemPrompt + "\n\n" + userPrompt,
       );
       const text = response.response.text();

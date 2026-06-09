@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
 import pool from "@/lib/db";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import { getAuthUser } from "@/lib/supabase/server";
 import { rateLimitOr429, extractIp } from "@/lib/surfaces/rate-limit";
 import { getOrCreateRefHash } from "@/lib/share";
@@ -268,8 +268,8 @@ async function draftBlurb(prompt: string, fallback: string, startedAt: number): 
   const timeoutMs = 3500;
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
+    const model = getGeminiModel(genAI, {
+      tier: "lite",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: BLURB_SCHEMA,
@@ -278,7 +278,7 @@ async function draftBlurb(prompt: string, fallback: string, startedAt: number): 
       },
     });
 
-    const resPromise = model.generateContent(prompt);
+    const resPromise = generateWithRetry(model, prompt);
     const timeout = new Promise<null>((resolve) =>
       setTimeout(() => resolve(null), timeoutMs)
     );

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
 import { sendWeeklyDigestEmail } from "@/lib/weekly/email-sender";
@@ -126,7 +126,7 @@ async function generateLinkedInDraft(digest: {
   ).join("\n");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const model = getGeminiModel(genAI);
 
   const prompt = `Write a LinkedIn post (under 250 words) for a weekly climate/energy newsletter called "The Weekly Pulse".
 
@@ -137,6 +137,6 @@ ${topStories}
 
 The tone should be professional but opinionated — this is an expert sharing their weekly analysis. End with a CTA to read the full digest. Do NOT use hashtags. Do NOT use emojis.`;
 
-  const result = await model.generateContent(prompt);
+  const result = await generateWithRetry(model, prompt);
   return result.response.text().trim();
 }

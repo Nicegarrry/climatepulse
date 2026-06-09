@@ -3,7 +3,7 @@ import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
 import { ARCHETYPE_FRAMINGS, type PodcastArchetype } from "@/lib/podcast/archetypes";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry, GEMINI_MODEL } from "@/lib/ai-models";
 import type { DigestOutput } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -60,12 +60,11 @@ async function callGeminiReframe(prompt: string): Promise<DigestOutput> {
   if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
+  const model = getGeminiModel(genAI, {
     generationConfig: { maxOutputTokens: 8192, responseMimeType: "application/json" },
   });
 
-  const result = await model.generateContent(prompt);
+  const result = await generateWithRetry(model, prompt);
   const candidate = result.response.candidates?.[0];
   if (candidate?.finishReason === "MAX_TOKENS") {
     throw new Error("Reframe response truncated (hit max output tokens)");

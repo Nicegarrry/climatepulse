@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import pool from "@/lib/db";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import type { Intent, LearningLevel, TimeBudget } from "./types";
 
 const VALID_LEVELS = new Set<LearningLevel>(["intro", "intermediate", "advanced"]);
@@ -107,8 +107,8 @@ export async function parseIntentWithUsage(
   });
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
+  const model = getGeminiModel(genAI, {
+    tier: "lite",
     /* eslint-disable @typescript-eslint/no-explicit-any */
     generationConfig: {
       responseMimeType: "application/json",
@@ -118,7 +118,7 @@ export async function parseIntentWithUsage(
     systemInstruction,
   });
 
-  const result = await model.generateContent(freeText);
+  const result = await generateWithRetry(model, freeText);
   const raw = result.response.text();
   const usage = result.response.usageMetadata;
   const inputTokens = usage?.promptTokenCount ?? 0;

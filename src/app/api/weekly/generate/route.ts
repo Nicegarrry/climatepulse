@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry, GEMINI_MODEL } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
 import { fetchWeekArticles, clusterArticles } from "@/lib/weekly/theme-clusterer";
@@ -36,7 +36,7 @@ async function refineClusterLabels(
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    const model = getGeminiModel(genAI);
 
     const clusterSummaries = clusters.map((c, i) => {
       const headlines = c.articles.map((a) => a.title).join("; ");
@@ -51,7 +51,7 @@ ${clusterSummaries.join("\n")}
 
 Return format: ["label1", "label2", ...]`;
 
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const text = result.response.text().trim();
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {

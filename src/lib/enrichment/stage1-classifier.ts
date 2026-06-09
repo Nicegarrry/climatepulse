@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import { getDomainSlugs } from "@/lib/enrichment/taxonomy-cache";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
@@ -94,7 +94,7 @@ export async function classifyBatch(
 
   // Call Gemini
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const model = getGeminiModel(genAI, { tier: "lite" });
 
   let parsed: GeminiStage1Response[] | null = null;
   let inputTokens = 0;
@@ -102,7 +102,7 @@ export async function classifyBatch(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await model.generateContent(
+      const response = await generateWithRetry(model, 
         systemPrompt + "\n\n" + userPrompt
       );
       const text = response.response.text();

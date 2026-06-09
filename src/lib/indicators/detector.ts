@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import {
   DETECTOR_LIVE_THRESHOLD,
@@ -413,7 +413,7 @@ export async function runDetectorBatch(): Promise<DetectorBatchResult> {
   const sectorsCovered = new Set(catalogue.map((c) => c.sector));
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const model = getGeminiModel(genAI, { tier: "lite" });
 
   await withConcurrency(
     articles,
@@ -431,7 +431,7 @@ export async function runDetectorBatch(): Promise<DetectorBatchResult> {
 
       try {
         const prompt = buildPrompt(article, slice);
-        const response = await model.generateContent(prompt);
+        const response = await generateWithRetry(model, prompt);
         const text = response.response.text();
         const usage = response.response.usageMetadata;
         result.input_tokens += usage?.promptTokenCount ?? 0;

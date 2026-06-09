@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
 
@@ -116,9 +116,9 @@ export async function extractAndStoreRelationships(
   });
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const model = getGeminiModel(genAI, { tier: "lite" });
 
-  const response = await model.generateContent(fullPrompt);
+  const response = await generateWithRetry(model, fullPrompt);
   const text = response.response.text();
 
   const rawTriples = parseTriples(text);

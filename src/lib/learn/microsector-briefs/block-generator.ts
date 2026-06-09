@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import pool from "@/lib/db";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
 import { logGeneration } from "@/lib/learn/cost-tracker";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import {
   BlockType,
   type BlockGenerationResult,
@@ -100,7 +100,7 @@ export async function generateBlock(
   });
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const model = getGeminiModel(genAI);
 
   let inputTokens = 0;
   let outputTokens = 0;
@@ -108,7 +108,7 @@ export async function generateBlock(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await model.generateContent(systemPrompt);
+      const response = await generateWithRetry(model, systemPrompt);
       rawText = response.response.text();
       const usage = response.response.usageMetadata;
       inputTokens = usage?.promptTokenCount ?? 0;

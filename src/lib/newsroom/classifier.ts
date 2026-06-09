@@ -11,7 +11,7 @@
 // against malformed output as aggressively as Stage 1 does.
 
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
 import { getDomainSlugs } from "@/lib/enrichment/taxonomy-cache";
 import type { ClassifierInput, ClassifierOutput, Urgency } from "./types";
@@ -97,8 +97,8 @@ async function classifyBatch(
   const userPrompt = JSON.stringify({ articles });
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
+  const model = getGeminiModel(genAI, {
+    tier: "lite",
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: buildResponseSchema(Array.from(knownDomains)),
@@ -112,7 +112,7 @@ async function classifyBatch(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await model.generateContent(
+      const response = await generateWithRetry(model, 
         systemPrompt + "\n\n" + userPrompt
       );
       inputTokens = response.response.usageMetadata?.promptTokenCount ?? 0;

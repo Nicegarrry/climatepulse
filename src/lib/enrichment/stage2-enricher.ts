@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import {
   getTreeForDomains,
@@ -181,7 +181,7 @@ export async function enrichArticle(
 
   // Call Gemini
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const model = getGeminiModel(genAI, { tier: "lite" });
 
   let inputTokens = 0;
   let outputTokens = 0;
@@ -189,7 +189,7 @@ export async function enrichArticle(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await model.generateContent(
+      const response = await generateWithRetry(model, 
         systemPrompt + "\n\n" + userPrompt
       );
       const text = response.response.text();

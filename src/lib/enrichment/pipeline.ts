@@ -1,5 +1,5 @@
 import pool from "@/lib/db";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { GEMINI_MODEL_LITE } from "@/lib/ai-models";
 import { prefetchFullText } from "@/lib/enrichment/fulltext-prefetch";
 import { classifyBatch } from "@/lib/enrichment/stage1-classifier";
 import { enrichArticle, computeComposite } from "@/lib/enrichment/stage2-enricher";
@@ -216,7 +216,7 @@ export async function runEnrichmentBatch(
             result.sentiment, // sentiment — extracted from Stage 2 AI response
             result.jurisdictions,
             JSON.stringify(result.entities),
-            GEMINI_MODEL,
+            GEMINI_MODEL_LITE,
             !!article.full_text,
             JSON.stringify(result.significance),
             composite,

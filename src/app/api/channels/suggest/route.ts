@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import pool from "@/lib/db";
 import { requireAuth } from "@/lib/supabase/server";
 
@@ -61,7 +61,7 @@ export async function POST() {
     }
 
     // Step 2: Use Gemini to generate channel suggestions from the co-occurrence data
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    const model = getGeminiModel(genAI, { tier: "lite" });
 
     const pairsContext = coOccurrences.map((row) => {
       const titles = (row.sample_titles as string[]).slice(0, 5).join("; ");
@@ -83,7 +83,7 @@ ${pairsContext}
 
 Respond in JSON only: { "suggestions": [{ "source_domain": "...", "target_domain": "...", "label": "...", "description": "...", "mechanism": "...", "strength": "..." }] }`;
 
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const text = result.response.text();
 
     let cleaned = text.trim();

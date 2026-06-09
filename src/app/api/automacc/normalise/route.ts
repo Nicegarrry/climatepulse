@@ -4,7 +4,7 @@ import {
   SchemaType,
   type Schema,
 } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import { rateLimitOr429, extractIp } from "@/lib/surfaces/rate-limit";
 import { SOURCE_FACTOR_BY_ID, STATE_GRID_INTENSITY } from "@/lib/automacc/factors";
 import type {
@@ -135,8 +135,7 @@ async function callGemini(prompt: string): Promise<GeminiRow[] | null> {
   }
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
+    const model = getGeminiModel(genAI, {
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: RESPONSE_SCHEMA,
@@ -144,7 +143,7 @@ async function callGemini(prompt: string): Promise<GeminiRow[] | null> {
         maxOutputTokens: 1500,
       },
     });
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const text = result.response.text();
     const parsed = JSON.parse(text) as { normalised?: unknown };
     if (!Array.isArray(parsed.normalised)) return null;

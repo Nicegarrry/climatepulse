@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import { rateLimitOr429, extractIp } from "@/lib/surfaces/rate-limit";
 import { SOURCE_FACTOR_BY_ID } from "@/lib/automacc/factors";
 import { leversForApproachAndSource } from "@/lib/automacc/levers";
@@ -149,8 +149,7 @@ async function callGemini(prompt: string): Promise<GeminiLeverRow[] | null> {
   }
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
+    const model = getGeminiModel(genAI, {
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: RESPONSE_SCHEMA,
@@ -158,7 +157,7 @@ async function callGemini(prompt: string): Promise<GeminiLeverRow[] | null> {
         maxOutputTokens: 2000,
       },
     });
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const parsed = JSON.parse(result.response.text()) as { levers?: unknown };
     if (!Array.isArray(parsed.levers)) return null;
     const rows: GeminiLeverRow[] = [];

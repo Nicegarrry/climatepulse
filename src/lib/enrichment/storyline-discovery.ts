@@ -1,6 +1,6 @@
 import pool from "@/lib/db";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -250,7 +250,7 @@ async function createSuggestedStorylines(candidates: StorylineCandidate[]): Prom
   );
   const titleMap = new Map(articles.map((a) => [a.id, a.title]));
 
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  const model = getGeminiModel(genAI);
 
   const clustersContext = candidates.map((c, i) => {
     const titles = c.article_ids.map((id) => titleMap.get(id) || "Untitled").join("; ");
@@ -264,7 +264,7 @@ ${clustersContext}
 Respond in JSON: { "storylines": [{ "cluster": 1, "title": "...", "description": "..." }] }`;
 
   try {
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     let text = result.response.text().trim();
     if (text.startsWith("```")) {
       text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");

@@ -6,7 +6,7 @@
 
 import pool from "@/lib/db";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import { selectBriefingStories, DEPTH_RANGES } from "@/lib/personalisation";
 import { getTaxonomyTree } from "@/lib/enrichment/taxonomy-cache";
 import { MOCK_USER_PROFILE } from "@/lib/mock-digest";
@@ -298,16 +298,15 @@ export async function callGemini(prompt: string): Promise<DigestOutput> {
   if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
+  const model = getGeminiModel(genAI, {
     generationConfig: {
       responseMimeType: "application/json",
       temperature: 0.4,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 8192,
     },
   });
 
-  const result = await model.generateContent(prompt);
+  const result = await generateWithRetry(model, prompt);
   const text = result.response.text();
 
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, text];

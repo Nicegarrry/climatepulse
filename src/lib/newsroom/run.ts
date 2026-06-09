@@ -16,7 +16,7 @@
 //   8. Log to newsroom_runs.
 
 import pool from "@/lib/db";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { GEMINI_MODEL_LITE } from "@/lib/ai-models";
 import { isBusinessHours, describeSydneyClock } from "./business-hours";
 import { dedupPendingBatch } from "./dedup";
 import { classifyArticles } from "./classifier";
@@ -146,7 +146,7 @@ export async function runNewsroomIngest(
           r.primary_domain,
           r.urgency,
           r.teaser,
-          GEMINI_MODEL,
+          GEMINI_MODEL_LITE,
           a.published_at,
           a.source_name,
         ]

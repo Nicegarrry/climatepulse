@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry, GEMINI_MODEL } from "@/lib/ai-models";
 import type { RetrievedContent } from "@/lib/intelligence/retriever";
 import type { ContentType } from "@/lib/intelligence/embedder";
 
@@ -122,13 +122,12 @@ Do NOT:
 - Include generic disclaimers — be direct and evidence-based`;
 
   const ai = new GoogleGenerativeAI(key);
-  const model = ai.getGenerativeModel({
-    model: GEMINI_MODEL,
+  const model = getGeminiModel(ai, {
     systemInstruction: systemPrompt,
     generationConfig: { maxOutputTokens: 3000 },
   });
 
-  const result = await model.generateContent(
+  const result = await generateWithRetry(model, 
     `RESEARCH QUERY: ${query}
 
 RETRIEVED ITEMS (${itemCount} most relevant from our intelligence corpus):
@@ -157,12 +156,11 @@ async function generateWithGemini(
   if (!key) throw new Error("GOOGLE_AI_API_KEY not set");
 
   const ai = new GoogleGenerativeAI(key);
-  const model = ai.getGenerativeModel({
-    model: GEMINI_MODEL,
+  const model = getGeminiModel(ai, {
     systemInstruction: `You are a climate and energy intelligence assistant for ClimatePulse. Answer the user's question concisely using ONLY the provided items. Reference items by number [1], [2] etc. Be direct and factual. If the items don't contain enough information, say so. When referencing our own editorial output (podcasts, digests), you can say "as we covered in...".`,
   });
 
-  const result = await model.generateContent(
+  const result = await generateWithRetry(model, 
     `Question: ${query}
 
 Retrieved items (${itemCount} most relevant):

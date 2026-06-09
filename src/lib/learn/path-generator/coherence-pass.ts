@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { loadPrompt, assemblePrompt } from "@/lib/enrichment/prompt-loader";
-import { GEMINI_MODEL } from "@/lib/ai-models";
+import { getGeminiModel, generateWithRetry } from "@/lib/ai-models";
 import type {
   PathPlan,
   Intent,
@@ -112,8 +112,7 @@ export async function coherencePass(
   });
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
+  const model = getGeminiModel(genAI, {
     /* eslint-disable @typescript-eslint/no-explicit-any */
     generationConfig: {
       responseMimeType: "application/json",
@@ -123,7 +122,7 @@ export async function coherencePass(
     systemInstruction,
   });
 
-  const result = await model.generateContent(
+  const result = await generateWithRetry(model, 
     "Review this learning path for coherence.",
   );
   const usage = result.response.usageMetadata;
