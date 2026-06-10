@@ -23,6 +23,10 @@ listed options but always allow free text.
 6. **Extra sources** — any must-have feeds/sites? (Capture URLs; this is where
    the user's niche/local sources enter — the long tail that makes the digest
    theirs.)
+7. **Email newsletters** — "Do you get climate/energy newsletters by email? If
+   you have Gmail connected in Claude, I can pull relevant ones in as a source."
+   If yes, capture either specific senders (e.g. `daily@carbonbrief.org`) or a
+   Gmail label they file newsletters under (e.g. `Newsletters/Climate`).
 
 ## 2. Build `config/feeds.yaml`
 
@@ -56,6 +60,32 @@ Then act on the reported `status`:
 
 Only validated sources get appended. Write the result to `config/feeds.yaml`
 (this takes precedence over the default).
+
+### Email sources (if the user opted in)
+
+For each newsletter sender/label, add a `type: email` source. Its `query` is a
+Gmail search string, not a URL:
+
+```yaml
+- name: Carbon Brief Daily (email)
+  type: email
+  query: "from:(daily@carbonbrief.org) newer_than:2d"
+  tags: [policy, science, global]
+  tier: 1
+# or by label:
+- name: Climate newsletters
+  type: email
+  query: "label:Newsletters/Climate newer_than:2d"
+  tags: [policy, energy]
+  tier: 2
+```
+
+**Validate by test-searching**, not with `validate_feeds.py` (that's RSS only):
+if Gmail is connected, run each `query` once and report how many messages it
+matched in the last few days. 0 matches → tell the user the sender/label may be
+wrong and confirm before keeping it. If Gmail is **not** connected this session,
+still write the source but note it's unverified and only active when Gmail is
+available (e.g. an interactive/local run, not necessarily a headless Routine).
 
 ## 3. Write `state/profile.md`
 

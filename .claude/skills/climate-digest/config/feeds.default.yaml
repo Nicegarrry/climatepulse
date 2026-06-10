@@ -103,3 +103,15 @@ sources:
     tags: [policy, accountability, finance, global]
     tier: 2
     lang: en
+
+  # ── Email newsletters (type: email) ─────────────────────────────────────────
+  # Added by onboarding only if the user opts in AND has Gmail connected in
+  # Claude. `query` is a Gmail search string (not a URL); collected by the skill
+  # via the Gmail MCP tools, not fetch_feeds.py. Email items stay PRIVATE — never
+  # contributed to a shared pool. Example shape:
+  #
+  # - name: Carbon Brief Daily (email)
+  #   type: email
+  #   query: "from:(daily@carbonbrief.org) newer_than:2d"
+  #   tags: [policy, science, global]
+  #   tier: 1

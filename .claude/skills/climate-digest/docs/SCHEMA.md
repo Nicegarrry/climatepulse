@@ -17,6 +17,7 @@ ingested_at: 2026-06-10T19:05:00+00:00
 domain: policy-and-regulation        # one of config/taxonomy.yaml domains
 signal_type: policy-or-regulation    # one of config/taxonomy.yaml signal_types
 sentiment: neutral                   # positive | neutral | negative
+origin: rss                          # rss | email — where the item came from
 jurisdictions: [EU]                  # [] if none
 entities:
   - {name: European Commission, type: organisation}
@@ -39,6 +40,11 @@ Link out only via the `url` field above, not inline.
 - `schema_version` bumps only when fields change; older records stay readable.
 - `domain` / `signal_type` are controlled vocabularies from `config/taxonomy.yaml`.
   A pool would freeze these centrally; locally you may extend them.
+- **`origin: email` records are private** — derived from the user's personal
+  inbox. They live only in the local wiki and must **never** be contributed to a
+  shared/public pool. A future pool sync filters to `origin: rss` only. For email
+  items `url` is a Gmail permalink (or empty), and `id` derives from the Gmail
+  message id, so the same newsletter is deduped across runs.
 
 ## Why frontmatter instead of a DB
 

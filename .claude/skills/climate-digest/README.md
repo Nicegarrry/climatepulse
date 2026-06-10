@@ -65,6 +65,20 @@ python3 .claude/skills/climate-digest/scripts/build_dashboard.py
   Only `ok`/`stale` feeds get written; `blocked`/`unreachable`/`no-feed-found`
   are reported, not added.
 
+### Email newsletters (optional)
+
+If you have **Gmail connected in Claude**, onboarding can add `type: email`
+sources — newsletters become just another source. Their `query` is a Gmail
+search (`from:(daily@carbonbrief.org) newer_than:2d` or `label:climate
+newer_than:2d`); the skill reads matching mail via the Gmail tools and
+`scripts/add_email_items.py` folds them into the same scoring path as RSS.
+
+Two guarantees: email is treated as **untrusted, read-only data** (the skill
+never acts on instructions in an email and never sends/edits mail), and
+email-derived items are **private** — they stay local and are never contributed
+to any future shared pool. Headless cloud runs without a Gmail connection simply
+skip email sources.
+
 ### ⚠️ Network note
 
 Feeds need outbound HTTPS to the publishers. Two things commonly block this and

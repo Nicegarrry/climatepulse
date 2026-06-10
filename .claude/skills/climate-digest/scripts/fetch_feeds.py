@@ -108,7 +108,11 @@ def main():
     seen_titles = {v.get("t") for v in seen.values() if isinstance(v, dict)}
 
     new_items, run_titles, stats = [], set(), {}
+    email_sources = 0
     for src in sources:
+        if src.get("type", "rss") != "rss":
+            email_sources += 1   # handled by the skill via Gmail MCP, not here
+            continue
         name = src.get("name", src.get("url"))
         try:
             feed = feedparser.parse(src["url"], agent=UA)
@@ -136,13 +140,14 @@ def main():
                 "published_at": dt.isoformat() if dt else None,
                 "title_hash": th,
                 "text": best_text(entry, args.fulltext),
+                "origin": "rss",
             })
             kept += 1
         stats[name] = {"entries": len(feed.entries), "new": kept}
 
     (STATE / "new_items.json").write_text(json.dumps(new_items, indent=2))
-    print(json.dumps({"new_items": len(new_items), "sources": len(sources),
-                      "per_source": stats}, indent=2))
+    print(json.dumps({"new_items": len(new_items), "rss_sources": len(sources) - email_sources,
+                      "email_sources": email_sources, "per_source": stats}, indent=2))
 
 
 if __name__ == "__main__":
