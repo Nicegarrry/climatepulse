@@ -1,0 +1,70 @@
+# climate-digest — onboarding (first run only)
+
+Goal: in one short interactive pass, learn who this digest serves and produce a
+tailored `config/feeds.yaml`, then write `state/profile.md`. Run this only when
+`state/profile.md` is absent.
+
+## 1. Interview
+
+Use the `AskUserQuestion` tool. Ask these, batching where natural. Offer the
+listed options but always allow free text.
+
+1. **Role / lens** — how should stories be weighted?
+   e.g. Investor/analyst · Policy/regulatory · Engineer/technical ·
+   Operator/industry · Researcher/academic · Generalist.
+2. **Sectors of interest** (multi-select) — pull from `config/taxonomy.yaml`
+   domains (solar, wind, grid/storage, EVs/transport, policy/regulation,
+   carbon markets, hydrogen, finance/ESG, industry/heavy, nature/land, etc.).
+3. **Jurisdictions** — geographies to prioritise (e.g. Australia, EU, US,
+   India, global). Used to boost matching stories.
+4. **Languages** — English only, or include non-English sources? (Affects which
+   default feeds are kept and prompts the user to add local sources.)
+5. **Digest length** — Tight (5–8 stories) · Standard (~12) · Comprehensive (15).
+6. **Extra sources** — any must-have feeds/sites? (Capture URLs; this is where
+   the user's niche/local sources enter — the long tail that makes the digest
+   theirs.)
+
+## 2. Build `config/feeds.yaml`
+
+Start from `config/feeds.default.yaml`. Then:
+- Keep sources whose `tags` overlap the chosen sectors/jurisdictions; you may
+  drop clearly irrelevant ones to cut noise.
+- Append any user-supplied sources (validate each looks like an RSS/Atom URL;
+  if unsure, keep it and note it for verification on first fetch).
+- Preserve the `defaults:` block (`max_article_age_days`, `per_feed_limit`).
+
+Write the result to `config/feeds.yaml` (this takes precedence over the default).
+
+## 3. Write `state/profile.md`
+
+Capture the answers as durable memory, e.g.:
+
+```markdown
+# Profile
+
+- **Role / lens:** <role>
+- **Sectors:** <list>
+- **Jurisdictions:** <list>
+- **Languages:** <list>
+- **Digest length:** <tight | standard | comprehensive>
+- **Significance floor:** <55 default; lower for comprehensive, higher for tight>
+
+## Notes
+<anything the user said that should shape weighting>
+```
+
+## 4. Seed the learning + feedback files
+
+- Create `state/learning.md` with a header and one entry noting the initial
+  source/profile setup.
+- Create `state/feedback.md` with just `# Feedback` (the drop-box the user can
+  append notes to between runs).
+- Create `state/source_stats.json` as `{}`.
+
+## 5. Hand off
+
+Tell the user setup is done, show the final source count, and explain they can:
+- run the digest now (continue to Step 1 of SKILL.md),
+- drop quick notes into `state/feedback.md` anytime to steer future runs,
+- schedule a daily run (system cron + `claude -p "/climate-digest"`, a GitHub
+  Actions schedule, or a Claude Code **Routine** on the web).

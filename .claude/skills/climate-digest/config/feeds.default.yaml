@@ -1,0 +1,53 @@
+# Shipped default sources for climate-digest.
+# Onboarding copies/filters this into config/feeds.yaml (which takes precedence).
+# All feeds are keyless public RSS/Atom. tags drive onboarding's tailoring.
+
+defaults:
+  max_article_age_days: 7   # skip items older than this (mirrors the production poller)
+  per_feed_limit: 40        # cap entries read per feed per run
+
+sources:
+  - name: Carbon Brief
+    url: https://www.carbonbrief.org/feed/
+    tags: [policy, science, global]
+    tier: 1
+  - name: Inside Climate News
+    url: https://insideclimatenews.org/feed/
+    tags: [policy, science, us]
+    tier: 1
+  - name: The Guardian — Environment
+    url: https://www.theguardian.com/environment/rss
+    tags: [news, policy, global]
+    tier: 1
+  - name: Grist
+    url: https://grist.org/feed/
+    tags: [news, policy, us]
+    tier: 1
+  - name: Yale Environment 360
+    url: https://e360.yale.edu/feed.xml
+    tags: [science, nature, global]
+    tier: 1
+  - name: CleanTechnica
+    url: https://cleantechnica.com/feed/
+    tags: [solar, ev, transport, industry]
+    tier: 2
+  - name: Canary Media
+    url: https://www.canarymedia.com/articles.rss
+    tags: [grid, storage, solar, wind, us]
+    tier: 1
+  - name: Utility Dive
+    url: https://www.utilitydive.com/feeds/news/
+    tags: [grid, utilities, policy, us]
+    tier: 2
+  - name: PV Magazine
+    url: https://www.pv-magazine.com/feed/
+    tags: [solar, storage, global]
+    tier: 2
+  - name: RenewEconomy (AU)
+    url: https://reneweconomy.com.au/feed/
+    tags: [solar, wind, grid, policy, australia]
+    tier: 1
+  - name: DeSmog
+    url: https://www.desmog.com/feed/
+    tags: [policy, accountability, global]
+    tier: 2
