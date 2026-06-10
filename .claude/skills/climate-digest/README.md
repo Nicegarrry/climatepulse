@@ -47,6 +47,39 @@ python3 .claude/skills/climate-digest/scripts/build_dashboard.py
 # open .claude/skills/climate-digest/wiki/dashboard.html
 ```
 
+## Sources & validation
+
+- **Starter list:** `config/feeds.default.yaml` — ~14 curated, keyless RSS feeds
+  spanning policy/science, energy verticals, transport, and US/EU/AU/Asia, with
+  a `core` subset onboarding always keeps so the digest is never empty.
+- **Your list:** onboarding writes `config/feeds.yaml`, which takes precedence.
+- **Adding a source** (onboarding, a note in `state/feedback.md`, or a
+  skill proposal) always passes through the validator first:
+
+  ```bash
+  python3 scripts/validate_feeds.py <feed-url>        # test a feed
+  python3 scripts/validate_feeds.py --discover <site> # find a site's feed
+  python3 scripts/validate_feeds.py --all             # health-check the active list
+  ```
+
+  Only `ok`/`stale` feeds get written; `blocked`/`unreachable`/`no-feed-found`
+  are reported, not added.
+
+### ⚠️ Network note
+
+Feeds need outbound HTTPS to the publishers. Two things commonly block this and
+make *every* feed return HTTP 403 (`status: blocked`):
+
+1. **Publisher bot-protection** — mitigated by the realistic User-Agent the
+   scripts already send; some CDNs still block datacenter IPs.
+2. **A run-environment network allowlist** — e.g. this Claude Code web sandbox
+   only permits a few hosts, so no news feed is reachable here at all.
+
+A **local run** (residential IP) is the most permissive. For a **cloud
+Routine/CI**, widen the network policy to allow the news domains, or run it
+locally. Sanity-check with one `validate_feeds.py <known-good-url>` before
+suspecting the source list.
+
 ## Schedule it (pick one)
 
 - **Claude Code Routine (web)** — attach a daily schedule trigger to this repo;

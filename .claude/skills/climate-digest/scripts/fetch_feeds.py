@@ -34,6 +34,12 @@ ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / "state"
 CONFIG = ROOT / "config"
 
+# Many publishers 403 the default feedparser UA (bot protection). Present a
+# realistic browser UA. NB: some CDNs still block datacenter IPs regardless —
+# see the network-allowlist note in README/SKILL if feeds 403 from a cloud run.
+UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+
 
 def norm_url(url: str) -> str:
     url = (url or "").strip()
@@ -105,7 +111,7 @@ def main():
     for src in sources:
         name = src.get("name", src.get("url"))
         try:
-            feed = feedparser.parse(src["url"])
+            feed = feedparser.parse(src["url"], agent=UA)
         except Exception as e:  # never let one bad feed kill the run
             stats[name] = {"error": str(e)}
             continue

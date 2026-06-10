@@ -175,6 +175,47 @@ nudging significance weights) are applied automatically and noted in
 in the reflection and only applied during an interactive run where the user can
 confirm — never silently in a headless run.
 
+## Adding & testing sources (anytime, not just onboarding)
+
+A source can enter three ways — **all funnel through the same validator** so a
+broken or non-feed URL never lands in `config/feeds.yaml`:
+
+1. **User asks** (in conversation, or a note in `state/feedback.md`, e.g.
+   "add Heatmap").
+2. **Skill proposes** one in `learning.md` to fill a coverage gap.
+3. **Onboarding** (first run).
+
+The gate, every time:
+
+```
+python3 scripts/validate_feeds.py <feed-url>        # known feed
+python3 scripts/validate_feeds.py --discover <site>  # find the feed for a site
+```
+
+Only `ok`/`stale` results get written to `feeds.yaml` (resolved URL + inferred
+`tags` + `tier: 2`). `blocked`/`unreachable`/`no-feed-found` are reported back,
+not added. Adding/removing sources is a structural change → confirm in an
+interactive run, never silently in a headless one.
+
+**Source health (ongoing):** roughly weekly, run `validate_feeds.py --all` and
+note any source that flipped to `stale`/`blocked` in `learning.md`. Combine with
+the `source_stats.json` yield history: a feed that is reachable but yields ~0
+kept items over many runs is a removal candidate (propose it); a feed that went
+`blocked`/`stale` is a fix-or-drop candidate.
+
+## Network gotcha (important for cloud/Routine runs)
+
+Many publishers sit behind bot-protection (Cloudflare, etc.) and some run
+environments enforce a **network allowlist**. Either can make every feed return
+HTTP 403 — the validator reports these as `blocked`. If *all* feeds fail but the
+machine otherwise has internet, it's almost always the environment, not the
+feeds:
+
+- A **local run** (residential IP) is the most permissive.
+- A **cloud Routine / CI** may need its network policy widened to allow the news
+  domains, or a permitted egress proxy. Confirm with one
+  `validate_feeds.py <known-good-url>` before blaming the source list.
+
 ## Forward-compatibility (toward the shared pool)
 
 Keep these invariants so this skill upgrades cleanly into the future append-only

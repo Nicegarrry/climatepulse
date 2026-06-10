@@ -27,13 +27,35 @@ listed options but always allow free text.
 ## 2. Build `config/feeds.yaml`
 
 Start from `config/feeds.default.yaml`. Then:
-- Keep sources whose `tags` overlap the chosen sectors/jurisdictions; you may
-  drop clearly irrelevant ones to cut noise.
-- Append any user-supplied sources (validate each looks like an RSS/Atom URL;
-  if unsure, keep it and note it for verification on first fetch).
+
+- **Always keep every `core: true` source**, regardless of sector filters — they
+  guarantee the digest is never empty for a narrow profile.
+- Of the non-core sources, **keep those whose `tags` overlap** the chosen
+  sectors/jurisdictions; drop clearly irrelevant ones to cut noise.
 - Preserve the `defaults:` block (`max_article_age_days`, `per_feed_limit`).
 
-Write the result to `config/feeds.yaml` (this takes precedence over the default).
+### Adding the user's suggested sources (validate before adding)
+
+For each source the user named, run the validator **before** writing it in:
+
+```
+# a real feed URL:
+python3 scripts/validate_feeds.py <url>
+# a website (let it discover the feed path):
+python3 scripts/validate_feeds.py --discover <site-url>
+```
+
+Then act on the reported `status`:
+
+| status | action |
+|---|---|
+| `ok` | add it — record the resolved `url`, infer `tags` from the user's interest, set `tier: 2` |
+| `stale` (no items in 30+ days) | add but flag in `state/learning.md` as low-activity; confirm with the user |
+| `no-feed-found` (from `--discover`) | tell the user no feed was found at that site; ask for the direct feed URL |
+| `blocked` / `unreachable` | do **not** silently add. If others validated fine, it's likely this site blocks the run environment (see network note); tell the user and offer to add it unvalidated for a local run |
+
+Only validated sources get appended. Write the result to `config/feeds.yaml`
+(this takes precedence over the default).
 
 ## 3. Write `state/profile.md`
 
@@ -60,6 +82,14 @@ Capture the answers as durable memory, e.g.:
 - Create `state/feedback.md` with just `# Feedback` (the drop-box the user can
   append notes to between runs).
 - Create `state/source_stats.json` as `{}`.
+
+## 4b. Health-check the final list
+
+Run `python3 scripts/validate_feeds.py --all` against the assembled
+`config/feeds.yaml`. Report a one-line summary (ok / stale / blocked counts). If
+several come back `blocked`, say so plainly — that points at the run
+environment's network allowlist, not the feeds, and the user may need to run
+locally or widen the allowlist (see README network note).
 
 ## 5. Hand off
 
