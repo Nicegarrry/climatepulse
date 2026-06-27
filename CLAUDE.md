@@ -6,7 +6,7 @@ AI-powered daily climate, energy & sustainability intelligence digest for practi
 
 - **Framework**: Next.js 16 (App Router), React 19, Tailwind 4, shadcn/ui, Framer Motion
 - **Backend**: Next.js API routes, PostgreSQL via `pg` (Supabase in prod, Docker locally), no ORM
-- **AI**: Gemini 2.5 Flash (triage/enrichment/classification) · Claude Sonnet (digest + podcast script) · Gemini TTS (audio)
+- **AI**: Gemini 3.1 Flash-lite (triage/enrichment/classification/newsroom) · Gemini 3.5 Flash (digest synthesis + podcast script) · Gemini 2.5 Flash TTS (audio). Model constants live in `src/lib/ai-models.ts`. **Claude Sonnet is NOT in the daily pipeline** — it survives only in the optional in-app intelligence/research query (`mode:"research"`) and an optional editorial path. (Stale "Sonnet" mentions remain in some `docs/claude/features/*.md` and inline comments — code is the source of truth.)
 - **Infra**: Vercel Pro (app + cron) · Supabase (auth + Postgres + pgvector) · Vercel Blob (audio) · Resend (email)
 
 ## Documentation layout
@@ -27,8 +27,8 @@ docs/claude/
 │
 ├── features/
 │   ├── pipeline.md        ← 5-phase daily pipeline (ingest → fulltext → enrich → digest → podcast)
-│   ├── digest.md          ← Phase 3 Sonnet digest, RAG priors, personalisation boosts
-│   ├── podcast.md         ← Sonnet script → Gemini TTS, archetype variants, telemetry
+│   ├── digest.md          ← Phase 3 Gemini 3.5 Flash digest, RAG priors, personalisation boosts
+│   ├── podcast.md         ← Gemini 3.5 Flash script → Gemini TTS, archetype variants, telemetry
 │   ├── newsroom.md        ← live wire-feed, dedup, classifier, push, feedback-loop hook
 │   ├── weekly.md          ← Weekly Pulse report + editorial workflow
 │   ├── learn.md           ← Learn tab + conditional retrieval router
