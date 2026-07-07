@@ -30,13 +30,14 @@ backup and restore checkpoints pass.
   - temporary external form endpoint
   - simple inbox/`mailto:` fallback
   - minimal backend table after Phase 2
+  - [NP - set up a vercel edg store with like a single table for this]
 - [ ] Confirm whether former app routes should return:
   - `404`
   - `410 Gone`
-  - redirect to `/`
+  - redirect to `/` - [NP this one]
   - maintenance page
 - [ ] Confirm deployment target:
-  - existing Vercel project
+  - existing Vercel project [NP this one]
   - separate static project
   - DNS cutover later
 

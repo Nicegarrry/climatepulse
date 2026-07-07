@@ -1,716 +1,175 @@
-/* ClimatePulse public landing — "Front Desk": a clutter-stripped, warm-paper
-   conversion funnel. One oversized forest "Sign up now" is the heaviest object
-   on every viewport; an inline live signal board carries the proof; a two-tier
-   pricing pair (free/live Founders vs greyed/inert Premium) closes.
-
-   EVERY selector is namespaced under `.cp-launchpad` (the only exceptions are
-   @media / @keyframes). A single unprefixed rule would leak into the authed app
-   and clobber the global shadcn tokens. This namespacing is non-negotiable. */
-
-.cp-launchpad {
-  /* ── Backgrounds: warm-paper palette pulled from the logo ─────────────── */
-  --bg: #F5EFE6;
-  --bg-2: #EDE6DA;
-  --bg-3: #E4DCCC;
-  --surface: #FFFFFF;
-
-  /* ── Ink: warm plum-black, matches existing system ───────────────────── */
-  --ink: #2A0E2F;
-  --ink-2: #5B3D5F;
-  --ink-3: #6E5670;   /* >=4.5:1 on every paper bg (AA) — used for muted labels + footer links */
-  --ink-4: #B4A3B0;
-
-  /* ── Rules ────────────────────────────────────────────────────────────── */
-  --rule: rgba(42, 14, 47, 0.12);
-  --rule-strong: rgba(42, 14, 47, 0.22);
-
-  /* ── Accent: ClimatePulse forest greens ──────────────────────────────── */
-  --accent: #0F4D2A;     /* italic headline word, checks, accents */
-  --accent-2: #2F7A4A;   /* primary CTA bg */
-  --accent-3: #9DC5A8;   /* sage tints */
-  --accent-tint: #E1ECDF;
-  --cta-fg: #F5EFE6;
-
-  /* ── Shadows ─────────────────────────────────────────────────────────── */
-  --shadow-sm: 0 1px 2px  rgba(42, 14, 47, 0.04);
-  --shadow-md: 0 4px 12px rgba(42, 14, 47, 0.08);
-  --shadow-lg: 0 12px 32px rgba(42, 14, 47, 0.12);
-
-  /* ── Motion ──────────────────────────────────────────────────────────── */
-  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
-
-  /* ── Type — wired from next/font in app/page.tsx ─────────────────────── */
-  --font-sans:  var(--font-inter-tight), "Inter", system-ui, -apple-system, sans-serif;
+.cp-holding {
+  --paper: #f5efe6;
+  --paper-deep: #ebe2d5;
+  --ink: #2a0e2f;
+  --ink-muted: #684d69;
+  --rule: rgba(42, 14, 47, 0.16);
+  --forest: #0f4d2a;
+  --forest-bright: #2f7a4a;
+  --error: #a93b32;
+  --font-sans: var(--font-inter-tight), "Inter", system-ui, -apple-system, sans-serif;
   --font-serif: var(--font-newsreader), "Source Serif Pro", Georgia, serif;
-  --font-mono:  var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  background: var(--bg);
+  min-height: calc(100vh / 1.125);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 38%),
+    var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
-  min-height: calc(100vh / 1.125);
-  position: relative;
-  scroll-behavior: smooth;
 }
 
-.cp-launchpad *,
-.cp-launchpad *::before,
-.cp-launchpad *::after {
+.cp-holding *,
+.cp-holding *::before,
+.cp-holding *::after {
   box-sizing: border-box;
 }
 
-.cp-launchpad section {
-  padding: 80px 40px;
-}
-
-.cp-launchpad .container {
-  max-width: 1120px;
+.cp-holding__hero {
+  width: min(100%, 1120px);
+  min-height: calc(100vh / 1.125);
   margin: 0 auto;
-}
-
-.cp-launchpad h1,
-.cp-launchpad h2,
-.cp-launchpad h3 {
-  margin: 0;
-  font-weight: 400;
-}
-
-.cp-launchpad .cp-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-/* ── Pulse dot — signature live-data indicator ───────────────────────── */
-.cp-launchpad .cp-pulse-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-2);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-2) 18%, transparent);
-  animation: cp-pulse 2.4s ease-in-out infinite;
-  vertical-align: 1px;
-}
-
-@keyframes cp-pulse {
-  0%, 100% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-2) 18%, transparent); }
-  50%      { box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent-2) 5%, transparent); }
-}
-
-/* ── Staggered entrance ──────────────────────────────────────────────── */
-@keyframes cp-rise {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: none; }
-}
-.cp-launchpad .cp-rise {
-  opacity: 0;
-  animation: cp-rise 560ms var(--ease-standard) both;
-}
-.cp-launchpad .cp-rise-1 { animation-delay: 40ms; }
-.cp-launchpad .cp-rise-2 { animation-delay: 110ms; }
-.cp-launchpad .cp-rise-3 { animation-delay: 180ms; }
-.cp-launchpad .cp-rise-4 { animation-delay: 250ms; }
-.cp-launchpad .cp-rise-5 { animation-delay: 330ms; }
-
-/* ──────────────────────────────────────────────────────────────────────
-   Top nav — logo + one Sign-up CTA
-   ────────────────────────────────────────────────────────────────────── */
-
-.cp-launchpad .pl-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 40px;
-  border-bottom: 1px solid var(--rule);
-  position: sticky;
-  top: 0;
-  background: color-mix(in oklab, var(--bg) 86%, transparent);
-  backdrop-filter: blur(8px);
-  z-index: 40;
-}
-
-.cp-launchpad .pl-top .left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 500;
-  font-size: 15px;
-  letter-spacing: -0.01em;
-}
-
-.cp-launchpad .pl-top .right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.cp-launchpad .pl-top .right .cta {
-  background: var(--accent-2);
-  color: var(--cta-fg);
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  text-decoration: none;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 200ms var(--ease-standard), transform 120ms var(--ease-standard);
-}
-.cp-launchpad .pl-top .right .cta:hover {
-  color: var(--cta-fg);
-  box-shadow: 0 6px 18px color-mix(in oklab, var(--accent-2) 28%, transparent);
-  transform: translateY(-1px);
-}
-
-/* ──────────────────────────────────────────────────────────────────────
-   Hero
-   ────────────────────────────────────────────────────────────────────── */
-
-.cp-launchpad .pl-hero {
-  padding: 80px 40px 72px;
-}
-
-.cp-launchpad .pl-hero .eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--ink-3);
-  margin-bottom: 22px;
-}
-
-.cp-launchpad .pl-hero h1 {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-size: clamp(44px, 5vw, 64px);
-  line-height: 0.98;
-  letter-spacing: -0.025em;
-  text-wrap: balance;
-  margin: 0 0 22px;
-  max-width: 20ch;
-}
-.cp-launchpad .pl-hero h1 em {
-  font-style: italic;
-  color: var(--accent);
-  font-family: var(--font-serif);
-}
-
-.cp-launchpad .pl-hero .sub {
-  font-family: var(--font-serif);
-  font-size: 19px;
-  line-height: 1.45;
-  color: var(--ink-2);
-  letter-spacing: -0.003em;
-  max-width: 52ch;
-  margin: 0 0 32px;
-  text-wrap: pretty;
-}
-
-.cp-launchpad .pl-hero .ctas {
-  display: flex;
-  gap: 22px;
-  align-items: center;
-  flex-wrap: wrap;
-  margin-bottom: 44px;
-}
-
-/* ── Shared buttons — primary is the page's heaviest object ───────────── */
-
-.cp-launchpad .btn-primary {
-  background: var(--accent-2);
-  color: var(--cta-fg);
-  border: 0;
-  height: 48px;
-  padding: 0 22px;
-  border-radius: 8px;
-  font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  text-decoration: none;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 250ms var(--ease-standard), transform 120ms var(--ease-standard);
-}
-.cp-launchpad .btn-primary:hover {
-  color: var(--cta-fg);
-  box-shadow: 0 8px 22px color-mix(in oklab, var(--accent-2) 30%, transparent);
-  transform: translateY(-1px);
-}
-.cp-launchpad .btn-primary:active { transform: scale(0.985); }
-
-/* The enlarged hero/final-CTA primary — carries a resting shadow so it reads
-   as the heaviest object before any interaction. */
-.cp-launchpad .btn-xl {
-  height: 56px;
-  padding: 0 30px;
-  font-size: 16px;
-  border-radius: 10px;
-  box-shadow: 0 6px 18px color-mix(in oklab, var(--accent-2) 26%, transparent);
-}
-.cp-launchpad .btn-xl:hover {
-  box-shadow: 0 12px 28px color-mix(in oklab, var(--accent-2) 34%, transparent);
-}
-
-.cp-launchpad .btn-ghost {
-  background: transparent;
-  border: 0;
-  color: var(--ink);
-  font-family: var(--font-sans);
-  font-size: 14.5px;
-  font-weight: 500;
-  cursor: pointer;
-  text-decoration: none;
-  border-bottom: 1px solid var(--rule);
-  padding: 6px 2px;
-  transition: border-color 250ms var(--ease-standard), color 250ms var(--ease-standard);
-}
-.cp-launchpad .btn-ghost:hover {
-  border-bottom-color: var(--accent);
-  color: var(--accent);
-}
-
-/* ──────────────────────────────────────────────────────────────────────
-   Inline live signal board — the single proof element
-   ────────────────────────────────────────────────────────────────────── */
-
-.cp-launchpad .pl-board {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: 12px;
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  max-width: 720px;
-}
-.cp-launchpad .pl-board::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--accent);
-}
-
-.cp-launchpad .pl-board-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--rule);
-}
-.cp-launchpad .pl-board-head .kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--ink-3);
-}
-.cp-launchpad .pl-board-head .full {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--accent);
-  text-decoration: none;
-  transition: gap 200ms var(--ease-standard);
-}
-.cp-launchpad .pl-board-head .full:hover { gap: 9px; }
-
-.cp-launchpad .pl-board-rows {
-  padding: 4px 20px 8px;
-}
-.cp-launchpad .pl-board-row {
+  padding: clamp(28px, 5vw, 56px);
   display: grid;
-  grid-template-columns: 30px 1fr;
-  gap: 14px;
-  padding: 18px 0;
-  border-top: 1px solid var(--rule);
-}
-/* min-width:0 lets the 1fr track shrink below its longest token so real
-   wire-feed titles/sources wrap instead of being clipped by the panel's
-   overflow:hidden. */
-.cp-launchpad .pl-board-row .body {
-  min-width: 0;
-}
-.cp-launchpad .pl-board-rows .pl-board-row:first-child {
-  border-top: 0;
-}
-.cp-launchpad .pl-board-row .rank {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 22px;
-  line-height: 1.2;
-  color: var(--accent);
-  letter-spacing: -0.02em;
-}
-.cp-launchpad .pl-board-row .chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.cp-launchpad .pl-board-row .chip {
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-2);
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  padding: 2px 8px;
-  white-space: nowrap;
-}
-.cp-launchpad .pl-board-row .sent {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  display: inline-block;
-}
-.cp-launchpad .pl-board-row .title {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 1.3;
-  color: var(--ink);
-  letter-spacing: -0.01em;
-  margin: 0;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.cp-launchpad .pl-board-row .meta {
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  color: var(--ink-3);
-  margin-top: 8px;
-  overflow-wrap: anywhere;
+  grid-template-rows: auto 1fr auto;
+  gap: clamp(28px, 5vw, 56px);
 }
 
-.cp-launchpad .pl-board-empty {
-  padding: 28px 20px 30px;
-}
-.cp-launchpad .pl-board-empty .h {
-  font-family: var(--font-serif);
-  font-size: 20px;
-  color: var(--ink);
-  margin: 0;
-}
-.cp-launchpad .pl-board-empty .s {
-  font-family: var(--font-sans);
-  font-size: 14px;
-  color: var(--ink-2);
-  margin: 8px 0 0;
-  line-height: 1.5;
+.cp-holding__brand {
+  width: min(460px, 70vw);
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   Pricing — Founders (live, free) vs Premium (greyed, inert)
-   ────────────────────────────────────────────────────────────────────── */
-
-.cp-launchpad .pl-pricing {
-  background: var(--bg-2);
-}
-
-.cp-launchpad .pl-pricing-head {
-  text-align: center;
-  margin-bottom: 40px;
-}
-.cp-launchpad .pl-pricing-head .eyebrow {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  margin-bottom: 14px;
-}
-.cp-launchpad .pl-pricing-head h2 {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-size: clamp(30px, 3.2vw, 40px);
-  line-height: 1.02;
-  letter-spacing: -0.022em;
-  color: var(--ink);
-  margin: 0;
-}
-.cp-launchpad .pl-pricing-head h2 em {
-  font-style: italic;
-  color: var(--accent);
-}
-
-.cp-launchpad .pl-price-grid {
-  display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 20px;
-  align-items: stretch;
-  max-width: 920px;
-  margin: 0 auto;
-}
-
-.cp-launchpad .pl-price-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  border-radius: 14px;
-  padding: 30px 28px;
-  background: var(--bg-3);
-  border: 1px solid var(--rule);
-}
-.cp-launchpad .pl-price-card.founders {
-  background: var(--surface);
-  box-shadow: var(--shadow-md);
-  transition: transform 250ms var(--ease-standard), box-shadow 250ms var(--ease-standard);
-}
-.cp-launchpad .pl-price-card.founders::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 14px 14px 0 0;
-}
-.cp-launchpad .pl-price-card.founders:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-}
-
-.cp-launchpad .pl-price-card .badge {
-  align-self: flex-start;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  padding: 4px 9px;
-  border-radius: 999px;
-  margin-bottom: 18px;
-}
-.cp-launchpad .pl-price-card.founders .badge {
-  background: var(--accent-tint);
-  color: var(--accent);
-}
-.cp-launchpad .cp-tier--soon .badge {
-  border: 1px solid var(--rule);
-  color: var(--ink-3);
-}
-
-.cp-launchpad .pl-price-card h3 {
-  font-family: var(--font-serif);
-  font-size: 26px;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-  margin: 0 0 6px;
-}
-.cp-launchpad .pl-price-card .price {
-  font-family: var(--font-serif);
-  font-size: 24px;
-  color: var(--ink);
-  margin: 0 0 20px;
-  letter-spacing: -0.01em;
-}
-.cp-launchpad .pl-price-card ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 26px;
-  flex: 1;
-}
-.cp-launchpad .pl-price-card li {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  font-family: var(--font-sans);
-  font-size: 14.5px;
-  line-height: 1.45;
-  color: var(--ink-2);
-  padding: 7px 0;
-}
-.cp-launchpad .pl-price-card .ico {
-  width: 19px;
-  height: 19px;
-  flex-shrink: 0;
-  margin-top: 1px;
-  stroke-width: 2;
-}
-.cp-launchpad .pl-price-card.founders .ico { color: var(--accent); }
-.cp-launchpad .cp-tier--soon .ico { color: var(--ink-4); }
-
-.cp-launchpad .pl-price-card .card-cta {
+.cp-holding__logo {
+  display: block;
   width: 100%;
-}
-.cp-launchpad .pl-price-card .card-cta.soon {
-  height: 48px;
-  border-radius: 8px;
-  background: var(--bg-2);
-  color: var(--ink-3);
-  border: 1px solid var(--rule);
-  font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: not-allowed;
+  height: auto;
 }
 
-/* Premium tier is deliberately recessive and non-interactive. */
-.cp-launchpad .cp-tier--soon {
-  opacity: 0.55;
-  filter: grayscale(0.35);
-  pointer-events: none;
+.cp-holding__copy {
+  align-self: center;
+  width: min(780px, 100%);
 }
 
-.cp-launchpad .pl-pricing-note {
-  text-align: center;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  color: var(--ink-3);
-  margin: 26px auto 0;
-  max-width: 46ch;
-  line-height: 1.5;
-}
-
-/* ──────────────────────────────────────────────────────────────────────
-   Final CTA
-   ────────────────────────────────────────────────────────────────────── */
-
-.cp-launchpad .pl-cta {
-  background: var(--bg);
-  text-align: center;
-  border-top: 1px solid var(--rule);
-}
-
-.cp-launchpad .pl-cta h2 {
+.cp-holding h1 {
+  margin: 0;
   font-family: var(--font-serif);
+  font-size: clamp(32px, 4.2vw, 58px);
   font-weight: 400;
-  font-size: clamp(32px, 3.4vw, 44px);
-  line-height: 1.02;
-  letter-spacing: -0.022em;
-  margin: 0 auto 18px;
-  max-width: 18ch;
-  color: var(--ink);
+  line-height: 1.04;
+  letter-spacing: 0;
   text-wrap: balance;
 }
-.cp-launchpad .pl-cta h2 em {
-  font-style: italic;
-  color: var(--accent);
+
+.cp-holding__form {
+  width: min(640px, 100%);
+  margin-top: clamp(30px, 4vw, 44px);
 }
 
-.cp-launchpad .pl-cta p {
-  font-family: var(--font-sans);
-  font-size: 16px;
-  color: var(--ink-2);
-  max-width: 46ch;
-  margin: 0 auto 30px;
-  line-height: 1.55;
-  letter-spacing: -0.003em;
+.cp-holding__label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-muted);
 }
 
-.cp-launchpad .pl-cta .ctas {
-  display: flex;
-  gap: 22px;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
+.cp-holding__capture {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
 }
 
-.cp-launchpad .pl-cta .stamp {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--ink-3);
-  margin-top: 22px;
-  letter-spacing: 0.06em;
+.cp-holding__capture input {
+  min-width: 0;
+  height: 52px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--ink);
+  font: 500 16px/1 var(--font-sans);
+  padding: 0 16px;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(42, 14, 47, 0.04);
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   Footer
-   ────────────────────────────────────────────────────────────────────── */
+.cp-holding__capture input::placeholder {
+  color: rgba(104, 77, 105, 0.62);
+}
 
-.cp-launchpad .pl-foot {
-  padding: 32px 40px;
-  border-top: 1px solid var(--rule);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink-3);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.cp-holding__capture input:focus {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 3px rgba(47, 122, 74, 0.14);
 }
-.cp-launchpad .pl-foot .links {
-  display: flex;
-  gap: 22px;
-  align-items: center;
+
+.cp-holding__capture button {
+  height: 52px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--forest-bright);
+  color: var(--paper);
+  cursor: pointer;
+  font: 700 15px/1 var(--font-sans);
+  padding: 0 22px;
+  white-space: nowrap;
+  box-shadow: 0 8px 22px rgba(47, 122, 74, 0.22);
 }
-.cp-launchpad .pl-foot a {
-  color: inherit;
+
+.cp-holding__capture button:hover:not(:disabled) {
+  background: var(--forest);
+}
+
+.cp-holding__capture button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.cp-holding__status {
+  min-height: 22px;
+  margin: 14px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cp-holding__status--success {
+  color: var(--forest);
+}
+
+.cp-holding__status--error {
+  color: var(--error);
+}
+
+.cp-holding__contact {
+  justify-self: start;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
   text-decoration: none;
-  transition: color 200ms var(--ease-standard);
+  border-bottom: 1px solid var(--rule);
 }
-.cp-launchpad .pl-foot a:hover { color: var(--ink); }
 
-/* ──────────────────────────────────────────────────────────────────────
-   Responsive
-   ────────────────────────────────────────────────────────────────────── */
-
-@media (max-width: 880px) {
-  .cp-launchpad section { padding: 64px 22px; }
-  .cp-launchpad .pl-top { padding: 14px 22px; }
-  .cp-launchpad .pl-hero { padding: 56px 22px 52px; }
-  .cp-launchpad .pl-price-grid { grid-template-columns: 1fr; }
-  .cp-launchpad .pl-foot { padding: 24px 22px; flex-direction: column; gap: 10px; }
+.cp-holding__contact:hover {
+  color: var(--ink);
 }
 
 @media (max-width: 640px) {
-  .cp-launchpad .pl-hero h1 { max-width: none; }
-  .cp-launchpad .pl-hero .ctas { gap: 16px; }
-  .cp-launchpad .pl-hero .ctas .btn-primary { width: 100%; }
-  .cp-launchpad .pl-cta .ctas .btn-primary { width: 100%; }
-}
-
-/* ──────────────────────────────────────────────────────────────────────
-   Reduced motion — strip entrance/count-up motion, keep content visible
-   ────────────────────────────────────────────────────────────────────── */
-
-@media (prefers-reduced-motion: reduce) {
-  .cp-launchpad *,
-  .cp-launchpad *::before,
-  .cp-launchpad *::after {
-    animation-duration: 0.01ms !important;
-    animation-delay: 0ms !important;
-    transition-duration: 0.01ms !important;
+  .cp-holding__hero {
+    padding: 24px 20px 28px;
   }
-  .cp-launchpad .cp-rise {
-    opacity: 1 !important;
-    transform: none !important;
+
+  .cp-holding__brand {
+    width: min(320px, 78vw);
   }
-  .cp-launchpad .cp-pulse-dot {
-    animation: none !important;
+
+  .cp-holding h1 {
+    font-size: clamp(30px, 10vw, 42px);
+    line-height: 1.05;
+  }
+
+  .cp-holding__capture {
+    grid-template-columns: 1fr;
+  }
+
+  .cp-holding__capture button {
+    width: 100%;
   }
 }
