@@ -1,18 +1,6 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { unstable_cache } from "next/cache";
 import { Inter_Tight, Newsreader, JetBrains_Mono } from "next/font/google";
 import { Landing } from "@/components/landing/landing";
-import { getPublicDigest } from "@/lib/digest/public-digest";
-
-// The landing can't ISR (it reads the cp_returning cookie and renders
-// dynamically), so cache the read-only board query for 10 min to stop a
-// traffic spike from hammering the DB on every public hit. getPublicDigest
-// swallows DB errors to an empty board, so this stays safe if the DB is down.
-const getCachedDigest = unstable_cache(getPublicDigest, ["landing-public-digest"], {
-  revalidate: 600,
-});
 
 const interTight = Inter_Tight({
   subsets: ["latin"],
@@ -37,32 +25,30 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClimatePulse — The daily brief for Australia's energy transition",
-  description:
-    "ClimatePulse reads the policy drops, market moves, and project news shaping Australia's energy transition — then sends you only what matters. Built by someone who's worked inside it.",
+  title: "Climate Pulse",
+  description: "Climate Pulse is paused while we prepare what comes next.",
   openGraph: {
-    title: "ClimatePulse — The daily brief for Australia's energy transition",
-    description:
-      "Personalised daily climate & energy intelligence for Australian investors, analysts, and policy professionals. Five-minute read, delivered before 6am AEST.",
+    title: "Climate Pulse",
+    description: "Climate Pulse is paused while we prepare what comes next.",
     type: "website",
   },
 };
 
-export default async function Home() {
-  // Returning users (cookie set at /auth/callback) skip the landing entirely.
-  // If their session is gone, /launchpad will bounce them to /login.
-  const cookieStore = await cookies();
-  if (cookieStore.get("cp_returning")?.value === "1") {
-    redirect("/launchpad");
-  }
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-  // Real, server-rendered proof: the top live signals power the hero board and
-  // the count-up eyebrow. Zero client fetch, zero per-visitor AI cost.
-  const { stories, signals_tracked } = await getCachedDigest();
+function getCaptureStatus(value: string | string[] | undefined) {
+  const status = Array.isArray(value) ? value[0] : value;
+  if (status === "success" || status === "error") return status;
+  return "idle";
+}
+
+export default async function Home({ searchParams }: { searchParams?: SearchParams }) {
+  const params = searchParams ? await searchParams : {};
+  const captureStatus = getCaptureStatus(params.capture);
 
   return (
     <div className={`${interTight.variable} ${newsreader.variable} ${jetbrainsMono.variable}`}>
-      <Landing topStories={stories.slice(0, 3)} signalsTracked={signals_tracked} />
+      <Landing initialStatus={captureStatus} />
     </div>
   );
 }

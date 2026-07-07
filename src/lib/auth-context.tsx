@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -65,12 +65,22 @@ async function fetchProfile(supabaseUser: SupabaseUser): Promise<AuthUser | null
 // ─── Provider ──────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const authDisabled = pathname === "/";
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!authDisabled);
   const router = useRouter();
 
   // Initial session check + auth state listener
   useEffect(() => {
+    if (authDisabled) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+
     const supabase = createClient();
     let mounted = true;
 
@@ -115,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       subscription.subscription.unsubscribe();
     };
-  }, []);
+  }, [authDisabled]);
 
   const login = useCallback(async (email: string): Promise<{ ok: boolean; error?: string }> => {
     const supabase = createClient();

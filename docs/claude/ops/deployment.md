@@ -43,7 +43,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=          # Server-only — bypasses RLS, never expose
 
 # ─── Storage + Cron + Push ───────────────────────────────────────────────
-BLOB_READ_WRITE_TOKEN=              # Auto-provisioned by Vercel Blob store link
+BLOB_READ_WRITE_TOKEN=              # Auto-provisioned by Vercel Blob store link; Phase 1 signup capture uses shutdown-interest/*.json
 CRON_SECRET=                        # Bearer token required by all cron routes
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
@@ -51,6 +51,12 @@ VAPID_SUBJECT=                      # mailto:ops@climatepulse.app
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=       # Same as VAPID_PUBLIC_KEY, exposed for browser subscribe
 NEXT_PUBLIC_APP_URL=                # e.g. https://climatepulse.app (used in push payload `url`)
 ```
+
+During Phase 1 shutdown, the public route only needs `BLOB_READ_WRITE_TOKEN` for
+email capture. Keep this attached to a **private** Vercel Blob store; the app
+writes one JSON object per submission under `shutdown-interest/YYYY-MM-DD/`.
+Do not store signup emails in Edge Config; it is for low-latency configuration
+reads, not append-only PII capture.
 
 Newsroom gracefully no-ops on push when VAPID vars are missing — the feature still works in dev without them; only urgency-5 dispatch is skipped (intent is logged to `newsroom_push_log` for audit either way).
 
@@ -68,4 +74,7 @@ Newsroom gracefully no-ops on push when VAPID vars are missing — the feature s
 
 ## Cron count
 
-Vercel Pro caps cron schedules. Current count includes the 5 pipeline routes, 2 newsroom (AEST + AEDT), markets, and weekly. Check `vercel.json` before adding a new cron — if you're near the ceiling you'll need to consolidate or move a step to a worker pattern.
+Vercel Pro caps cron schedules. During Phase 1 shutdown, `vercel.json` keeps
+`crons` empty so no pipeline, newsroom, weekly, markets, or scraper schedules
+run. The historical schedules are documented in `ops/crons.md` for archive and
+restore reference only.

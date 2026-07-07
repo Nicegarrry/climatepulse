@@ -1,5 +1,13 @@
 # Cron Schedule
 
+**Phase 1 shutdown status:** production cron execution is intentionally disabled.
+`vercel.json` now contains an empty `crons` array, so the legacy pipeline,
+newsroom, weekly, markets, and scraper routes are not scheduled by Vercel.
+
+The schedule below is retained only as historical reference for archive and
+restore work. Do not re-enable these entries until Climate Pulse is explicitly
+reactivated.
+
 All times UTC. Sydney offset: 05:00 AEST = 19:00 UTC (AEDT is +11, so summer schedules run an hour earlier local).
 
 ## Daily pipeline (19:00 UTC block)
