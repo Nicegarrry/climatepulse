@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SHUTDOWN_BLOB_TOKEN_ENV = "SHUTDOWN_READ_WRITE_TOKEN";
 
 function wantsJson(request: Request) {
   return (
@@ -37,6 +38,11 @@ async function digestEmail(email: string) {
 
 export async function POST(request: Request) {
   try {
+    const shutdownBlobToken = process.env.SHUTDOWN_READ_WRITE_TOKEN;
+    if (!shutdownBlobToken) {
+      throw new Error(`${SHUTDOWN_BLOB_TOKEN_ENV} is not configured`);
+    }
+
     const formData = await request.formData();
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
 
@@ -70,6 +76,7 @@ export async function POST(request: Request) {
         access: "private",
         contentType: "application/json",
         addRandomSuffix: false,
+        token: shutdownBlobToken,
       }
     );
 

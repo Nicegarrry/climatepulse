@@ -21,7 +21,7 @@ Concentrate surprises here. When you learn something non-obvious, add a bullet (
 
 - DO NOT re-add `ON CONFLICT (briefing_date, user_id)` to `savePodcastEpisode`. The unique constraint was dropped by `migrate-podcast-evolution.sql`; replacement `idx_podcast_episodes_variant_uniq` is an expression index over `COALESCE(...)` that Postgres won't accept as an `ON CONFLICT` target. Guard with a `SELECT` before insert. See [`features/podcast.md`](features/podcast.md).
 - DO NOT fire interact events from progress-bar scrub drags — only from explicit skip controls. Scrubs flood `user_podcast_interactions`.
-- If `BLOB_READ_WRITE_TOKEN` disappears, prod will fail with ENOENT — Vercel `/var/task` is read-only outside `/tmp`. Check `vercel env ls | grep BLOB`.
+- If `BLOB_READ_WRITE_TOKEN` disappears, prod will fail with ENOENT — Vercel `/var/task` is read-only outside `/tmp`. Keep it on the public `climatepulse-blob` store for audio/admin uploads; shutdown signup capture uses the separate private `SHUTDOWN_READ_WRITE_TOKEN`. Check `vercel env ls | grep -E 'BLOB|SHUTDOWN'`.
 
 ## Newsroom
 

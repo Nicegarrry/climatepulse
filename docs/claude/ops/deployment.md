@@ -6,7 +6,8 @@ Prod has been on Vercel Pro since 2026-04-17. Assume production constraints on a
 
 - **App + cron**: Vercel Pro (project `climatepulse`)
 - **Auth + Postgres + pgvector**: Supabase (project `sixyxxuvplvpjcnkthed`)
-- **Audio**: Vercel Blob store `climatepulse-blob`
+- **Audio**: public Vercel Blob store `climatepulse-blob`
+- **Shutdown signup capture**: private Vercel Blob store `climatepulse-shutdown-interest`
 - **Email**: Resend
 
 Custom domains: `climatepulse.app` (prod), `climatepulse-iota.vercel.app` (staging).
@@ -43,7 +44,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=          # Server-only — bypasses RLS, never expose
 
 # ─── Storage + Cron + Push ───────────────────────────────────────────────
-BLOB_READ_WRITE_TOKEN=              # Auto-provisioned by Vercel Blob store link; Phase 1 signup capture uses shutdown-interest/*.json
+BLOB_READ_WRITE_TOKEN=              # Auto-provisioned by public Vercel Blob store link; used by audio/admin upload paths
+SHUTDOWN_READ_WRITE_TOKEN=          # Private Vercel Blob token for Phase 1 signup capture under shutdown-interest/*.json
 CRON_SECRET=                        # Bearer token required by all cron routes
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
@@ -52,9 +54,12 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=       # Same as VAPID_PUBLIC_KEY, exposed for brow
 NEXT_PUBLIC_APP_URL=                # e.g. https://climatepulse.app (used in push payload `url`)
 ```
 
-During Phase 1 shutdown, the public route only needs `BLOB_READ_WRITE_TOKEN` for
-email capture. Keep this attached to a **private** Vercel Blob store; the app
-writes one JSON object per submission under `shutdown-interest/YYYY-MM-DD/`.
+During Phase 1 shutdown, the public route needs
+`SHUTDOWN_READ_WRITE_TOKEN` for email capture. Keep this attached to a
+**private** Vercel Blob store; the app writes one JSON object per submission
+under `shutdown-interest/YYYY-MM-DD/`. Do not point `BLOB_READ_WRITE_TOKEN` at
+the private shutdown store because podcast/audio and admin upload paths still
+use the public `climatepulse-blob` store.
 Do not store signup emails in Edge Config; it is for low-latency configuration
 reads, not append-only PII capture.
 
