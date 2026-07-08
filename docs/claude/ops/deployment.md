@@ -63,6 +63,10 @@ use the public `climatepulse-blob` store.
 Do not store signup emails in Edge Config; it is for low-latency configuration
 reads, not append-only PII capture.
 
+All other `/api/*` routes are short-circuited by `src/proxy.ts` with a `503`
+shutdown JSON response so old product clients, manual cron triggers, and saved
+bookmarks cannot invoke the historical pipeline/API handlers during shutdown.
+
 Newsroom gracefully no-ops on push when VAPID vars are missing — the feature still works in dev without them; only urgency-5 dispatch is skipped (intent is logged to `newsroom_push_log` for audit either way).
 
 ## Local dev

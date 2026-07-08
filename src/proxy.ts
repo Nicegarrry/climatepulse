@@ -11,9 +11,30 @@ function isAllowedDuringShutdown(pathname: string) {
   return false;
 }
 
+function isApiRoute(pathname: string) {
+  return pathname === "/api" || pathname.startsWith("/api/");
+}
+
 export function proxy(request: NextRequest) {
   if (isAllowedDuringShutdown(request.nextUrl.pathname)) {
     return NextResponse.next();
+  }
+
+  if (isApiRoute(request.nextUrl.pathname)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Climate Pulse API routes are paused during shutdown.",
+      },
+      {
+        status: 503,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": "86400",
+          "X-ClimatePulse-Shutdown": "true",
+        },
+      }
+    );
   }
 
   const url = request.nextUrl.clone();
